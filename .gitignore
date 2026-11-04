@@ -1,0 +1,24 @@
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+.env
+.env.*
+!.env.example
+.DS_Store
+
+# The web console's dependencies and build; the image builds it into aios/web/static
+node_modules/
+/web/dist/
+*.tsbuildinfo
+/aios/web/static/
+
+# Runtime data never lives in the repo (AIOS_DATA_DIR, default /data)
+/var/
+/data/
+# Left over from v1, which kept logs and sessions here
+/state/
+
+# Written by ai-os from skills/ and the console (a link into /data in the image)
+/.claude/skills

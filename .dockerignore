@@ -1,0 +1,15 @@
+.git
+.venv
+.pytest_cache
+.ruff_cache
+**/__pycache__
+.env
+.env.*
+state
+var
+data
+tests
+node_modules
+web/dist
+aios/web/static
+.claude/skills

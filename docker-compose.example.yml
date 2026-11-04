@@ -1,0 +1,31 @@
+# A starting point: `docker compose -f docker-compose.example.yml up -d --build`.
+# Put a login proxy in front before anyone else can reach port 8080 (see README).
+services:
+  ai-os:
+    build: .
+    container_name: ai-os
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      AIOS_DATA_DIR: /data
+      AIOS_LOG_LEVEL: INFO
+    volumes:
+      - ./data:/data
+      # A notes vault for the second-brain agent; also add /vault to files.write_roots.
+      # - /path/to/your/vault:/vault
+    ports:
+      # Loopback only: reach it through your proxy, or directly on this machine.
+      - "127.0.0.1:8080:8080"
+
+  # Signal as a sender: pair once with the QR code of signal-cli-rest-api, then set
+  # SIGNAL_API_URL=http://signal-api:8080 and SIGNAL_SENDER in .env.
+  # signal-api:
+  #   image: bbernhard/signal-cli-rest-api:0.100
+  #   restart: unless-stopped
+  #   environment:
+  #     MODE: json-rpc
+  #   volumes:
+  #     - signal-data:/home/.local/share/signal-cli
+
+# volumes:
+#   signal-data:

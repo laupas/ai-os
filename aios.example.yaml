@@ -1,0 +1,72 @@
+# ai-os configuration. Copy to <data>/config.yaml before the first start: it is then
+# moved into the configuration repository as aios.yaml and edited on the console's
+# Settings page. Secrets never go here (this file ends up in git): they are
+# environment variables, or Variables set in the console.
+
+channels: [web]          # web, slack, cli (cli only when run in a terminal)
+senders: []              # signal, mail
+timezone: Europe/Zurich
+
+# Created once, while there are no users. Gets the owner role (and the local CLI).
+owner:
+  name: Alex
+  accounts:
+    - {channel: web, address: alex@example.com}     # the address the login proxy reports
+    # - {channel: slack, address: U0123ABCDEF}
+    # - {channel: signal, address: "+15551234567"}
+
+# The web console. It trusts a login proxy in front of it; pick one way below.
+web:
+  enabled: true
+  port: 8080
+  # public_url: https://ai-os.example.com    # for OAuth redirects, if not the request's host
+  auth:
+    # On your own machine only: every request is this user.
+    mode: dev
+    dev_email: alex@example.com
+
+    # Cloudflare Access (Zero Trust): the application's AUD tag and your team domain.
+    # mode: cloudflare
+    # team_domain: example.cloudflareaccess.com
+    # audience: 0123abcd…
+
+    # Any proxy that forwards a signed token (oauth2-proxy, Authentik, Pomerium, …).
+    # mode: jwt
+    # header: X-Forwarded-Access-Token
+    # jwks_url: https://auth.example.com/.well-known/jwks.json
+    # issuer: https://auth.example.com
+    # audience: ai-os
+
+    # A proxy that forwards the address as a plain header (Authelia, Traefik
+    # forward-auth, …). Believed only from the proxy's address and/or with a secret.
+    # mode: header
+    # header: Remote-Email
+    # trusted_proxies: [172.18.0.0/16]
+    # secret_env: AIOS_PROXY_SECRET        # the name of an environment variable
+
+# The file tools reach these folders and nothing else (e.g. a notes vault).
+files:
+  read_roots: []
+  write_roots: []        # e.g. [/vault]
+
+approval:
+  timeout_seconds: 1800
+  always: []             # tools that always need a human's yes, e.g. [WebFetch]
+  deny: []               # tools never allowed, e.g. [mcp__gmail__send_email]
+
+agent:
+  model: null            # null = Claude Code's default
+  # The most any agent may get; each agent's own tools are set on the Agents page.
+  builtin_tools: [Task, Skill, WebSearch, WebFetch, TodoWrite, Read, Grep, Glob, Edit, Write]
+  turn_timeout_seconds: 600
+
+scheduler:
+  enabled: true
+
+# Optional: what agents may do with a collection of stored data (none | read | write).
+collection_access: {}
+
+# Optional: MCP servers, copied into the console's Connectors on the first start.
+# ${VAR} is filled in from the environment (or a Variable) when a server starts.
+# mcp_servers:
+#   gcal: {command: npx, args: ["-y", "@cocal/google-calendar-mcp"]}
