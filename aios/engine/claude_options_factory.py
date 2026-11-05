@@ -9,6 +9,7 @@ from aios.connectors.connector_catalog import ConnectorCatalog
 from aios.engine.agent_definitions_builder import AgentDefinitionsBuilder
 from aios.engine.system_prompt_builder import SystemPromptBuilder
 from aios.engine.tool_permission_gate import ToolPermissionGate
+from aios.engine.turn_deadline import TurnDeadline
 from aios.engine.turn_request import TurnRequest
 from aios.tools.aios_tool_server import AiosToolServer
 from aios.tools.tool_context import ToolContext
@@ -46,7 +47,9 @@ class ClaudeOptionsFactory:
         self._connectors = connectors
         self._definitions = definitions
 
-    def create(self, request: TurnRequest, resume: str | None) -> ClaudeAgentOptions:
+    def create(
+        self, request: TurnRequest, resume: str | None, deadline: TurnDeadline | None = None
+    ) -> ClaudeAgentOptions:
         context = ToolContext(
             conversation_id=request.conversation.id, user=request.user, binding=request.binding
         )
@@ -68,7 +71,7 @@ class ClaudeOptionsFactory:
             # Only our servers: never MCP connectors of whichever account runs this.
             strict_mcp_config=True,
             hooks=tracker.hooks(),  # type: ignore[arg-type]
-            can_use_tool=self._gate.for_context(context, tracker),
+            can_use_tool=self._gate.for_context(context, tracker, deadline),
             permission_mode="default",
             resume=resume,
             model=main.model or self._config.model,

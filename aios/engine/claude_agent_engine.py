@@ -8,6 +8,7 @@ from aios.engine.agent_engine import AgentEngine, ProgressCallback, TextCallback
 from aios.engine.claude_options_factory import ClaudeOptionsFactory
 from aios.engine.progress_stream_mapper import ProgressStreamMapper
 from aios.engine.text_stream_mapper import TextStreamMapper
+from aios.engine.turn_deadline import TurnDeadline
 from aios.engine.turn_request import TurnRequest
 from aios.engine.turn_result import TurnResult
 
@@ -68,10 +69,11 @@ class ClaudeAgentEngine(AgentEngine):
         on_progress: ProgressCallback,
         on_text: TextCallback | None,
     ) -> TurnResult:
-        options = self._options.create(request, resume)
+        deadline = TurnDeadline(self._timeout)
+        options = self._options.create(request, resume, deadline)
         result: ResultMessage | None = None
-        async with asyncio.timeout(self._timeout):
-            async with ClaudeSDKClient(options=options) as client:
+        try:
+            async with deadline.running(), ClaudeSDKClient(options=options) as client:
                 await client.query(request.text)
                 async for message in client.receive_response():
                     if (
@@ -86,6 +88,11 @@ class ClaudeAgentEngine(AgentEngine):
                         await on_text(delta)
                     if isinstance(message, ResultMessage):
                         result = message
+        except TimeoutError as exc:
+            minutes = round(self._timeout / 60)
+            raise TimeoutError(
+                f"the agent worked for more than {minutes} minutes and was stopped"
+            ) from exc
         if result is None:
             raise RuntimeError("the agent ended without a result")
         if result.is_error:

@@ -1,3 +1,4 @@
+from contextlib import nullcontext
 from typing import Any
 
 from claude_agent_sdk import (
@@ -12,6 +13,7 @@ from aios.approvals.approval_policy import ApprovalPolicy
 from aios.approvals.approval_service import ApprovalService
 from aios.approvals.policy_verdict import PolicyVerdict
 from aios.approvals.tool_call import ToolCall
+from aios.engine.turn_deadline import TurnDeadline
 from aios.tools.tool_context import ToolContext
 
 YES, NO = "Yes", "No"
@@ -21,14 +23,17 @@ class ToolPermissionGate:
     """The SDK's `can_use_tool` hook: every tool call is decided here, in code.
 
     No tool is pre-allowed in the SDK options, so nothing bypasses this. The tracker
-    names the agent making the call, so the policy can hold it to its grants.
+    names the agent making the call, so the policy can hold it to its grants. While
+    a human is asked, the turn's deadline stands still.
     """
 
     def __init__(self, policy: ApprovalPolicy, approvals: ApprovalService) -> None:
         self._policy = policy
         self._approvals = approvals
 
-    def for_context(self, context: ToolContext, tracker: AgentTracker) -> CanUseTool:
+    def for_context(
+        self, context: ToolContext, tracker: AgentTracker, deadline: TurnDeadline | None = None
+    ) -> CanUseTool:
         async def check(
             tool_name: str, tool_input: dict[str, Any], permission: ToolPermissionContext
         ) -> PermissionResultAllow | PermissionResultDeny:
@@ -45,13 +50,14 @@ class ToolPermissionGate:
                 return PermissionResultAllow(updated_input=tool_input)
             if decision.verdict is PolicyVerdict.DENY:
                 return PermissionResultDeny(message=decision.reason)
-            answer = await self._approvals.request(
-                context.conversation_id,
-                context.binding,
-                decision.question,
-                [YES, NO],
-                decision.approver_permission,
-            )
+            async with deadline.waiting() if deadline is not None else nullcontext():
+                answer = await self._approvals.request(
+                    context.conversation_id,
+                    context.binding,
+                    decision.question,
+                    [YES, NO],
+                    decision.approver_permission,
+                )
             if answer == YES:
                 return PermissionResultAllow(updated_input=tool_input)
             reason = (

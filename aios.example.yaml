@@ -50,7 +50,7 @@ files:
   write_roots: []        # e.g. [/vault]
 
 approval:
-  timeout_seconds: 1800
+  timeout_seconds: 86400  # an unanswered approval counts as No after this long
   always: []             # tools that always need a human's yes, e.g. [WebFetch]
   deny: []               # tools never allowed, e.g. [mcp__gmail__send_email]
 
@@ -58,7 +58,7 @@ agent:
   model: null            # null = Claude Code's default
   # The most any agent may get; each agent's own tools are set on the Agents page.
   builtin_tools: [Task, Skill, WebSearch, WebFetch, TodoWrite, Read, Grep, Glob, Edit, Write]
-  turn_timeout_seconds: 600
+  turn_timeout_seconds: 600  # the agent's own work; time waiting for an approval does not count
 
 scheduler:
   enabled: true
