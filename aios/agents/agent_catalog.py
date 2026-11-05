@@ -12,12 +12,15 @@ AGENTS_PLACEHOLDER = "{{agents}}"
 class AgentCatalog:
     """Every agent. The orchestrator is the main thread of a turn unless the
     conversation was started with another agent; the others are what it may
-    delegate to. Fixed agents are features of ai-os (schedules, memories, messages),
-    so they can be edited but never disabled or deleted.
+    delegate to. Fixed agents are features of ai-os (schedules, memories, messages,
+    configuration),
+    so they can be edited but never disabled or deleted. The configurator is the
+    only agent that may change agents, skills and connectors.
     """
 
     ORCHESTRATOR = "orchestrator"
-    FIXED = frozenset({ORCHESTRATOR, "scheduler", "memory", "messenger"})
+    CONFIGURATOR = "ai-os-configurator"
+    FIXED = frozenset({ORCHESTRATOR, CONFIGURATOR, "scheduler", "memory", "messenger"})
 
     def __init__(self, agents: Collection[Agent]) -> None:
         self._agents = agents

@@ -102,6 +102,9 @@ class ApplicationContainer(containers.DeclarativeContainer):
         trader=crypto.trader,
         trade_guard=crypto.guard,
         log_reader=log_reader,
+        agents=storage.agents,
+        skills=storage.skills,
+        connectors=storage.connectors,
     )
     variables = providers.Container(
         VariablesContainer,

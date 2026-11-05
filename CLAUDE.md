@@ -42,6 +42,9 @@ Read `README.md` for what ai-os is. This file is the rules for changing it.
 - The `agents`, `skills` and `connectors` collections are `AgentAccess.NONE` and deliberately
   not subject to `collection_access`: an agent that could write them could grant
   itself anything.
+  The only way in is the `config_*` tools, which `ConfigChangeApprovalRule` keeps to
+  the fixed `ai-os-configurator` agent, whatever an agent was granted, and which ask
+  an administrator before every save or delete. Never relax either half.
 - A granted connector tool is still subject to approvals; its write tools belong in
   `approval.always` or `approval.deny`.
 - Trading limits live in `TradeLimits` and are checked again right before every

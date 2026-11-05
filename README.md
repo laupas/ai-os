@@ -108,8 +108,9 @@ nobody able to administer ai-os.
 The orchestrator answers every turn and delegates to the enabled agents. Each agent is
 a prompt plus what it may use: built-in tools, skills, connectors and which of their
 tools. Edit them on the **Agents** page, add your own, switch them off. `orchestrator`,
-`scheduler`, `memory` and `messenger` are fixed: editable, never off or deleted. A
-prompt may contain `{{agents}}`, replaced on every turn by the enabled agents.
+`ai-os-configurator`, `scheduler`, `memory` and `messenger` are fixed: editable, never
+off or deleted. A prompt may contain `{{agents}}`, replaced on every turn by the
+enabled agents.
 
 The grants are enforced in code: `AgentGrantRule` refuses any tool, connector or
 delegation the calling agent was not granted, before any approval is asked.
@@ -132,6 +133,7 @@ Agents that ship with ai-os (a seed: edit or delete them freely):
 | `crypto-trader` | Kraken orders and balance, always approved, hard limits in code | `KRAKEN_API_KEY/SECRET` |
 | `memory` | remembers and recalls | none |
 | `scheduler` | creates and manages schedules and reminders | none |
+| `ai-os-configurator` | creates and changes agents, skills, connectors and schedules from a chat; every change is approved by an administrator | none |
 | `second-brain` | searches and writes a notes vault mounted at `/vault` | `files.write_roots: [/vault]` |
 | `log-checker` | ai-os's own errors and warnings | none |
 

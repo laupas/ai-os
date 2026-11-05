@@ -1,8 +1,16 @@
 from dependency_injector import containers, providers
 
+from aios.agents.agent_catalog import AgentCatalog
+from aios.agents.skill_catalog import SkillCatalog
 from aios.tools.aios_tool_server import AiosToolServer
 from aios.tools.ask_human_tool import AskHumanTool
 from aios.tools.collection_access_guard import CollectionAccessGuard
+from aios.tools.config_change_approval_rule import ConfigChangeApprovalRule
+from aios.tools.config_delete_tool import ConfigDeleteTool
+from aios.tools.config_editor import ConfigEditor
+from aios.tools.config_get_tool import ConfigGetTool
+from aios.tools.config_list_tool import ConfigListTool
+from aios.tools.config_put_tool import ConfigPutTool
 from aios.tools.crypto_balance_tool import CryptoBalanceTool
 from aios.tools.crypto_quote_tool import CryptoQuoteTool
 from aios.tools.crypto_signal_tool import CryptoSignalTool
@@ -35,6 +43,9 @@ class ToolsContainer(containers.DeclarativeContainer):
     trader = providers.Dependency()
     trade_guard = providers.Dependency()
     log_reader = providers.Dependency()
+    agents = providers.Dependency()
+    skills = providers.Dependency()
+    connectors = providers.Dependency()
 
     guard = providers.Singleton(CollectionAccessGuard, registry=registry)
 
@@ -47,6 +58,18 @@ class ToolsContainer(containers.DeclarativeContainer):
     data_get = providers.Singleton(DataGetTool, guard=guard)
     data_put = providers.Singleton(DataPutTool, guard=guard, ids=ids)
     data_delete = providers.Singleton(DataDeleteTool, guard=guard)
+    # Its own catalogs over the collections: the agents container needs the tool
+    # names first, so it cannot hand its catalogs in here.
+    config_editor = providers.Singleton(
+        ConfigEditor,
+        agents=providers.Singleton(AgentCatalog, agents=agents),
+        skills=providers.Singleton(SkillCatalog, skills=skills),
+        connectors=connectors,
+    )
+    config_list = providers.Singleton(ConfigListTool, editor=config_editor)
+    config_get = providers.Singleton(ConfigGetTool, editor=config_editor)
+    config_put = providers.Singleton(ConfigPutTool, editor=config_editor)
+    config_delete = providers.Singleton(ConfigDeleteTool, editor=config_editor)
     crypto_signal = providers.Singleton(CryptoSignalTool, signals=crypto_signals)
     crypto_quote = providers.Singleton(CryptoQuoteTool, trader=trader)
     crypto_trade = providers.Singleton(CryptoTradeTool, trader=trader)
@@ -63,6 +86,10 @@ class ToolsContainer(containers.DeclarativeContainer):
             data_get,
             data_put,
             data_delete,
+            config_list,
+            config_get,
+            config_put,
+            config_delete,
             crypto_signal,
             crypto_quote,
             crypto_trade,
@@ -74,5 +101,6 @@ class ToolsContainer(containers.DeclarativeContainer):
     approval_rules = providers.List(
         providers.Singleton(SendMessageApprovalRule, users=users, authorizer=authorizer),
         providers.Singleton(DataAccessApprovalRule, registry=registry),
+        providers.Singleton(ConfigChangeApprovalRule),
         providers.Singleton(CryptoTradeApprovalRule, guard=trade_guard),
     )
