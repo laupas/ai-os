@@ -11,6 +11,8 @@ from aios.channels.web.web_event_hub import WebEventHub
 from aios.conversations.conversation_deleter import ConversationDeleter
 from aios.conversations.conversation_resolver import ConversationResolver
 from aios.conversations.message_recorder import MessageRecorder
+from aios.entities.approvals.approval import Approval
+from aios.entities.approvals.approval_status import ApprovalStatus
 from aios.entities.conversations.channel_binding import ChannelBinding
 from aios.entities.conversations.conversation import Conversation
 from aios.entities.users.permission import Permission
@@ -50,6 +52,7 @@ class ConversationRoutes(WebRoutes):
         hub: WebEventHub,
         deleter: ConversationDeleter,
         agents: AgentCatalog,
+        approvals: Collection[Approval],
     ) -> None:
         self._conversations = conversations
         self._users = users
@@ -59,6 +62,7 @@ class ConversationRoutes(WebRoutes):
         self._hub = hub
         self._deleter = deleter
         self._agents = agents
+        self._approvals = approvals
 
     def register(self, app: web.Application) -> None:
         app.router.add_get("/api/conversations", self._list)
@@ -110,7 +114,17 @@ class ConversationRoutes(WebRoutes):
                     }
                     for m in history
                 ],
+                # A tab opened while the turn waits for an answer must still show it.
+                "approvals": [
+                    {"id": a.id, "question": a.question, "options": a.options}
+                    for a in sorted(self._pending(conversation.id), key=lambda a: a.created_at)
+                ],
             }
+        )
+
+    def _pending(self, conversation_id: str) -> list[Approval]:
+        return self._approvals.filter(
+            lambda a: a.conversation_id == conversation_id and a.status is ApprovalStatus.PENDING
         )
 
     async def _start(self, request: web.Request) -> web.Response:

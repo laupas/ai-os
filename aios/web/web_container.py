@@ -91,6 +91,7 @@ class WebContainer(containers.DeclarativeContainer):
             hub=web_hub,
             deleter=deleter,
             agents=agents,
+            approvals=approvals,
         ),
         providers.Singleton(ApprovalRoutes, approvals=approvals, service=approval_service),
         providers.Singleton(

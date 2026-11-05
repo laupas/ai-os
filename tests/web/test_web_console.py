@@ -1,6 +1,7 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 
+from aios.conversations.conversation_event import ConversationEvent
 from aios.engine.text_delta import TextDelta
 from aios.entities.conversations.channel_binding import ChannelBinding
 from aios.entities.conversations.message_role import MessageRole
@@ -275,3 +276,33 @@ async def test_the_page_still_needs_a_signed_in_user(tmp_path) -> None:
         page = await c.client.get("/", headers=c.headers(None))
         script = await c.client.get("/static/assets/index-abc123.js", headers=c.headers(None))
         assert page.status == 403 and script.status == 403
+
+
+async def test_a_tab_that_comes_back_mid_turn_gets_the_steps_so_far(tmp_path) -> None:
+    async with Console(tmp_path) as c:
+        c.hub.notify(ConversationEvent(conversation_id="x", kind="progress", text="config_put"))
+        c.hub.notify(ConversationEvent(conversation_id="x", kind="delta", text="Saving"))
+        queue = c.hub.subscribe("x")
+        assert [queue.get_nowait().text for _ in range(2)] == ["config_put", "Saving"]
+
+        c.hub.notify(ConversationEvent(conversation_id="x", kind="done"))
+        assert c.hub.subscribe("x").empty()
+
+
+async def test_reading_a_conversation_lists_its_waiting_approvals(tmp_path) -> None:
+    async with Console(tmp_path) as c:
+        binding = ChannelBinding(channel="web", address=ALICE, thread="t")
+        conversation = await c.world.resolver.resolve(binding, c.world.alice)
+        asking = asyncio.create_task(
+            c.world.approval_service.request(conversation.id, binding, "Save it?", ["Yes", "No"])
+        )
+        await asyncio.sleep(0.05)
+
+        read = await c.client.get(f"/api/conversations/{conversation.id}", headers=c.headers(ALICE))
+        approvals = (await read.json())["approvals"]
+        assert [a["question"] for a in approvals] == ["Save it?"]
+
+        await c.world.approval_service.answer(approvals[0]["id"], "Yes", c.world.alice.accounts[0])
+        assert await asking == "Yes"
+        read = await c.client.get(f"/api/conversations/{conversation.id}", headers=c.headers(ALICE))
+        assert (await read.json())["approvals"] == []

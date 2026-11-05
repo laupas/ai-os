@@ -149,6 +149,7 @@ class Console:
                     self.hub,
                     deleter,
                     aw.agents,
+                    w.approvals,
                 ),
                 AgentRoutes(
                     aw.agents,

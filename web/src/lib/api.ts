@@ -62,6 +62,8 @@ export interface Message {
 
 export interface Conversation extends Omit<ConversationSummary, "preview" | "messages" | "last_at"> {
   messages: Message[];
+  /** Approvals still waiting for an answer in this conversation. */
+  approvals: { id: string; question: string; options: string[] }[];
 }
 
 export interface ConversationEvent {

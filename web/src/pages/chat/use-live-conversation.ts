@@ -46,9 +46,10 @@ function mergeInto(s: LiveState, incoming: Message[]): LiveState {
 
 /** One conversation, kept current over its event stream.
  *
- * Messages carry ids, so one that arrives both in a reload and as an event is shown
- * once. The history is reloaded every time the stream (re)connects, which covers
- * whatever happened while it was not connected. */
+ * Messages and approvals carry ids, so one that arrives both in a reload and as an
+ * event is shown once. The history is reloaded every time the stream (re)connects,
+ * which covers whatever happened while it was not connected; the server replays the
+ * steps and text of a turn that is still running. */
 export function useLiveConversation(id: string): LiveState {
   const queryClient = useQueryClient();
   const [state, setState] = useState<LiveState>(EMPTY);
@@ -56,7 +57,13 @@ export function useLiveConversation(id: string): LiveState {
   const load = useCallback(async () => {
     try {
       const conversation = await api<Conversation>("GET", `/api/conversations/${encodeURIComponent(id)}`);
-      setState((s) => mergeInto({ ...s, conversation, error: null }, conversation.messages));
+      setState((s) => {
+        // Approvals asked while this tab was away come with the history, not as events.
+        const known = new Set(s.approvals.map((a) => a.id));
+        const after = conversation.messages.length;
+        const waiting = (conversation.approvals ?? []).filter((a) => !known.has(a.id)).map((a) => ({ ...a, after }));
+        return mergeInto({ ...s, conversation, error: null, approvals: [...s.approvals, ...waiting] }, conversation.messages);
+      });
     } catch (error) {
       setState((s) => ({ ...s, error }));
     }
@@ -90,10 +97,11 @@ export function useLiveConversation(id: string): LiveState {
         setState((s) => ({ ...s, running: false }));
       } else if (event.kind === "approval" && event.approval_id) {
         const { approval_id, text, options } = event;
-        setState((s) => ({
-          ...s,
-          approvals: [...s.approvals, { id: approval_id, question: text, options, after: s.messages.length }],
-        }));
+        setState((s) =>
+          s.approvals.some((a) => a.id === approval_id)
+            ? s
+            : { ...s, approvals: [...s.approvals, { id: approval_id, question: text, options, after: s.messages.length }] },
+        );
       }
     };
     return () => source.close();
