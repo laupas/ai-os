@@ -92,3 +92,40 @@ async def test_only_an_https_connector_can_be_signed_in_to(tmp_path) -> None:
     assert authorizer.url_of("local") is None and authorizer.url_of("plain") is None
     with pytest.raises(OAuthError):
         await authorizer.start("local", "alice", REDIRECT)
+
+
+async def test_a_connector_with_its_own_client_skips_discovery_and_registration(
+    tmp_path, monkeypatch
+) -> None:
+    oauth, w, tokens, _, authorizer = await _world(tmp_path)
+    try:
+        config = {
+            "type": "http",
+            "url": "https://mcp.example.com/mcp/v1",  # publishes no OAuth metadata
+            "oauth": {
+                "authorization_endpoint": "https://accounts.example.com/auth",
+                "token_endpoint": f"{oauth.url}/oauth2/token",
+                "client_id": "cid",
+                "client_secret": "${CLIENT_SECRET}",
+                "auth_method": "client_secret_basic",
+                "scopes": ["mail.read", "mail.compose"],
+                "params": {"access_type": "offline"},
+            },
+        }
+        await w.connector_store.put(Connector(id="gmail", config=config))
+        monkeypatch.setenv("CLIENT_SECRET", "secret")
+        url = await authorizer.start("gmail", "alice", REDIRECT)
+        assert url.startswith("https://accounts.example.com/auth?")
+        query = {k: v[0] for k, v in parse_qs(urlsplit(url).query).items()}
+        assert query["client_id"] == "cid" and query["access_type"] == "offline"
+        assert query["scope"] == "mail.read mail.compose" and "resource" not in query
+        state, code = _code_for(oauth, url)
+        assert await authorizer.finish(state, code, "alice", "Alice") == "gmail"
+        token = tokens.get("gmail")
+        assert token is not None and token.client_id == "cid" and token.resource is None
+        server = w.connectors.servers()["gmail"]
+        assert "oauth" not in server  # ai-os's key, never handed to Claude Code
+        assert server["headers"]["Authorization"] == "Bearer access-1"
+        assert "oauth" not in (w.connectors.server_config("gmail") or {})
+    finally:
+        await oauth.server.close()

@@ -1,6 +1,7 @@
 import os
 from typing import Any, Protocol
 
+from aios.connectors.oauth_client_config import OAuthClientConfig
 from aios.entities.connectors.connector import Connector
 from aios.entities.connectors.connector_token import ConnectorToken
 from aios.storage.collection import Collection
@@ -18,6 +19,8 @@ class ConnectorCatalog:
     """
 
     BUILTIN = "aios"
+    OAUTH_KEY = "oauth"
+    """ai-os's own key in a connector's config; never passed on to Claude Code."""
 
     def __init__(
         self,
@@ -50,7 +53,9 @@ class ConnectorCatalog:
         """The external servers' configs, with `${VAR}` filled in from the environment
         and a signed-in connector's token as its `Authorization` header."""
         return {
-            c.id: self._with_token(c.id, self._expand(c.config)) for c in self.all() if c.enabled
+            c.id: self._with_token(c.id, self._expand(self._server_part(c.config)))
+            for c in self.all()
+            if c.enabled
         }
 
     def _with_token(self, name: str, config: dict[str, Any]) -> dict[str, Any]:
@@ -65,7 +70,16 @@ class ConnectorCatalog:
         connector = self._connectors.get(name)
         if connector is None:
             return None
-        return self._with_token(name, self._expand(connector.config))
+        return self._with_token(name, self._expand(self._server_part(connector.config)))
+
+    def oauth_of(self, name: str) -> OAuthClientConfig | None:
+        """The connector's own OAuth client, with `${VAR}` filled in, if it has one."""
+        connector = self._connectors.get(name)
+        raw = connector.config.get(self.OAUTH_KEY) if connector else None
+        return OAuthClientConfig.model_validate(self._expand(raw)) if raw else None
+
+    def _server_part(self, config: dict[str, Any]) -> dict[str, Any]:
+        return {k: v for k, v in config.items() if k != self.OAUTH_KEY}
 
     def tool_prefixes(self) -> list[str]:
         return [f"mcp__{name}__" for name in [self.BUILTIN, *self.servers()]]

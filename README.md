@@ -155,6 +155,28 @@ it. A connector does nothing until an agent is granted it.
   **Sign in** button: ai-os discovers the server's OAuth endpoints, registers itself,
   and keeps and renews the token. Set `web.public_url` if the console is not reached
   at the host the request names.
+- A server that publishes no OAuth endpoints and lets nobody register (Google's
+  `gmailmcp`, `calendarmcp` and `people` MCP servers) signs in with a client of your
+  own, written as `oauth:` in the connector's config. ai-os takes that key out before
+  the config reaches Claude Code:
+
+  ```yaml
+  config:
+    type: http
+    url: https://people.googleapis.com/mcp/v1
+    oauth:
+      authorization_endpoint: https://accounts.google.com/o/oauth2/v2/auth
+      token_endpoint: https://oauth2.googleapis.com/token
+      client_id: ${GOOGLE_CLIENT_ID}
+      client_secret: ${GOOGLE_CLIENT_SECRET}
+      scopes: [https://www.googleapis.com/auth/contacts.readonly]
+      params: {access_type: offline, prompt: consent}
+  ```
+
+  For Google that is a **Web** OAuth client with the console's
+  `/api/oauth/callback` as its redirect URI; `access_type: offline` is what gets a
+  refresh token. Gmail and Calendar also need the Cloud project enrolled in the
+  Workspace Developer Preview, or every tool call answers that it is not.
 - **Variables** hold what connectors need: `${NAME}` in a connector's settings for a
   value, `${file:NAME}` for a server that wants the path of a file holding it (a JSON
   key file). Secrets are encrypted with `AIOS_SECRETS_KEY` and never shown again.

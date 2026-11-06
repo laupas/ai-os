@@ -10,6 +10,7 @@ from aios.common.clock import Clock
 from aios.connectors.connector_catalog import ConnectorCatalog
 from aios.connectors.oauth_client import OAuthClient
 from aios.connectors.oauth_error import OAuthError
+from aios.connectors.oauth_metadata import OAuthMetadata
 from aios.connectors.pending_sign_in import PendingSignIn
 from aios.entities.connectors.connector_token import ConnectorToken
 from aios.storage.collection import Collection
@@ -29,6 +30,9 @@ class ConnectorAuthorizer:
     send the browser; `finish` exchanges the code for tokens. PKCE protects the
     code, and the single-use `state` ties the return to the start, which is what
     replaces the console's CSRF header on that one request.
+
+    A connector with its own `oauth:` client (Google: no discovery, no
+    registration) skips both and signs in with the client it names.
     """
 
     def __init__(
@@ -54,8 +58,19 @@ class ConnectorAuthorizer:
         url = self.url_of(name)
         if url is None:
             raise OAuthError("only a connector with an https address can be signed in to")
-        meta = await self._client.discover(url)
-        client_id, client_secret, method = await self._client.register(meta, redirect_uri)
+        configured = self._connectors.oauth_of(name)
+        if configured is None:
+            meta = await self._client.discover(url)
+            client_id, client_secret, method = await self._client.register(meta, redirect_uri)
+        else:
+            meta = OAuthMetadata(
+                authorization_endpoint=configured.authorization_endpoint,
+                token_endpoint=configured.token_endpoint,
+                scopes=configured.scopes,
+                params=configured.params,
+            )
+            client_id, client_secret = configured.client_id, configured.client_secret
+            method = configured.auth_method
         verifier = secrets.token_urlsafe(48)
         challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
         state = secrets.token_urlsafe(24)
@@ -78,8 +93,10 @@ class ConnectorAuthorizer:
             "state": state,
             "code_challenge": challenge.decode().rstrip("="),
             "code_challenge_method": "S256",
-            "resource": meta.resource,
+            **meta.params,
         }
+        if meta.resource:
+            query["resource"] = meta.resource
         if meta.scopes:
             query["scope"] = " ".join(meta.scopes)
         separator = "&" if "?" in meta.authorization_endpoint else "?"
@@ -100,7 +117,7 @@ class ConnectorAuthorizer:
                 "code": code,
                 "redirect_uri": pending.redirect_uri,
                 "code_verifier": pending.verifier,
-                "resource": pending.metadata.resource,
+                **({"resource": pending.metadata.resource} if pending.metadata.resource else {}),
             },
             pending.client_id,
             pending.client_secret,
