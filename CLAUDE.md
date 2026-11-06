@@ -51,6 +51,11 @@ Read `README.md` for what ai-os is. This file is the rules for changing it.
   order; the approval is extra, not instead.
 - Who may chat, approve or be messaged is decided from users and roles in code
   (`Authorizer`), never by a prompt.
+- A `per_user` connector carries only the turn user's own sign-in
+  (`ConnectorTokens.for_turn`); without one it is left out of the turn, and the
+  shared account is used only with `shared_fallback`. Never hand one user's token
+  to another user's turn, and never send a token, or another user's sign-in, to the
+  console. Tokens are encrypted at rest; only `ConnectorTokens` reads or writes them.
 
 - Configuration (agents, skills, connectors, schedules) is the git repository
   `<data>/config` (`GitDocumentStore`). Never put a secret into it: connector configs

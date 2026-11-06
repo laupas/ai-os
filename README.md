@@ -178,6 +178,27 @@ it. A connector does nothing until an agent is granted it.
   `/api/oauth/callback` as its redirect URI; `access_type: offline` is what gets a
   refresh token. Gmail and Calendar also need the Cloud project enrolled in the
   Workspace Developer Preview, or every tool call answers that it is not.
+- **Whose account** a sign-in is, is set per connector (`sign_in` beside `config`):
+  - `shared` (the default): one account for everybody, signed in by an
+    administrator. Right for a household device such as Homey.
+  - `per_user`: every user who may chat signs in on the Connectors page with their
+    own account, and a turn carries only the sign-in of the user it is for; a
+    schedule runs as its user. A user who has not signed in does not get the
+    connector at all for that turn (the agent is told to ask them to sign in),
+    unless `shared_fallback: true` lets them use the shared account.
+
+  ```yaml
+  sign_in: per_user
+  shared_fallback: false
+  config: {type: http, url: https://gmailmcp.googleapis.com/mcp/v1, oauth: {...}}
+  ```
+
+  Users who are not administrators see the Connectors page reduced to the
+  connectors they can sign in to and their own sign-in; never a configuration or
+  anybody else's sign-in. Sign-ins are kept in `<data>/connector-tokens`, one file
+  per connector and account (`<connector>.shared`, `<connector>.user.<user id>`),
+  their tokens encrypted with `AIOS_SECRETS_KEY`: changing that key means signing
+  in again. All of them are renewed in the background.
 - **Variables** hold what connectors need: `${NAME}` in a connector's settings for a
   value, `${file:NAME}` for a server that wants the path of a file holding it (a JSON
   key file). Secrets are encrypted with `AIOS_SECRETS_KEY` and never shown again.

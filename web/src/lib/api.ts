@@ -267,5 +267,26 @@ export interface Connector {
   /** Null for a connector that cannot be signed in to (a command, or no https). */
   /** Referred to as ${NAME} but set nowhere. */
   missing_variables?: string[];
-  sign_in?: { signed_in: boolean; by: string | null; at: string | null; expires_at: string | null; renewable: boolean } | null;
+  /** Never a token. `mine` only for a per-user connector, `shared` where it is used
+   * (always for an administrator), `users` for administrators only. */
+  sign_in?: {
+    mode: SignInMode;
+    shared_fallback: boolean;
+    mine: SignInState | null;
+    shared: SignInState | null;
+    users: number | null;
+  } | null;
+  /** The connector's own setting; administrators only. */
+  sign_in_mode?: SignInMode;
+  shared_fallback?: boolean;
+}
+
+export type SignInMode = "shared" | "per_user";
+
+export interface SignInState {
+  signed_in: boolean;
+  by: string | null;
+  at: string | null;
+  expires_at: string | null;
+  renewable: boolean;
 }

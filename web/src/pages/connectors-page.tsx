@@ -11,9 +11,10 @@ import { Hint, Input, Label, NativeSelect, Textarea } from "@/components/ui/inpu
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { api, type Connector, type ProbeResult } from "@/lib/api";
+import { api, type Connector, type ProbeResult, type SignInMode, type SignInState } from "@/lib/api";
 import { useConfirm } from "@/lib/confirm";
 import { href } from "@/lib/router";
+import { can, useMe } from "@/lib/use-me";
 import { when } from "@/lib/utils";
 
 type Config = Record<string, unknown>;
@@ -26,6 +27,8 @@ const GOOGLE = {
 };
 
 export function ConnectorsPage() {
+  const { data: me } = useMe();
+  const admin = can(me, "administer");
   const { data, isLoading, error } = useQuery({
     queryKey: ["connectors"],
     queryFn: () => api<{ connectors: Connector[] }>("GET", "/api/connectors"),
@@ -36,19 +39,28 @@ export function ConnectorsPage() {
     <Page className="max-w-3xl">
       <PageHeader
         title="Connectors"
-        description="MCP servers ai-os starts for a turn. Which agent may use one, and which of its tools, is set on the agent."
+        description={
+          admin
+            ? "MCP servers ai-os starts for a turn. Which agent may use one, and which of its tools, is set on the agent."
+            : "Services ai-os can use for you. Where it says Your account, sign in with your own; ai-os then works in that account only for you."
+        }
         actions={
-          <Button onClick={() => setEditing("new")}>
-            <Plus /> New connector
-          </Button>
+          admin ? (
+            <Button onClick={() => setEditing("new")}>
+              <Plus /> New connector
+            </Button>
+          ) : null
         }
       />
       {isLoading ? <Loading /> : null}
       {error ? <ErrorBox error={error} /> : null}
       <div className="grid gap-3">
-        {data?.connectors.map((c) => (
-          <ConnectorCard key={c.id} connector={c} onEdit={() => setEditing(c)} />
-        ))}
+        {data?.connectors.map((c) =>
+          admin ? <ConnectorCard key={c.id} connector={c} onEdit={() => setEditing(c)} /> : <MemberCard key={c.id} connector={c} />,
+        )}
+        {data && !admin && data.connectors.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nothing here needs you to sign in.</p>
+        ) : null}
       </div>
       <Sheet open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
         <SheetContent side="right" className="gap-0 p-0 sm:max-w-xl">
@@ -65,8 +77,39 @@ function Status({ c }: { c: Connector }) {
   // What the connector last did decides; not having signed in here is only a hint
   // while nothing is known, since a server may hold a sign-in of its own.
   if (c.status === "needs-auth") return <Badge variant="warning">needs sign-in</Badge>;
-  if (!c.status) return c.sign_in && !c.sign_in.signed_in ? <Badge variant="warning">not signed in</Badge> : <Badge variant="secondary">not started yet</Badge>;
+  if (!c.status) return c.sign_in && !inUse(c) ? <Badge variant="warning">not signed in</Badge> : <Badge variant="secondary">not started yet</Badge>;
   return <Badge variant={c.status === "connected" ? "success" : "destructive"}>{c.status}</Badge>;
+}
+
+/** Whether a turn of this viewer would carry a sign-in. */
+function inUse(c: Connector): boolean {
+  const s = c.sign_in;
+  if (!s) return false;
+  if (s.mode === "shared") return Boolean(s.shared?.signed_in);
+  return Boolean(s.mine?.signed_in || (s.shared_fallback && s.shared?.signed_in));
+}
+
+/** A connector as somebody who is not an administrator sees it: what it is and
+ * their own sign-in, nothing of its configuration. */
+function MemberCard({ connector: c }: { connector: Connector }) {
+  return (
+    <Card className="p-4">
+      <div className="flex items-start gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+          <Plug className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <span className="font-medium">{c.id}</span>
+          {c.description ? <p className="mt-1 text-sm text-muted-foreground">{c.description}</p> : null}
+        </div>
+      </div>
+      {c.sign_in ? (
+        <div className="mt-3 border-t pt-3">
+          <SignIn c={c} admin={false} />
+        </div>
+      ) : null}
+    </Card>
+  );
 }
 
 /** What the server is, in a few words: its command or its address. */
@@ -97,7 +140,13 @@ function ConnectorCard({ connector: c, onEdit }: { connector: Connector; onEdit:
   };
   const toggle = async (enabled: boolean) => {
     try {
-      await api("PUT", `/api/connectors/${encodeURIComponent(c.id)}`, { description: c.description, config: c.config, enabled });
+      await api("PUT", `/api/connectors/${encodeURIComponent(c.id)}`, {
+        description: c.description,
+        config: c.config,
+        enabled,
+        sign_in: c.sign_in_mode,
+        shared_fallback: c.shared_fallback,
+      });
       void queryClient.invalidateQueries({ queryKey: ["connectors"] });
     } catch (e) {
       toast.error((e as Error).message);
@@ -189,9 +238,13 @@ function ConnectorCard({ connector: c, onEdit }: { connector: Connector; onEdit:
           <Button size="sm" variant="outline" onClick={start} disabled={starting}>
             {starting ? <Loader2 className="animate-spin" /> : <Play />} {starting ? "Starting…" : "Start"}
           </Button>
-          {c.sign_in ? <SignIn c={c} /> : null}
         </div>
       )}
+      {c.sign_in ? (
+        <div className="mt-3 border-t pt-3">
+          <SignIn c={c} admin />
+        </div>
+      ) : null}
     </Card>
   );
 }
@@ -237,6 +290,8 @@ function ConnectorForm({ connector: c, onDone }: { connector: Connector | null; 
   const [authMethod, setAuthMethod] = useState(String(oauth.auth_method ?? "client_secret_post"));
   const [scopes, setScopes] = useState(Array.isArray(oauth.scopes) ? oauth.scopes.join("\n") : "");
   const [params, setParams] = useState(toLines(oauth.params, "="));
+  const [signInMode, setSignInMode] = useState<SignInMode>(c?.sign_in_mode ?? "shared");
+  const [fallback, setFallback] = useState(c?.shared_fallback ?? false);
   const useGoogle = () => {
     setAuthUrl(GOOGLE.authorization_endpoint);
     setTokenUrl(GOOGLE.token_endpoint);
@@ -299,7 +354,7 @@ function ConnectorForm({ connector: c, onDone }: { connector: Connector | null; 
   const save = async () => {
     setBusy(true);
     try {
-      const body = { description: description.trim(), config: build(), enabled };
+      const body = { description: description.trim(), config: build(), enabled, sign_in: signInMode, shared_fallback: signInMode === "per_user" && fallback };
       if (c) await api("PUT", `/api/connectors/${encodeURIComponent(c.id)}`, body);
       else await api("POST", "/api/connectors", { ...body, name: name.trim() });
       toast.success(c ? "Saved. Applies to the next turn." : "Added. Now grant it to an agent.");
@@ -413,6 +468,22 @@ function ConnectorForm({ connector: c, onDone }: { connector: Connector | null; 
               <Textarea rows={3} spellCheck={false} className="font-mono text-xs md:text-xs" value={headers} onChange={(e) => setHeaders(e.target.value)} placeholder="Authorization: Bearer ${API_TOKEN}" />
             </Label>
             <div className="space-y-3 rounded-md border p-3">
+              <Label>
+                Whose account
+                <NativeSelect value={signInMode} onChange={(e) => setSignInMode(e.target.value as SignInMode)}>
+                  <option value="shared">One shared account, signed in by an administrator</option>
+                  <option value="per_user">Each user's own account</option>
+                </NativeSelect>
+                <Hint>
+                  Shared: every user's turns work in the one account (Homey). Each user's own: everybody signs in on this page, and a turn uses
+                  only the account of the user it is for; a schedule runs as its user.
+                </Hint>
+              </Label>
+              {signInMode === "per_user" ? (
+                <label className="flex items-center gap-3 text-sm">
+                  <Switch checked={fallback} onCheckedChange={setFallback} /> Users who have not signed in use the shared account
+                </label>
+              ) : null}
               <label className="flex items-center gap-3 text-sm font-medium">
                 <Switch checked={ownClient} onCheckedChange={setOwnClient} /> Sign in with an own OAuth client
               </label>
@@ -502,15 +573,52 @@ function useSignInResult() {
   }, [queryClient]);
 }
 
-function SignIn({ c }: { c: Connector }) {
+function SignIn({ c, admin }: { c: Connector; admin: boolean }) {
+  const s = c.sign_in!;
+  const perUser = s.mode === "per_user";
+  return (
+    <div className="space-y-2">
+      {perUser ? <Account c={c} account="mine" label="Your account" state={s.mine} canChange /> : null}
+      {s.shared ? (
+        <Account
+          c={c}
+          account="shared"
+          label={perUser ? (s.shared_fallback ? "Shared account, for users who have not signed in" : "Shared account (not used)") : "Shared account"}
+          state={s.shared}
+          canChange={admin}
+        />
+      ) : null}
+      {admin && perUser ? (
+        <p className="text-xs text-muted-foreground">
+          {s.users ?? 0} user{s.users === 1 ? "" : "s"} signed in with their own account.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function Account({
+  c,
+  account,
+  label,
+  state,
+  canChange,
+}: {
+  c: Connector;
+  account: "mine" | "shared";
+  label: string;
+  state: SignInState | null;
+  canChange: boolean;
+}) {
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
-  const s = c.sign_in!;
+  const path = `/api/connectors/${encodeURIComponent(c.id)}/sign-in?account=${account}`;
+  const signedIn = Boolean(state?.signed_in);
   const start = async () => {
     setBusy(true);
     try {
-      const { url } = await api<{ url: string }>("POST", `/api/connectors/${encodeURIComponent(c.id)}/sign-in`);
+      const { url } = await api<{ url: string }>("POST", path);
       window.location.assign(url); // the server's sign-in page, which sends the browser back
     } catch (e) {
       toast.error((e as Error).message);
@@ -518,33 +626,44 @@ function SignIn({ c }: { c: Connector }) {
     }
   };
   const signOut = async () => {
-    if (!(await confirm({ title: `Sign ${c.id} out?`, body: "Its agents lose access until somebody signs in again.", action: "Sign out", destructive: true })))
-      return;
+    const body =
+      account === "mine" ? "ai-os can no longer use this account for you until you sign in again." : "Its agents lose access until somebody signs in again.";
+    if (!(await confirm({ title: `Sign ${c.id} out?`, body, action: "Sign out", destructive: true }))) return;
     try {
-      await api("DELETE", `/api/connectors/${encodeURIComponent(c.id)}/sign-in`);
+      await api("DELETE", path);
       void queryClient.invalidateQueries({ queryKey: ["connectors"] });
     } catch (e) {
       toast.error((e as Error).message);
     }
   };
   return (
-    <>
-      <Button size="sm" variant={s.signed_in ? "outline" : "default"} onClick={start} disabled={busy}>
-        <KeyRound /> {s.signed_in ? "Sign in again" : "Sign in"}
-      </Button>
-      {s.signed_in ? (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-sm">{label}:</span>
+      <Badge variant={signedIn ? "success" : "warning"}>{signedIn ? "signed in" : "not signed in"}</Badge>
+      {signedIn ? (
+        <span className="text-xs text-muted-foreground">
+          {[
+            state?.by && account === "shared" ? `by ${state.by}` : null,
+            state?.at ? when(state.at) : null,
+            state?.renewable ? "renews itself" : state?.expires_at ? `until ${when(state.expires_at)}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </span>
+      ) : null}
+      {canChange ? (
         <>
-          <span className="text-xs text-muted-foreground">
-            Signed in{s.by ? ` by ${s.by}` : ""}
-            {s.at ? ` · ${when(s.at)}` : ""}
-            {s.renewable ? " · renews itself" : s.expires_at ? ` · until ${when(s.expires_at)}` : ""}
-          </span>
           <span className="flex-1" />
-          <Button size="sm" variant="ghost" className="text-destructive" onClick={signOut}>
-            <LogOut /> Sign out
+          <Button size="sm" variant={signedIn ? "outline" : "default"} onClick={start} disabled={busy}>
+            <KeyRound /> {signedIn ? "Sign in again" : "Sign in"}
           </Button>
+          {signedIn ? (
+            <Button size="sm" variant="ghost" className="text-destructive" onClick={signOut}>
+              <LogOut /> Sign out
+            </Button>
+          ) : null}
         </>
       ) : null}
-    </>
+    </div>
   );
 }

@@ -2,6 +2,7 @@ from zoneinfo import ZoneInfo
 
 from aios.agents.agent_catalog import AgentCatalog
 from aios.common.clock import Clock
+from aios.connectors.connector_catalog import ConnectorCatalog
 from aios.engine.turn_request import TurnRequest
 from aios.entities.memories.memory import Memory
 from aios.entities.memories.memory_kind import MemoryKind
@@ -11,11 +12,18 @@ from aios.storage.collection import Collection
 class SystemPromptBuilder:
     """The main agent's prompt from the agent catalog (the orchestrator's, or that of
     the agent the conversation was started with), plus who is talking, where and when,
-    and the user's remembered preferences."""
+    the user's remembered preferences, and the connectors this turn goes without
+    because the user has not signed in to them."""
 
     def __init__(
-        self, agents: AgentCatalog, clock: Clock, timezone: str, memories: Collection[Memory]
+        self,
+        agents: AgentCatalog,
+        clock: Clock,
+        timezone: str,
+        memories: Collection[Memory],
+        connectors: ConnectorCatalog | None = None,
     ) -> None:
+        self._connectors = connectors
         self._agents = agents
         self._clock = clock
         self._zone = ZoneInfo(timezone)
@@ -31,6 +39,14 @@ class SystemPromptBuilder:
             f"- Channel: {request.binding.channel}, address {request.binding.address}.",
             f"- Local time: {now.strftime('%A %Y-%m-%d %H:%M')} ({self._zone.key}).",
         ]
+        unavailable = self._connectors.unavailable_for(request.user) if self._connectors else []
+        if unavailable:
+            lines.append(
+                f"- Not available in this turn, because {request.user.name} has not signed in "
+                f"with their own account: {', '.join(unavailable)}. If a request needs one, "
+                "say so and ask them to sign in under Connectors in the ai-os web console; "
+                "do not try another way."
+            )
         preferences = self._memories.filter(lambda m: m.kind is MemoryKind.PREFERENCE)
         if preferences:
             lines += [

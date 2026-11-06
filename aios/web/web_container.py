@@ -136,6 +136,7 @@ class WebContainer(containers.DeclarativeContainer):
         providers.Singleton(
             ConnectorAuthRoutes,
             authorizer=connector_authorizer,
+            catalog=connector_catalog,
             public_url=app_config.provided.web.public_url,
         ),
         providers.Singleton(

@@ -119,6 +119,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         tokens=storage.connector_tokens,
         builtin_tools=tools.server.provided.tool_names.call(),
         clock=common.clock,
+        box=variables.box,
     )
     agents = providers.Container(
         AgentsContainer,
@@ -218,7 +219,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         connector_catalog=connectors.catalog,
         connector_board=connectors.board,
         connector_authorizer=connectors.authorizer,
-        connector_tokens=storage.connector_tokens,
+        connector_tokens=connectors.token_store,
         variable_catalog=variables.catalog,
         variable_resolver=variables.resolver,
         connector_probe=engine.connector_probe,
@@ -259,6 +260,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
             users.bootstrapper,
             config_repo.remote_from_env,
             config_repo.skills_link,
+            connectors.migration,
         ),
         approvals=approvals.service,
         channels=channels.directory,

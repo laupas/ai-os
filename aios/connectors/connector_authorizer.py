@@ -8,12 +8,12 @@ from urllib.parse import urlencode
 
 from aios.common.clock import Clock
 from aios.connectors.connector_catalog import ConnectorCatalog
+from aios.connectors.connector_tokens import ConnectorTokens
 from aios.connectors.oauth_client import OAuthClient
 from aios.connectors.oauth_error import OAuthError
 from aios.connectors.oauth_metadata import OAuthMetadata
 from aios.connectors.pending_sign_in import PendingSignIn
 from aios.entities.connectors.connector_token import ConnectorToken
-from aios.storage.collection import Collection
 
 log = logging.getLogger(__name__)
 
@@ -33,12 +33,16 @@ class ConnectorAuthorizer:
 
     A connector with its own `oauth:` client (Google: no discovery, no
     registration) skips both and signs in with the client it names.
+
+    A sign-in is for the shared account or for the account of the user who started
+    it (`for_user`); who may start which is the caller's business. The token is
+    stored for the user the sign-in was started for, never for whoever finishes it.
     """
 
     def __init__(
         self,
         connectors: ConnectorCatalog,
-        tokens: Collection[ConnectorToken],
+        tokens: ConnectorTokens,
         client: OAuthClient,
         clock: Clock,
     ) -> None:
@@ -54,7 +58,11 @@ class ConnectorAuthorizer:
         url = connector.config.get("url") if connector else None
         return url if isinstance(url, str) and url.startswith("https://") else None
 
-    async def start(self, name: str, user_id: str, redirect_uri: str) -> str:
+    async def start(
+        self, name: str, user_id: str, redirect_uri: str, own_account: bool = False
+    ) -> str:
+        """Where to send the browser. `own_account`: the sign-in is `user_id`'s own,
+        otherwise the shared one."""
         url = self.url_of(name)
         if url is None:
             raise OAuthError("only a connector with an https address can be signed in to")
@@ -78,6 +86,7 @@ class ConnectorAuthorizer:
         self._pending[state] = PendingSignIn(
             connector=name,
             user_id=user_id,
+            for_user=user_id if own_account else None,
             verifier=verifier,
             redirect_uri=redirect_uri,
             metadata=meta,
@@ -126,7 +135,9 @@ class ConnectorAuthorizer:
         now = self._clock.now()
         await self._tokens.put(
             ConnectorToken(
-                id=pending.connector,
+                id=ConnectorTokens.key(pending.connector, pending.for_user),
+                connector=pending.connector,
+                user_id=pending.for_user,
                 token_endpoint=pending.metadata.token_endpoint,
                 client_id=pending.client_id,
                 client_secret=pending.client_secret,
@@ -137,15 +148,18 @@ class ConnectorAuthorizer:
                 **self._token_fields(data),
             )
         )
-        log.info("connector %s signed in by %s", pending.connector, user_name)
+        account = "own account" if pending.for_user else "shared account"
+        log.info("connector %s signed in by %s (%s)", pending.connector, user_name, account)
         return pending.connector
 
-    async def sign_out(self, name: str) -> None:
-        await self._tokens.delete(name)
+    async def sign_out(self, name: str, user_id: str | None) -> None:
+        """Forgets a sign-in: `user_id`'s own, or the shared one for None."""
+        await self._tokens.delete(name, user_id)
 
     async def renew_due(self) -> None:
         """Renews every token that expires soon. A failed renewal is logged; the
-        connector then answers needs-auth until somebody signs in again."""
+        connector then answers needs-auth until somebody signs in again. Every
+        account's sign-in is renewed, shared and per user alike."""
         soon = self._clock.now() + RENEW_BEFORE
         for token in self._tokens.all():
             if not token.refresh_token or token.expires_at is None or token.expires_at > soon:

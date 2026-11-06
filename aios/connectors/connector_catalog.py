@@ -1,9 +1,11 @@
 import os
 from typing import Any, Protocol
 
+from aios.connectors.connector_tokens import ConnectorTokens
 from aios.connectors.oauth_client_config import OAuthClientConfig
 from aios.entities.connectors.connector import Connector
-from aios.entities.connectors.connector_token import ConnectorToken
+from aios.entities.connectors.sign_in_mode import SignInMode
+from aios.entities.users.user import User
 from aios.storage.collection import Collection
 
 
@@ -15,7 +17,9 @@ class ConnectorCatalog:
     """The MCP servers ai-os starts for a turn: the built-in `aios` server, always,
     and every enabled stored connector.
 
-    Read on every turn, so a change in the console applies to the next turn.
+    Read on every turn, so a change in the console applies to the next turn. Which
+    account a signed-in connector uses depends on who the turn is for: see
+    `ConnectorTokens.for_turn`.
     """
 
     BUILTIN = "aios"
@@ -26,7 +30,7 @@ class ConnectorCatalog:
         self,
         connectors: Collection[Connector],
         builtin_tools: list[str],
-        tokens: Collection[ConnectorToken] | None = None,
+        tokens: ConnectorTokens | None = None,
         expander: Expander | None = None,
     ) -> None:
         self._expander = expander
@@ -49,28 +53,50 @@ class ConnectorCatalog:
         connector = self._connectors.get(name)
         return connector is not None and connector.enabled
 
-    def servers(self) -> dict[str, dict[str, Any]]:
-        """The external servers' configs, with `${VAR}` filled in from the environment
-        and a signed-in connector's token as its `Authorization` header."""
+    def enabled_names(self) -> list[str]:
+        return [c.id for c in self.all() if c.enabled]
+
+    def servers(self, user: User | None = None) -> dict[str, dict[str, Any]]:
+        """The external servers' configs for a turn of `user`, with `${VAR}` filled in
+        and the sign-in that turn uses as the `Authorization` header.
+
+        A per-user connector the user has not signed in to is left out: given to the
+        CLI without a token, it would try to sign in by itself and fail."""
+        missing = set(self.unavailable_for(user))
         return {
-            c.id: self._with_token(c.id, self._expand(self._server_part(c.config)))
+            c.id: self._with_token(c, user, self._expand(self._server_part(c.config)))
             for c in self.all()
-            if c.enabled
+            if c.enabled and c.id not in missing
         }
 
-    def _with_token(self, name: str, config: dict[str, Any]) -> dict[str, Any]:
-        token = self._tokens.get(name) if self._tokens is not None else None
+    def unavailable_for(self, user: User | None) -> list[str]:
+        """Enabled per-user connectors left out of `user`'s turns until they sign in."""
+        if self._tokens is None:
+            return []
+        return [
+            c.id
+            for c in self.all()
+            if c.enabled
+            and c.sign_in is SignInMode.PER_USER
+            and "url" in c.config
+            and self._tokens.for_turn(c, user) is None
+        ]
+
+    def _with_token(
+        self, connector: Connector, user: User | None, config: dict[str, Any]
+    ) -> dict[str, Any]:
+        token = self._tokens.for_turn(connector, user) if self._tokens is not None else None
         if token is None or "url" not in config:
             return config
         headers = {**(config.get("headers") or {}), "Authorization": f"Bearer {token.access_token}"}
         return {**config, "headers": headers}
 
-    def server_config(self, name: str) -> dict[str, Any] | None:
-        """One connector's config as a turn would start it, enabled or not."""
+    def server_config(self, name: str, user: User | None = None) -> dict[str, Any] | None:
+        """One connector's config as a turn of `user` would start it, enabled or not."""
         connector = self._connectors.get(name)
         if connector is None:
             return None
-        return self._with_token(name, self._expand(self._server_part(connector.config)))
+        return self._with_token(connector, user, self._expand(self._server_part(connector.config)))
 
     def oauth_of(self, name: str) -> OAuthClientConfig | None:
         """The connector's own OAuth client, with `${VAR}` filled in, if it has one."""
@@ -82,7 +108,7 @@ class ConnectorCatalog:
         return {k: v for k, v in config.items() if k != self.OAUTH_KEY}
 
     def tool_prefixes(self) -> list[str]:
-        return [f"mcp__{name}__" for name in [self.BUILTIN, *self.servers()]]
+        return [f"mcp__{name}__" for name in [self.BUILTIN, *self.enabled_names()]]
 
     def _expand(self, value: Any) -> Any:
         if self._expander is not None:

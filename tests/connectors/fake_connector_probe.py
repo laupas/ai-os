@@ -1,6 +1,7 @@
 from aios.connectors.connector_probe import ConnectorProbe
 from aios.connectors.connector_status_board import ConnectorStatusBoard
 from aios.connectors.probe_result import ProbeResult
+from aios.entities.users.user import User
 
 
 class FakeConnectorProbe(ConnectorProbe):
@@ -10,7 +11,7 @@ class FakeConnectorProbe(ConnectorProbe):
         self._board = board
         self.results: dict[str, ProbeResult] = {}
 
-    async def probe(self, name: str) -> ProbeResult:
+    async def probe(self, name: str, user: User | None = None) -> ProbeResult:
         result = self.results.get(name, ProbeResult(status="connected", tools=["a", "b"]))
         self._board.set(name, result.status, result.tools, result.error)
         return result

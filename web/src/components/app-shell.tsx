@@ -37,7 +37,8 @@ export const NAV: NavItem[] = [
   { id: "memories", label: "Memories", icon: Brain, needs: "administer" },
   { id: "agents", label: "Agents", icon: Bot, needs: "administer" },
   { id: "skills", label: "Skills", icon: Sparkles, needs: "administer" },
-  { id: "connectors", label: "Connectors", icon: Plug, needs: "administer" },
+  // Everyone who may chat signs in to per-user connectors here; the rest is for administrators.
+  { id: "connectors", label: "Connectors", icon: Plug, needs: "chat" },
   { id: "variables", label: "Variables", icon: KeyRound, needs: "administer" },
   { id: "logs", label: "Logs", icon: ScrollText, needs: "administer" },
   { id: "health", label: "Health", icon: Activity, needs: "administer" },

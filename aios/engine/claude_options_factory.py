@@ -23,6 +23,9 @@ class ClaudeOptionsFactory:
     to those an enabled agent may use. `allowed_tools` stays empty on purpose: every
     tool call goes through the permission gate, which knows which agent is calling.
 
+    Connectors carry the sign-in of the turn's user (`ConnectorCatalog.servers`): a
+    scheduled run is a turn of the schedule's user, so it uses their account too.
+
     The main thread is the orchestrator, or the agent the conversation was started
     with; subagents are offered only to a main agent that may delegate.
 
@@ -73,7 +76,7 @@ class ClaudeOptionsFactory:
             agents=self._definitions.build() if delegating else {},
             skills=self._definitions.skills(main, delegating),
             mcp_servers={
-                **self._connectors.servers(),  # type: ignore[dict-item]
+                **self._connectors.servers(request.user),  # type: ignore[dict-item]
                 AiosToolServer.SERVER_NAME: self._tool_server.build(context),
             },
             # Only our servers: never MCP connectors of whichever account runs this.

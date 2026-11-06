@@ -9,6 +9,7 @@ from aios.connectors.connector_catalog import ConnectorCatalog
 from aios.connectors.connector_probe import ConnectorProbe
 from aios.connectors.connector_status_board import ConnectorStatusBoard
 from aios.connectors.probe_result import ProbeResult
+from aios.entities.users.user import User
 
 log = logging.getLogger(__name__)
 
@@ -31,8 +32,8 @@ class ClaudeConnectorProbe(ConnectorProbe):
         self._board = board
         self._repo_dir = Path(repo_dir)
 
-    async def probe(self, name: str) -> ProbeResult:
-        config = self._connectors.server_config(name)
+    async def probe(self, name: str, user: User | None = None) -> ProbeResult:
+        config = self._connectors.server_config(name, user)
         if config is None:
             raise ValueError(f"no connector called {name}")
         started = time.monotonic()

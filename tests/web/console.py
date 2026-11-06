@@ -10,6 +10,7 @@ from aios.channels.web.web_channel import WebChannel
 from aios.channels.web.web_event_hub import WebEventHub
 from aios.connectors.connector_authorizer import ConnectorAuthorizer
 from aios.connectors.connector_status_board import ConnectorStatusBoard
+from aios.connectors.connector_tokens import ConnectorTokens
 from aios.connectors.oauth_client import OAuthClient
 from aios.conversations.conversation_deleter import ConversationDeleter
 from aios.conversations.conversation_lock_manager import ConversationLockManager
@@ -134,6 +135,14 @@ class Console:
             CollectionDefinition(name="variables", entity=Variable), w.store
         )
         box = SecretBox(None, self.tmp_path / "secrets.key")
+        self.tokens = ConnectorTokens(
+            Collection(
+                CollectionDefinition(name="connector-tokens", entity=ConnectorToken), w.store
+            ),
+            box,
+        )
+        aw.connectors._tokens = self.tokens
+        authorizer = ConnectorAuthorizer(aw.connectors, self.tokens, OAuthClient(), w.clock)
         self.repo_world = RepoWorld(self.tmp_path / "repo")
         self.repo_world.repo.init()
         server = WebServer(
@@ -165,20 +174,15 @@ class Console:
                     VariableResolver(variables, box, self.tmp_path / "variable-files"),
                     aw.connectors,
                 ),
-                ConnectorAuthRoutes(
-                    ConnectorAuthorizer(
-                        aw.connectors,
-                        Collection(
-                            CollectionDefinition(name="connector-tokens", entity=ConnectorToken),
-                            w.store,
-                        ),
-                        OAuthClient(),
-                        w.clock,
-                    ),
-                    None,
-                ),
+                ConnectorAuthRoutes(authorizer, aw.connectors, None),
                 ConnectorRoutes(
-                    aw.connector_store, aw.connectors, board, aw.agents, probe=self.probe
+                    aw.connector_store,
+                    aw.connectors,
+                    board,
+                    aw.agents,
+                    authorizer=authorizer,
+                    tokens=self.tokens,
+                    probe=self.probe,
                 ),
                 SettingsRoutes(self.config_file, w.users, w.roles, w.ids, self.restart),
                 ScheduleRoutes(

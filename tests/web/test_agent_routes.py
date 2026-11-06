@@ -3,9 +3,13 @@ from tests.web.console import ALICE, BOB, Console
 
 async def test_agents_and_connectors_are_for_administrators_only(tmp_path) -> None:
     async with Console(tmp_path) as c:
-        for path in ("/api/agents", "/api/connectors"):
-            assert (await c.client.get(path, headers=c.headers(BOB))).status == 403
-            assert (await c.client.get(path, headers=c.headers(ALICE))).status == 200
+        assert (await c.client.get("/api/agents", headers=c.headers(BOB))).status == 403
+        assert (await c.client.get("/api/agents", headers=c.headers(ALICE))).status == 200
+        # The connector list is open to chat users, reduced to their own sign-ins
+        # (see test_connector_sign_in_routes); changing a connector is not.
+        body = {"name": "gcal", "config": {"command": "npx"}}
+        r = await c.client.post("/api/connectors", json=body, headers=c.headers(BOB, write=True))
+        assert r.status == 403
 
 
 async def test_the_list_has_agents_skills_and_connectors(tmp_path) -> None:
@@ -143,7 +147,8 @@ async def test_the_sign_in_callback_needs_no_csrf_header_but_a_known_state(tmp_p
         assert denied.headers["Location"] == "/?sign_in_error=access_denied#/connectors"
         other = await c.client.post("/api/connectors/gcal/sign-in", headers=c.headers(ALICE))
         assert other.status == 403  # everywhere else the header is still required
-        assert (await c.client.get("/api/oauth/callback", headers=c.headers(BOB))).status == 403
+        stranger = c.headers("nobody@example.com")
+        assert (await c.client.get("/api/oauth/callback", headers=stranger)).status == 403
 
 
 async def test_a_secret_never_comes_back_out_of_the_api(tmp_path) -> None:

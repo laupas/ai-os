@@ -78,7 +78,7 @@ class HealthRoutes(WebRoutes):
                 "uptime_seconds": int((now - self._started_at).total_seconds()),
                 "channels": self._config.channels,
                 "senders": self._senders.names(),
-                "mcp_servers": sorted(self._connectors.servers()),
+                "mcp_servers": sorted(self._connectors.enabled_names()),
                 "scheduler": self._config.scheduler.enabled,
                 "counts": {
                     "conversations": len(self._conversations.all()),

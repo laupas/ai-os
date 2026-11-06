@@ -33,6 +33,7 @@ class EngineContainer(containers.DeclarativeContainer):
         clock=clock,
         timezone=timezone,
         memories=memories,
+        connectors=connectors,
     )
     definitions = providers.Singleton(
         AgentDefinitionsBuilder, agents=agents, connectors=connectors, board=board
