@@ -1,4 +1,4 @@
-import { Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { Fragment, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
@@ -259,6 +259,9 @@ function Lines({ value, fallback, onChange }: { value: string[] | undefined; fal
 function DictRows({ schema, value, fallback, onChange }: { schema: Schema; value: Values; fallback: unknown; onChange: (v: unknown) => void }) {
   const entries = Object.entries(value);
   const write = (next: [string, unknown][]) => onChange(next.length ? Object.fromEntries(next) : undefined);
+  // Nothing set means the default map applies. Editing starts from it, or adding one
+  // entry would silently replace all of it.
+  const defaults = entries.length === 0 && isPlain(fallback) ? Object.entries(fallback) : [];
   return (
     <div className="space-y-2">
       {entries.length === 0 && isPlain(fallback) && Object.keys(fallback).length ? (
@@ -287,9 +290,15 @@ function DictRows({ schema, value, fallback, onChange }: { schema: Schema; value
           </Button>
         </div>
       ))}
-      <Button size="sm" variant="outline" onClick={() => write([...entries, ["", schema.enum ? schema.enum[0] : ""]])}>
-        <Plus /> Add
-      </Button>
+      {defaults.length ? (
+        <Button size="sm" variant="outline" onClick={() => write(defaults)}>
+          <Pencil /> Change
+        </Button>
+      ) : (
+        <Button size="sm" variant="outline" onClick={() => write([...entries, ["", schema.enum ? schema.enum[0] : ""]])}>
+          <Plus /> Add
+        </Button>
+      )}
     </div>
   );
 }

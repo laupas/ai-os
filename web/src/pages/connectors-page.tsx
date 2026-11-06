@@ -179,7 +179,9 @@ function ConnectorCard({ connector: c, onEdit }: { connector: Connector; onEdit:
             <span className="font-medium">{c.id}</span>
             <Status c={c} />
           </div>
-          {c.description ? <p className="mt-1 text-sm text-muted-foreground">{c.description}</p> : null}
+          {(c.description || c.code?.description) ? (
+            <p className="mt-1 text-sm text-muted-foreground">{c.description || c.code?.description}</p>
+          ) : null}
           {c.missing_variables?.length ? (
             <p className="mt-1 text-xs text-destructive">
               Missing{" "}
@@ -439,7 +441,7 @@ function ConnectorForm({ connector: c, library, onDone }: { connector: Connector
         )}
         <Label>
           Description
-          <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What it reaches" />
+          <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={c?.code?.description || "What it reaches"} />
         </Label>
         <label className="flex items-center gap-3 text-sm font-medium">
           <Switch checked={enabled} onCheckedChange={setEnabled} /> Enabled
@@ -655,7 +657,7 @@ function CodeFields({
       {part?.found && Object.keys(part.schema.properties ?? {}).length ? (
         <div className="space-y-3 rounded-md border p-3">
           <div className="text-sm font-medium">Settings</div>
-          <Hint>
+          <Hint className="block">
             An empty field uses its default. What aios.yaml fixes under <code>{`connectors.${c?.id}.settings`}</code> is shown and cannot be changed
             here, by you or by an agent.
           </Hint>
