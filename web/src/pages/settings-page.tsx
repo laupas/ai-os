@@ -11,9 +11,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { restartAiOs } from "@/lib/restart";
 import { go } from "@/lib/router";
 import { GitPanel } from "./git-page";
+import { RepositoryPanel } from "./repository-panel";
 import { RolesPanel, UsersPanel } from "./settings-people";
 
-const TABS = ["config", "users", "roles", "git"];
+const TABS = ["config", "users", "roles", "repository", "git"];
 import { api, type Settings } from "@/lib/api";
 import { useConfirm } from "@/lib/confirm";
 
@@ -48,8 +49,12 @@ export function SettingsPage({ tab }: { tab?: string }) {
           <TabsTrigger value="config">aios.yaml</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="roles">Roles</TabsTrigger>
-          <TabsTrigger value="git">Git</TabsTrigger>
+          <TabsTrigger value="repository">Repository</TabsTrigger>
+          <TabsTrigger value="git">Branches</TabsTrigger>
         </TabsList>
+        <TabsContent value="repository">
+          <RepositoryPanel />
+        </TabsContent>
         <TabsContent value="git">
           <GitPanel />
         </TabsContent>
