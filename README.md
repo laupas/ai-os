@@ -5,7 +5,7 @@ messages out, with a human in the loop for anything that matters. Configured fro
 web console; its whole configuration is a git repository.
 
 ```
-channel (web, Slack, CLI) ──► Gateway ──► Engine (Claude Agent SDK) ──► orchestrator
+channel (web, Slack) ──► Gateway ──► Engine (Claude Agent SDK) ──► orchestrator
         ▲     │ progress / approvals               │                 └► agents
         └─────┘                                    ├► skills
                                                    ├► connectors (MCP servers)
@@ -53,8 +53,9 @@ mkdir -p /tmp/aios && cp aios.example.yaml /tmp/aios/config.yaml
 AIOS_DATA_DIR=/tmp/aios uv run python -m aios
 ```
 
-With `channels: [cli]` you talk to it in the terminal (`/new`, `/stop`, `/quit`). The
-web console has to be built once for that (`cd web && npm ci && npm run build`, then
+Then open http://localhost:8080; with `web.auth.mode: dev` every request is the
+`dev_email` user, so no login proxy is needed on your own machine. The web console
+has to be built once for that (`cd web && npm ci && npm run build`, then
 copy `web/dist` to `aios/web/static`); the Docker image does it for you.
 
 **Claude**: ai-os runs Claude through the Claude Agent SDK, so it signs in the way

@@ -73,5 +73,6 @@ Read `README.md` for what ai-os is. This file is the rules for changing it.
 - `uv run pytest`, `uv run ruff check aios tests`, `uv run ruff format aios tests`.
 - `tests/fakes/world.py` builds the real core over in-memory storage with fakes at
   the edges; most tests start from it.
-- An agent turn cannot be unit-tested without Claude. To try the real thing, run the
-  CLI channel against a temp data dir (see README).
+- An agent turn cannot be unit-tested without Claude. To try the real thing, run
+  ai-os against a temp data dir with the web console in `auth: {mode: dev}` (see
+  README).

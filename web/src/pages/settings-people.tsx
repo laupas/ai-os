@@ -12,13 +12,12 @@ import { api, type ChannelAccount, type RoleDoc, type Settings, type User } from
 import { useConfirm } from "@/lib/confirm";
 import { useMe } from "@/lib/use-me";
 
-const CHANNELS = ["slack", "web", "signal", "mail", "cli"];
+const CHANNELS = ["slack", "web", "signal", "mail"];
 const ADDRESS_HINT: Record<string, string> = {
   slack: "Slack member id, e.g. U0123ABCDEF",
   web: "the address used to sign in to Cloudflare Access",
   signal: "phone number with country code, e.g. +15551234567",
   mail: "mail address",
-  cli: "local",
 };
 
 // The settings API takes each document as JSON text.

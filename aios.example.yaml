@@ -3,11 +3,11 @@
 # Settings page. Secrets never go here (this file ends up in git): they are
 # environment variables, or Variables set in the console.
 
-channels: [web]          # web, slack, cli (cli only when run in a terminal)
+channels: [web]          # web, slack
 senders: []              # signal, mail
 timezone: Europe/Zurich
 
-# Created once, while there are no users. Gets the owner role (and the local CLI).
+# Created once, while there are no users. Gets the owner role.
 owner:
   name: Alex
   accounts:

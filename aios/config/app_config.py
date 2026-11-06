@@ -15,7 +15,7 @@ from aios.storage.agent_access import AgentAccess
 class AppConfig(BaseModel):
     """Behaviour, from config.yaml on the data volume."""
 
-    channels: list[str] = ["cli"]
+    channels: list[str] = ["web"]
     senders: list[str] = []
     timezone: str = "Europe/Zurich"
     owner: OwnerConfig | None = None

@@ -1,9 +1,6 @@
-import sys
-
 from dependency_injector import containers, providers
 
 from aios.channels.channel_directory import ChannelDirectory
-from aios.channels.cli.cli_channel import CliChannel
 from aios.channels.slack.markdown_to_mrkdwn import MarkdownToMrkdwn
 from aios.channels.slack.message_chunker import MessageChunker
 from aios.channels.slack.slack_blocks import SlackBlocks
@@ -22,9 +19,6 @@ class ChannelsContainer(containers.DeclarativeContainer):
     transcriber = providers.Dependency()
     ids = providers.Dependency()
 
-    cli = providers.Singleton(
-        CliChannel, interactive=providers.Callable(lambda: sys.stdin.isatty())
-    )
     slack = providers.Singleton(
         SlackChannel,
         bot_token=settings.provided.slack_bot_token,
@@ -44,6 +38,6 @@ class ChannelsContainer(containers.DeclarativeContainer):
 
     directory = providers.Singleton(
         ChannelDirectory,
-        factories=providers.Dict(cli=cli.provider, slack=slack.provider, web=web.provider),
+        factories=providers.Dict(slack=slack.provider, web=web.provider),
         enabled=enabled,
     )

@@ -10,7 +10,7 @@ from tests.fakes.fake_channel import FakeChannel
 
 SLACK = ChannelBinding(channel="slack", address="C1", thread="1")
 WEB = ChannelBinding(channel="web", address="p@example.com", thread="c1")
-GONE = ChannelBinding(channel="cli", address="local", thread="1")
+GONE = ChannelBinding(channel="gone", address="local", thread="1")
 ALICE = User(id="alice", name="Alice")
 
 

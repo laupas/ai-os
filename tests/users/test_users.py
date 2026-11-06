@@ -20,14 +20,14 @@ async def test_unknown_role_grants_nothing() -> None:
     assert world.authorizer.permissions_of(ghost) == set()
 
 
-async def test_bootstrap_creates_roles_and_owner_with_cli_account() -> None:
+async def test_bootstrap_creates_roles_and_the_owner_with_their_accounts() -> None:
     world = World()
     owner = OwnerConfig(name="Alice", accounts=[ChannelAccount(channel="slack", address="U1")])
     await OwnerBootstrapper(world.users, world.roles, DefaultRoles(), owner, IdGenerator()).run()
 
     [created] = world.users.all()
     assert created.role_ids == [DefaultRoles.OWNER]
-    assert created.has_account("slack", "U1") and created.has_account("cli", "local")
+    assert [a.channel for a in created.accounts] == ["slack"]
     assert {r.id for r in world.roles.all()} == {"owner", "member", "trusted_contact"}
 
 
