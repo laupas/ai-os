@@ -51,7 +51,8 @@ Read `README.md` for what ai-os is. This file is the rules for changing it.
   `CodeConnectorLauncher`, which drops every environment variable its manifest does
   not declare: never start one any other way, and never import its code into ai-os.
   Agents must never be able to write that folder. Code connectors belong to the
-  installation; none ships with ai-os (the tests have a fixture, `echo`).
+  installation; none is loaded from ai-os itself. `examples/code-connectors/hello-world`
+  is the SDK example, and the tests run against it, so keep it complete and working.
 - Who may chat, approve or be messaged is decided from users and roles in code
   (`Authorizer`), never by a prompt.
 - A `per_user` connector carries only the turn user's own sign-in

@@ -156,7 +156,9 @@ configuration repository, holding
 - `server.py`: the server, over stdio;
 - optionally `agents/*.md`, agents it brings (in the seed format), and `tests/`.
 
-Add one under Connectors → New → Code; its agents are added with it. ai-os runs it
+Start from [`examples/code-connectors/hello-world`](examples/code-connectors/hello-world),
+a complete small one: copy it to `code/` in your configuration repository. Add one
+under Connectors → New → Code; its agents are added with it. ai-os runs it
 in a process of its own with ai-os's Python and **only** what the manifest declares,
 plus `AIOS_CONNECTOR_SETTINGS` (JSON), `AIOS_CONNECTOR_STATE` (a folder of its own in
 the data dir) and `AIOS_TIMEZONE`: nothing else from ai-os's environment reaches it.

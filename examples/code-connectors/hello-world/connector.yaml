@@ -1,0 +1,32 @@
+# The manifest of a code connector: what it is, what it needs, what may be set,
+# and which of its tools a human approves first. ai-os reads it on every turn.
+description: >-
+  Hello world, the example code connector. Greets, counts how often, and shouts
+  after asking: everything a code connector can do, in one small server.
+
+# Passed to the server, `${NAME}` filled in from the console's Variables (or ai-os's
+# environment). Nothing else from ai-os's environment reaches the server.
+env:
+  HELLO_TOKEN: ${HELLO_TOKEN}
+
+# A human approves `shout` every time. Before that, ai-os runs
+# `server.py preflight shout <arguments>`, and the server may refuse it outright
+# or word the question.
+approval:
+  always: [shout]
+  preflight: [shout]
+
+# The settings, as a JSON schema with defaults. The console draws a form from it;
+# aios.yaml can fix any of them under `connectors.<name>.settings`, out of reach of
+# the console and of every agent. The server reads them from AIOS_CONNECTOR_SETTINGS.
+settings:
+  type: object
+  properties:
+    greeting:
+      type: string
+      default: Hello
+      description: Put before every name.
+    max_shout_length:
+      type: integer
+      default: 20
+      description: The longest text it will shout; longer is refused before anyone is asked.
