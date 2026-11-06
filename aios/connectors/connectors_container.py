@@ -9,7 +9,6 @@ from aios.connectors.connector_status_board import ConnectorStatusBoard
 from aios.connectors.connector_token_migration import ConnectorTokenMigration
 from aios.connectors.connector_token_renewer import ConnectorTokenRenewer
 from aios.connectors.connector_tokens import ConnectorTokens
-from aios.connectors.crypto_connector_migration import CryptoConnectorMigration
 from aios.connectors.oauth_client import OAuthClient
 
 
@@ -46,10 +45,7 @@ class ConnectorsContainer(containers.DeclarativeContainer):
         code=code,
     )
     approval_rule = providers.Singleton(CodeConnectorApprovalRule, catalog=catalog, code=code)
-    agents = providers.Dependency()
-    crypto_migration = providers.Singleton(
-        CryptoConnectorMigration, agents=agents, connectors=connectors
-    )
+
     board = providers.Singleton(ConnectorStatusBoard, clock=clock)
     authorizer = providers.Singleton(
         ConnectorAuthorizer,

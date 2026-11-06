@@ -1,0 +1,17 @@
+description: A code connector for the tests. It echoes, and shouts after asking.
+env:
+  ECHO_TOKEN: ${ECHO_TOKEN}
+approval:
+  always: [shout]
+  preflight: [shout]
+settings:
+  type: object
+  properties:
+    greeting:
+      type: string
+      default: hello
+      description: Put before every echo.
+    max_length:
+      type: integer
+      default: 10
+      description: The longest text it shouts.

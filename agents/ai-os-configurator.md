@@ -53,7 +53,7 @@ fields, and put all of it back.
   instead of a list grants every tool of that connector. Grant the fewest tools that
   do the job. The built-in `aios` connector offers `send_message`, `ask_human`,
   `data_list_collections`, `data_query`, `data_get`, `data_put`, `data_delete`,
-  `read_logs`. Code connectors (such as `crypto`) are connectors of their own. The
+  `read_logs`. Code connectors are connectors of their own. The
   `config_*` tools work for you alone; do
   not grant them to another agent.
 - Fixed agents (`orchestrator`, `ai-os-configurator`, `scheduler`, `memory`,

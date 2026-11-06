@@ -28,7 +28,7 @@ class AppConfig(BaseModel):
     web: WebConfig = WebConfig()
     connectors: dict[str, ConnectorOverride] = {}
     """What is fixed for a connector, by its name; the console shows it and does
-    not let it be changed. E.g. `crypto: {settings: {max_chf_per_day: 300}}`."""
+    not let it be changed. E.g. `trading: {settings: {max_chf_per_day: 300}}`."""
     mcp_servers: dict[str, dict[str, Any]] = {}
     """External MCP servers, in Claude Code's `.mcp.json` shape. Copied into the
     connectors on the first start and not read again; manage them in the console."""
@@ -38,15 +38,11 @@ class AppConfig(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _read_older_files(cls, data: Any) -> Any:
-        # Until 2026-11-06 the trading limits were `trading:` here; trading is the
-        # code connector `crypto` since, and the limits are its settings. Read as
-        # fixed by this file, as they were, so no limit loosens by the move.
+        # Until 2026-11-06 trading was part of ai-os, with its limits as `trading:`
+        # here. Refused rather than ignored: ignoring it would drop the limits.
         if isinstance(data, dict) and "trading" in data:
-            data = dict(data)
-            trading = data.pop("trading") or {}
-            connectors = dict(data.get("connectors") or {})
-            crypto = dict(connectors.get("crypto") or {})
-            crypto["settings"] = {**trading, **(crypto.get("settings") or {})}
-            connectors["crypto"] = crypto
-            data["connectors"] = connectors
+            raise ValueError(
+                "trading: is not read any more; trading is a code connector now, and its "
+                "limits go under connectors.<its name>.settings"
+            )
         return data

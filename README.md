@@ -144,19 +144,34 @@ Agents that ship with ai-os (a seed: edit or delete them freely):
 **Skills** page; which agent may use one is set on the agent. One ships:
 `message-style`, the user's voice for messages and mails.
 
-**Code connectors** are MCP servers written in Python that ship in a folder with a
-`connector.yaml`; see [`connectors/README.md`](connectors/README.md). They run in a
-process of their own that gets only the variables they declare, may bring agents of
-their own, and have settings that `aios.yaml` can fix under
-`connectors.<name>.settings`, out of reach of the console and of every agent. One
-ships: `crypto`, with the `crypto-advisor` (signals) and `crypto-trader` (Kraken
-orders) agents, added under Connectors → New → Code.
+### Code connectors
 
-> The `crypto` connector places real orders on Kraken when given keys
-> (`KRAKEN_API_KEY`, `KRAKEN_API_SECRET` as variables). Its limits are checked before
-> an order is put to you and again right before it is placed, and every order needs a
-> human's approval, but you use it at your own risk. Give the API key no withdrawal
-> rights, and fix the limits in `aios.yaml`.
+A **code connector** is an MCP server written in Python that belongs to your
+installation rather than to ai-os: a folder under `code/<name>/` in the
+configuration repository, holding
+
+- `connector.yaml`: what it is, the variables it needs (`env`, with `${VAR}` filled
+  in from Variables), its settings as a JSON schema with defaults (`settings`), and
+  which of its tools a human approves (`approval.always`);
+- `server.py`: the server, over stdio;
+- optionally `agents/*.md`, agents it brings (in the seed format), and `tests/`.
+
+Add one under Connectors → New → Code; its agents are added with it. ai-os runs it
+in a process of its own with ai-os's Python and **only** what the manifest declares,
+plus `AIOS_CONNECTOR_SETTINGS` (JSON), `AIOS_CONNECTOR_STATE` (a folder of its own in
+the data dir) and `AIOS_TIMEZONE`: nothing else from ai-os's environment reaches it.
+
+Settings are the manifest's defaults, then what is set on the connector in the
+console, then what `aios.yaml` fixes under `connectors.<name>.settings`. A fixed
+value is shown and cannot be changed in the console, and no agent can change
+`aios.yaml`: that is the place for limits that must hold. For a tool under
+`approval.preflight` too, ai-os first runs `server.py preflight <tool> <arguments>`,
+which prints one JSON line: `{"deny": "why"}` refuses the call without asking anyone,
+`{"ask": "question"}` is the question put to the human.
+
+> A code connector is code that ai-os runs. Whoever can commit to the configuration
+> repository, or push to its remote, can run code on the machine; agents cannot
+> write there.
 
 ## Connectors and variables
 

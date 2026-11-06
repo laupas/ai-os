@@ -109,15 +109,14 @@ class ApplicationContainer(containers.DeclarativeContainer):
         builtin_tools=tools.server.provided.tool_names.call(),
         clock=common.clock,
         box=variables.box,
-        # Shipped with ai-os first, then those put in the configuration repository.
+        # Code connectors belong to the installation: they are in its configuration
+        # repository, never in ai-os itself.
         code_roots=providers.List(
-            providers.Callable(lambda s: s.repo_dir / "connectors", config.settings),
             providers.Callable(lambda s: s.config_dir() / "code", config.settings),
         ),
         overrides=app_config.provided.connectors,
         state_root=providers.Callable(lambda s: s.data_dir / "connector-state", config.settings),
         timezone=app_config.provided.timezone,
-        agents=storage.agents,
     )
     agents = providers.Container(
         AgentsContainer,
@@ -267,7 +266,6 @@ class ApplicationContainer(containers.DeclarativeContainer):
             config_repo.remote_from_env,
             config_repo.skills_link,
             connectors.migration,
-            connectors.crypto_migration,
         ),
         approvals=approvals.service,
         channels=channels.directory,

@@ -15,7 +15,10 @@ class CodeConnectorLauncher:
     @staticmethod
     def environment(current: dict[str, str]) -> dict[str, str]:
         keep = {n for n in current.get("AIOS_CONNECTOR_KEEP", "").split(",") if n}
-        return {k: v for k, v in current.items() if k in keep or k in BASE}
+        kept = {k: v for k, v in current.items() if k in keep or k in BASE}
+        # The server's folder is in the configuration repository: bytecode written
+        # beside it would leave the repository unclean, and a branch switch refused.
+        return {**kept, "PYTHONDONTWRITEBYTECODE": "1"}
 
     @classmethod
     def main(cls, argv: list[str]) -> None:

@@ -55,6 +55,7 @@ from tests.connectors.fake_connector_probe import FakeConnectorProbe
 from tests.fakes.fake_channel import FakeChannel
 from tests.fakes.world import World
 
+FIXTURE = Path(__file__).parents[1] / "code_connectors" / "fixture"
 ALICE = "alice@example.com"
 BOB = "bob@example.com"
 
@@ -188,8 +189,10 @@ class Console:
                     probe=self.probe,
                     secrets=SecretExtractor(self.variables, self.variable_resolver),
                     code=CodeConnectors(
-                        CodeConnectorLibrary([Path(__file__).parents[2] / "connectors"]),
-                        {"crypto": ConnectorOverride(settings={"max_chf_per_day": 300})},
+                        CodeConnectorLibrary(
+                            [Path(__file__).parents[1] / "code_connectors" / "fixture"]
+                        ),
+                        {"echo": ConnectorOverride(settings={"max_length": 3})},
                         self.tmp_path / "connector-state",
                         "UTC",
                     ),

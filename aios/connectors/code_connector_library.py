@@ -14,12 +14,14 @@ MANIFEST = "connector.yaml"
 
 class CodeConnectorLibrary:
     """The code connectors there are: one folder each, holding `connector.yaml` and
-    its server, under any of `roots` (those shipped with ai-os, and those an
-    administrator put in the configuration repository). Read on every call, so a
-    folder added on the host is there without a restart.
+    its server, under any of `roots`, which is the configuration repository's
+    `code/`: they belong to the installation, not to ai-os. Read on every call, so
+    a commit adding one is there without a restart, and a branch switch changes
+    which code runs.
 
     Agents cannot write here: the `config_*` tools write agents, skills and
-    connector configs, never files of their own choosing.
+    connector configs, never files of their own choosing. Whoever can commit to
+    the repository, or push to its remote, can.
     """
 
     def __init__(self, roots: list[Path]) -> None:
