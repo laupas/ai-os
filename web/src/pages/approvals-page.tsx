@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { Empty, ErrorBox, Loading, Page, PageHeader } from "@/components/page";
+import { ListView } from "@/components/list-view";
+import { ErrorBox, Loading, Page, PageHeader } from "@/components/page";
 import { api, type Approval } from "@/lib/api";
 import { href } from "@/lib/router";
 import { when } from "@/lib/utils";
@@ -16,10 +17,16 @@ export function ApprovalsPage() {
       <PageHeader title="Approvals" description="Questions ai-os is waiting on, from every channel. The first answer wins." />
       {isLoading ? <Loading /> : null}
       {error ? <ErrorBox error={error} /> : null}
-      {data?.approvals.length === 0 ? <Empty>Nothing is waiting for an answer.</Empty> : null}
-      {data?.approvals.map((a) => (
+      {data ? (
+        <ListView
+          items={data.approvals}
+          keyOf={(a) => a.id}
+          text={(a) => a.question}
+          facets={[{ label: "channels", value: (a) => a.channel }]}
+          empty="Nothing is waiting for an answer."
+        >
+          {(a) => (
         <AskCard
-          key={a.id}
           id={a.id}
           question={a.question}
           options={a.options}
@@ -32,7 +39,9 @@ export function ApprovalsPage() {
             </span>
           }
         />
-      ))}
+          )}
+        </ListView>
+      ) : null}
     </Page>
   );
 }

@@ -2,7 +2,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileText, KeyRound, Pencil, Plus, Variable as VariableIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Empty, ErrorBox, Loading, Page, PageHeader } from "@/components/page";
+import { ListView } from "@/components/list-view";
+import { ErrorBox, Loading, Page, PageHeader } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -38,10 +39,19 @@ export function VariablesPage() {
       />
       {isLoading ? <Loading /> : null}
       {error ? <ErrorBox error={error} /> : null}
-      {data?.variables.length === 0 ? <Empty>No variables yet.</Empty> : null}
-      <div className="grid gap-3">
-        {data?.variables.map((v) => (
-          <Card key={v.name} className="p-4">
+      {data ? (
+        <ListView
+          items={data.variables}
+          keyOf={(v) => v.name}
+          text={(v) => `${v.name} ${v.description} ${v.used_by.join(" ")}`}
+          facets={[
+            { label: "kinds", value: (v) => (v.file ? "file" : v.secret ? "secret" : "value"), options: ["value", "secret", "file"] },
+            { label: "connectors", value: (v) => (v.used_by.length ? v.used_by : "unused") },
+          ]}
+          empty="No variables yet."
+        >
+          {(v) => (
+          <Card className="p-4">
             <div className="flex items-start gap-3">
               <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
                 {v.file ? <FileText className="size-4" /> : v.secret ? <KeyRound className="size-4" /> : <VariableIcon className="size-4" />}
@@ -75,8 +85,9 @@ export function VariablesPage() {
               </Button>
             </div>
           </Card>
-        ))}
-      </div>
+          )}
+        </ListView>
+      ) : null}
       <Sheet open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
         <SheetContent side="right" className="gap-0 p-0 sm:max-w-xl">
           {editing !== null ? <VariableForm variable={editing === "new" ? null : editing} onDone={() => setEditing(null)} /> : null}

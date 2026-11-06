@@ -2,7 +2,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Empty, ErrorBox, Loading, Page, PageHeader } from "@/components/page";
+import { ListView } from "@/components/list-view";
+import { ErrorBox, Loading, Page, PageHeader } from "@/components/page";
 import { HistoryButton } from "@/components/history-button";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -29,12 +30,15 @@ export function SkillsPage() {
           </Button>
         }
       />
-      {data.skills.length === 0 ? <Empty>No skills yet.</Empty> : null}
-      <div className="grid gap-3">
-        {data.skills.map((s) => (
-          <SkillCard key={s.name} skill={s} onEdit={() => setEditing(s)} />
-        ))}
-      </div>
+      <ListView
+        items={data.skills}
+        keyOf={(s) => s.name}
+        text={(s) => `${s.name} ${s.description}`}
+        facets={[{ label: "agents", value: (s) => (s.agents.length ? s.agents : "unused") }]}
+        empty="No skills yet."
+      >
+        {(s) => <SkillCard skill={s} onEdit={() => setEditing(s)} />}
+      </ListView>
       <Sheet open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
         <SheetContent side="right" className="gap-0 p-0 sm:max-w-2xl">
           {editing !== null ? <SkillForm skill={editing === "new" ? null : editing} onDone={() => setEditing(null)} /> : null}

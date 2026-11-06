@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus, Shield, Trash2, User as UserIcon, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { ListView } from "@/components/list-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -41,8 +42,18 @@ export function UsersPanel({ data }: { data: Settings }) {
           <Plus /> New user
         </Button>
       </div>
-      {data.users.map((u) => (
-        <Card key={u.id} className="p-4">
+      <ListView
+        items={data.users}
+        keyOf={(u) => u.id}
+        text={(u) => `${u.name} ${u.aliases.join(" ")} ${u.accounts.map((a) => a.address).join(" ")}`}
+        facets={[
+          { label: "roles", value: (u) => (u.role_ids.length ? u.role_ids.map(roleName) : "no role") },
+          { label: "channels", value: (u) => u.accounts.map((a) => a.channel) },
+        ]}
+        empty="No users yet."
+      >
+        {(u) => (
+        <Card className="p-4">
           <div className="flex items-start gap-3">
             <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
               <UserIcon className="size-4" />
@@ -71,7 +82,8 @@ export function UsersPanel({ data }: { data: Settings }) {
             </Button>
           </div>
         </Card>
-      ))}
+        )}
+      </ListView>
       <Sheet open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
         <SheetContent side="right" className="gap-0 p-0 sm:max-w-xl">
           {editing !== null ? <UserForm user={editing === "new" ? null : editing} roles={data.roles} onDone={() => setEditing(null)} /> : null}
@@ -228,10 +240,17 @@ export function RolesPanel({ data }: { data: Settings }) {
           <Plus /> New role
         </Button>
       </div>
-      {data.roles.map((r) => {
+      <ListView
+        items={data.roles}
+        keyOf={(r) => r.id}
+        text={(r) => `${r.name} ${r.id}`}
+        facets={[{ label: "rights", value: (r) => r.permissions }]}
+        empty="No roles yet."
+      >
+        {(r) => {
         const holders = data.users.filter((u) => u.role_ids.includes(r.id)).map((u) => u.name);
         return (
-          <Card key={r.id} className="p-4">
+          <Card className="p-4">
             <div className="flex items-start gap-3">
               <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
                 <Shield className="size-4" />
@@ -260,7 +279,8 @@ export function RolesPanel({ data }: { data: Settings }) {
             </div>
           </Card>
         );
-      })}
+        }}
+      </ListView>
       <Sheet open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
         <SheetContent side="right" className="gap-0 p-0 sm:max-w-xl">
           {editing !== null ? <RoleForm role={editing === "new" ? null : editing} data={data} onDone={() => setEditing(null)} /> : null}

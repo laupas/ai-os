@@ -2,7 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bot, CalendarClock, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Empty, ErrorBox, Loading, Page, PageHeader } from "@/components/page";
+import { ListView } from "@/components/list-view";
+import { ErrorBox, Loading, Page, PageHeader } from "@/components/page";
 import { HistoryButton } from "@/components/history-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -66,10 +67,20 @@ export function SchedulesPage() {
       />
       {isLoading ? <Loading /> : null}
       {error ? <ErrorBox error={error} /> : null}
-      {data?.schedules.length === 0 ? <Empty>No schedules yet.</Empty> : null}
-      <div className="grid gap-3">
-        {data?.schedules.map((s) => (
-          <Card key={s.id} className="p-4">
+      {data ? (
+        <ListView
+          items={data.schedules}
+          keyOf={(s) => s.id}
+          text={(s) => `${s.name} ${s.prompt} ${s.cron.join(" ")}`}
+          facets={[
+            { label: "states", value: (s) => (s.enabled ? "on" : "off"), options: ["on", "off"] },
+            { label: "users", value: (s) => userName(s.user_id) },
+            { label: "agents", value: (s) => s.agent ?? "orchestrator" },
+          ]}
+          empty="No schedules yet."
+        >
+          {(s) => (
+          <Card className="p-4">
             <div className="flex items-start gap-3">
               <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
                 <CalendarClock className="size-4" />
@@ -125,8 +136,9 @@ export function SchedulesPage() {
               </Button>
             </div>
           </Card>
-        ))}
-      </div>
+          )}
+        </ListView>
+      ) : null}
       <Sheet open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
         <SheetContent side="right" className="gap-0 p-0">
           {editing !== null && data ? (

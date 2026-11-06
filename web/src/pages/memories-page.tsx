@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Empty, ErrorBox, Loading, Page, PageHeader } from "@/components/page";
+import { ListView } from "@/components/list-view";
+import { ErrorBox, Loading, Page, PageHeader } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -18,13 +19,7 @@ export function MemoriesPage() {
     queryKey: ["memories"],
     queryFn: () => api<{ memories: Memory[] }>("GET", "/api/memories"),
   });
-  const [filter, setFilter] = useState("");
-  const [kind, setKind] = useState<MemoryKind | "all">("all");
   const [adding, setAdding] = useState(false);
-  const q = filter.toLowerCase();
-  const shown = (data?.memories ?? []).filter(
-    (m) => (kind === "all" || m.kind === kind) && (!q || `${m.subject ?? ""} ${m.text}`.toLowerCase().includes(q)),
-  );
   return (
     <Page className="max-w-3xl">
       <PageHeader
@@ -36,25 +31,20 @@ export function MemoriesPage() {
           </Button>
         }
       />
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input className="pl-9" placeholder="Filter" value={filter} onChange={(e) => setFilter(e.target.value)} />
-        </div>
-        <NativeSelect className="w-36" value={kind} onChange={(e) => setKind(e.target.value as MemoryKind | "all")}>
-          <option value="all">All kinds</option>
-          {KINDS.map((k) => (
-            <option key={k}>{k}</option>
-          ))}
-        </NativeSelect>
-      </div>
       {adding ? <MemoryCard onDone={() => setAdding(false)} /> : null}
       {isLoading ? <Loading /> : null}
       {error ? <ErrorBox error={error} /> : null}
-      {data && shown.length === 0 ? <Empty>Nothing matches.</Empty> : null}
-      {shown.map((m) => (
-        <MemoryCard key={m.id} memory={m} />
-      ))}
+      {data ? (
+        <ListView
+          items={data.memories}
+          keyOf={(m) => m.id}
+          text={(m) => `${m.subject ?? ""} ${m.text}`}
+          facets={[{ label: "kinds", value: (m) => m.kind, options: KINDS }]}
+          empty="Nothing remembered yet."
+        >
+          {(m) => <MemoryCard memory={m} />}
+        </ListView>
+      ) : null}
     </Page>
   );
 }

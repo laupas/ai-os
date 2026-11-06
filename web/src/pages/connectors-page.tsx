@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { KeyRound, Loader2, LogOut, Pencil, Play, Plug, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { ListView } from "@/components/list-view";
 import { ErrorBox, Loading, Page, PageHeader } from "@/components/page";
 import { HistoryButton } from "@/components/history-button";
 import { Badge } from "@/components/ui/badge";
@@ -54,14 +55,25 @@ export function ConnectorsPage() {
       />
       {isLoading ? <Loading /> : null}
       {error ? <ErrorBox error={error} /> : null}
-      <div className="grid gap-3">
-        {data?.connectors.map((c) =>
-          admin ? <ConnectorCard key={c.id} connector={c} onEdit={() => setEditing(c)} /> : <MemberCard key={c.id} connector={c} />,
-        )}
-        {data && !admin && data.connectors.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nothing here needs you to sign in.</p>
-        ) : null}
-      </div>
+      {data ? (
+        <ListView
+          items={data.connectors}
+          keyOf={(c) => c.id}
+          text={(c) => `${c.id} ${c.description} ${c.used_by.join(" ")}`}
+          facets={
+            admin
+              ? [
+                  { label: "states", value: (c) => (c.builtin ? "built in" : c.enabled ? "on" : "off"), options: ["on", "off", "built in"] },
+                  { label: "sign-ins", value: (c) => c.sign_in_mode ?? "none" },
+                  { label: "agents", value: (c) => (c.used_by.length ? c.used_by : "unused") },
+                ]
+              : []
+          }
+          empty={admin ? "No connectors yet." : "Nothing here needs you to sign in."}
+        >
+          {(c) => (admin ? <ConnectorCard connector={c} onEdit={() => setEditing(c)} /> : <MemberCard connector={c} />)}
+        </ListView>
+      ) : null}
       <Sheet open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
         <SheetContent side="right" className="gap-0 p-0 sm:max-w-xl">
           {editing !== null ? <ConnectorForm connector={editing === "new" ? null : editing} onDone={() => setEditing(null)} /> : null}

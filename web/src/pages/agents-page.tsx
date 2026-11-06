@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Bot, ChevronRight, Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { ListView } from "@/components/list-view";
 import { ErrorBox, Loading, Page, PageHeader } from "@/components/page";
 import { HistoryButton } from "@/components/history-button";
 import { Badge } from "@/components/ui/badge";
@@ -50,9 +51,20 @@ export function AgentsPage({ name }: { name?: string }) {
           </Button>
         }
       />
-      <div className="grid gap-3 md:grid-cols-2">
-        {data.agents.map((a) => (
-          <a key={a.name} href={href("agents", a.name)} className="group">
+      <ListView
+        items={data.agents}
+        keyOf={(a) => a.name}
+        text={(a) => `${a.name} ${a.description}`}
+        facets={[
+          { label: "states", value: (a) => (a.enabled ? "on" : "off"), options: ["on", "off"] },
+          { label: "models", value: (a) => a.model || "default" },
+          { label: "skills", value: (a) => a.skills },
+          { label: "connectors", value: (a) => Object.keys(a.connectors) },
+        ]}
+        className="md:grid-cols-2"
+      >
+        {(a) => (
+          <a href={href("agents", a.name)} className="group">
             <Card className="h-full p-4 transition-colors group-hover:bg-accent/40">
               <div className="flex items-start gap-3">
                 <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
@@ -83,8 +95,8 @@ export function AgentsPage({ name }: { name?: string }) {
               </div>
             </Card>
           </a>
-        ))}
-      </div>
+        )}
+      </ListView>
     </Page>
   );
 }

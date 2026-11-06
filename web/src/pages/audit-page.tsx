@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { GitCommitHorizontal, RefreshCw } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
+import { ListView } from "@/components/list-view";
 import { Diff } from "@/components/history-button";
 import { ErrorBox, Loading, Page, PageHeader } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input, NativeSelect } from "@/components/ui/input";
 import { api, type AuditEntry } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -22,48 +22,40 @@ const stamp = (iso: string) =>
 /** Who changed which setting when: the audit trail (users, variables, sign-ins,
  * git actions) together with the configuration repository's commits. */
 export function AuditPage() {
-  const [area, setArea] = useState("");
-  const [filter, setFilter] = useState("");
   const { data, error, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["audit"],
-    queryFn: () => api<{ entries: AuditEntry[] }>("GET", "/api/audit?limit=1000"),
+    queryFn: () => api<{ entries: AuditEntry[] }>("GET", "/api/audit?limit=5000"),
   });
-  const areas = useMemo(() => [...new Set(data?.entries.map((e) => e.area))].sort(), [data]);
-  const needle = filter.trim().toLowerCase();
-  const rows = (data?.entries ?? []).filter(
-    (e) =>
-      (!area || e.area === area) &&
-      (!needle ||
-        [e.actor, e.actor_email, e.item, e.detail ?? "", e.fields.join(" ")].some((s) => s.toLowerCase().includes(needle))),
-  );
   return (
     <Page className="max-w-6xl">
       <PageHeader
         title="Audit"
         description="Who changed what, and when. Configuration in the git repository is read from its history, including commits made on the host."
         actions={
-          <>
-            <NativeSelect className="w-40" value={area} onChange={(e) => setArea(e.target.value)}>
-              <option value="">All areas</option>
-              {areas.map((a) => (
-                <option key={a}>{a}</option>
-              ))}
-            </NativeSelect>
-            <Input className="w-48" placeholder="Filter" value={filter} onChange={(e) => setFilter(e.target.value)} />
-            <Button variant="outline" size="icon" onClick={() => refetch()} aria-label="Reload">
-              <RefreshCw className={cn(isFetching && "animate-spin")} />
-            </Button>
-          </>
+          <Button variant="outline" size="icon" onClick={() => refetch()} aria-label="Reload">
+            <RefreshCw className={cn(isFetching && "animate-spin")} />
+          </Button>
         }
       />
       {error ? <ErrorBox error={error} /> : null}
       {isLoading ? <Loading /> : null}
-      {data && rows.length === 0 ? <p className="text-sm text-muted-foreground">Nothing recorded.</p> : null}
-      <div className="divide-y rounded-xl border">
-        {rows.map((e, i) => (
-          <AuditRow key={`${e.at}-${e.area}-${e.item}-${i}`} entry={e} />
-        ))}
-      </div>
+      {data ? (
+        <ListView
+          items={data.entries}
+          keyOf={(e) => `${e.at}-${e.area}-${e.item}-${e.commit ?? ""}`}
+          text={(e) => [e.actor, e.actor_email, e.item, e.detail ?? "", e.fields.join(" ")].join(" ")}
+          facets={[
+            { label: "areas", value: (e) => e.area },
+            { label: "actions", value: (e) => e.action, options: ["created", "changed", "deleted", "performed"] },
+            { label: "people", value: (e) => e.actor },
+          ]}
+          pageSize={50}
+          empty="Nothing recorded yet."
+          className="gap-0 divide-y rounded-xl border"
+        >
+          {(e) => <AuditRow entry={e} />}
+        </ListView>
+      ) : null}
     </Page>
   );
 }
