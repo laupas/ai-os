@@ -286,6 +286,23 @@ class GitRepository:
         result = self._git("push", "--porcelain", name, *refs, env=env, timeout=120)
         return result.stdout
 
+    def unpushed(self, branch: str, name: str = "origin") -> list[str] | None:
+        """The commits of `branch` the remote's lacks, newest first, as of the last
+        fetch; None when the remote has no such branch (nothing of it is there)."""
+        ref = f"refs/remotes/{name}/{branch}"
+        if self._git("rev-parse", "--verify", "--quiet", ref, check=False).returncode != 0:
+            return None
+        return self._git("rev-list", f"{ref}..refs/heads/{branch}").stdout.split()
+
+    def fetched_at(self) -> float | None:
+        """When the remote was last fetched (or pushed to), as a timestamp."""
+        stamps = [
+            p.stat().st_mtime
+            for p in [self._root / ".git" / "FETCH_HEAD", self._root / ".git" / "refs" / "remotes"]
+            if p.exists()
+        ]
+        return max(stamps, default=None)
+
     def remote_ahead_behind(self, branch: str, name: str = "origin") -> tuple[int, int] | None:
         """Commits the local branch has that the remote's lacks, and the other way
         round, as of the last fetch; None when the remote has no such branch."""

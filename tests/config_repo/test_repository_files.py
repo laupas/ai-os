@@ -101,3 +101,21 @@ async def test_an_unknown_branch_or_ref_is_refused(tmp_path) -> None:
         await files.tree("--output=/tmp/x")
     with pytest.raises(ValueError, match="no branch"):
         await files.write("nope", "x.yaml", "a: 1\n", None, "")
+
+
+async def test_what_is_local_and_what_is_on_the_remote(tmp_path) -> None:
+    w, files = await _world(tmp_path)
+    assert await files.remote("main") == {"configured": False}
+    origin = tmp_path / "origin.git"
+    w.repo._git("init", "--bare", "--quiet", str(origin))  # noqa: SLF001 - a remote for the test
+    w.repo.set_remote(str(origin))
+    status = await files.remote("main")
+    assert status["configured"] and not status["on_remote"]  # never pushed
+    w.repo.push({}, "main")
+    w.repo.fetch({})
+    assert (await files.remote("main"))["unpushed"] == []
+    opened = await files.read("main", AGENT_FILE)
+    commit = await files.write("main", AGENT_FILE, opened["text"] + "More.\n", opened["blob"], "")
+    status = await files.remote("main")
+    assert status["on_remote"] and status["unpushed"] == [commit] and status["behind"] == 0
+    assert status["fetched_at"] is not None

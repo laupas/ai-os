@@ -1,4 +1,5 @@
 import asyncio
+from datetime import UTC, datetime
 from typing import Any
 
 from aios.config_repo.config_repo_watcher import ConfigRepoWatcher
@@ -52,6 +53,26 @@ class RepositoryFiles:
         if path:
             RepositoryFileCheck.path(path)
         return await asyncio.to_thread(self._repo.changes, limit, ref, path, skip)
+
+    async def remote(self, branch: str) -> dict[str, Any]:
+        """How `branch` stands against the remote, as of the last fetch: whether
+        there is a remote, whether the branch is on it, the local commits not
+        pushed yet and how many of the remote's are not pulled."""
+        if branch not in {b["name"] for b in await asyncio.to_thread(self._repo.branches)}:
+            raise ValueError(f"no branch called {branch}")
+        url = await asyncio.to_thread(self._repo.remote_url)
+        if url is None:
+            return {"configured": False}
+        unpushed = await asyncio.to_thread(self._repo.unpushed, branch)
+        counts = await asyncio.to_thread(self._repo.remote_ahead_behind, branch)
+        fetched = await asyncio.to_thread(self._repo.fetched_at)
+        return {
+            "configured": True,
+            "on_remote": unpushed is not None,
+            "unpushed": unpushed or [],
+            "behind": counts[1] if counts else 0,
+            "fetched_at": datetime.fromtimestamp(fetched, UTC).isoformat() if fetched else None,
+        }
 
     async def diff(self, commit: str) -> str:
         await self._commit_of(commit)

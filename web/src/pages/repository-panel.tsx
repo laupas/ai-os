@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, File, FilePlus, Folder, GitCommitHorizontal, History, Pencil, RotateCcw, Save, Search, Trash2, X } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, ChevronDown, ChevronRight, File, FilePlus, Folder, GitCommitHorizontal, History, Pencil, RefreshCw, RotateCcw, Save, Search, Trash2, X } from "lucide-react";
 import { lazy, Suspense, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Diff } from "@/components/history-button";
@@ -48,6 +48,88 @@ interface Opened {
 
 const STATUS: Record<string, string> = { A: "added", M: "changed", D: "deleted" };
 
+interface RemoteStatus {
+  configured: boolean;
+  on_remote?: boolean;
+  unpushed?: string[];
+  behind?: number;
+  fetched_at?: string | null;
+}
+
+/** The branch against its remote, as of the last fetch. */
+function useRemoteStatus(branch: string) {
+  return useQuery({
+    queryKey: ["repo-remote", branch],
+    queryFn: () => api<RemoteStatus>("GET", `/api/repository/remote?branch=${encodeURIComponent(branch)}`),
+    enabled: Boolean(branch),
+    refetchInterval: 30_000,
+  });
+}
+
+/** "Not pushed yet" on a commit: only here, in this repository, until a push. */
+function LocalBadge({ commit, unpushed }: { commit: string; unpushed: Set<string> }) {
+  return unpushed.has(commit) ? (
+    <Badge variant="warning" className="shrink-0" title="Committed here, not on the remote yet">
+      local
+    </Badge>
+  ) : null;
+}
+
+/** Whether the branch is on the remote, what is not pushed or not pulled yet, and
+ * the three buttons for it. Auto-push sends ai-os's own commits; a commit made on
+ * the host waits here until pushed. */
+function RemoteBar({ branch }: { branch: string }) {
+  const queryClient = useQueryClient();
+  const { data } = useRemoteStatus(branch);
+  const [busy, setBusy] = useState<string | null>(null);
+  if (!data) return null;
+  if (!data.configured)
+    return <p className="text-xs text-muted-foreground">No remote: everything is local. Set one up under Branches.</p>;
+  const unpushed = data.unpushed?.length ?? 0;
+  const behind = data.behind ?? 0;
+  const run = async (action: "push" | "pull" | "fetch") => {
+    setBusy(action);
+    try {
+      if (action === "fetch") await api("POST", "/api/git/fetch");
+      else await api("POST", `/api/git/${action}`, { branch });
+      toast.success(action === "push" ? `Pushed ${branch}.` : action === "pull" ? `Pulled into ${branch}.` : "Fetched.");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(null);
+      for (const key of ["repo-remote", "repo-history", "repo-tree", "repo-file", "git", "git-remote"]) void queryClient.invalidateQueries({ queryKey: [key] });
+    }
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-md border px-3 py-2 text-sm">
+      {!data.on_remote ? (
+        <Badge variant="warning">not on the remote yet</Badge>
+      ) : unpushed || behind ? (
+        <>
+          {unpushed ? <Badge variant="warning">{unpushed} commit{unpushed === 1 ? "" : "s"} not pushed</Badge> : null}
+          {behind ? <Badge variant="secondary">{behind} to pull</Badge> : null}
+        </>
+      ) : (
+        <Badge variant="success">same as the remote</Badge>
+      )}
+      <span className="min-w-0 flex-1 text-xs text-muted-foreground">{data.fetched_at ? `as of the last fetch, ${when(data.fetched_at)}` : "never fetched"}</span>
+      {!data.on_remote || unpushed ? (
+        <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => run("push")}>
+          <ArrowUpFromLine /> Push
+        </Button>
+      ) : null}
+      {behind ? (
+        <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => run("pull")}>
+          <ArrowDownToLine /> Pull
+        </Button>
+      ) : null}
+      <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => run("fetch")} aria-label="Fetch">
+        <RefreshCw className={cn(busy === "fetch" && "animate-spin")} /> Fetch
+      </Button>
+    </div>
+  );
+}
+
 /** The configuration repository as files, like a git host's code view: a branch,
  * its tree, a file to read or edit (each save a commit), and the history of the
  * file or of everything, with every commit's diff. */
@@ -91,6 +173,7 @@ export function RepositoryPanel() {
             : "Not the running branch: a save applies when it is switched to or merged."}
         </p>
       </div>
+      <RemoteBar branch={ref} />
       {view === "files" ? (
         <Files branch={ref} opened={opened} onOpen={setOpened} />
       ) : (
@@ -242,7 +325,7 @@ function FileView({ branch, opened, onOpen }: { branch: string; opened: Opened; 
   const dirty = draft !== null && (isNew || draft !== data?.text);
 
   const refresh = () => {
-    for (const key of ["repo-tree", "repo-file", "repo-history", "git", "settings", "agents", "connectors", "schedules", "audit"])
+    for (const key of ["repo-tree", "repo-file", "repo-history", "repo-remote", "git", "settings", "agents", "connectors", "schedules", "audit"])
       void queryClient.invalidateQueries({ queryKey: [key] });
   };
   const write = async (body: { text: string | null; base: string | null }, done: string) => {
@@ -348,6 +431,7 @@ function FileView({ branch, opened, onOpen }: { branch: string; opened: Opened; 
 }
 
 function FileHistory({ refName, path, onOpen }: { refName: string; path: string; onOpen: (commit: string) => void }) {
+  const unpushed = new Set(useRemoteStatus(refName).data?.unpushed ?? []);
   const { data, isLoading } = useQuery({
     queryKey: ["repo-history", refName, path],
     queryFn: () => api<{ commits: Commit[] }>("GET", `/api/repository/history?ref=${encodeURIComponent(refName)}&path=${encodeURIComponent(path)}&limit=30`),
@@ -361,6 +445,7 @@ function FileHistory({ refName, path, onOpen }: { refName: string; path: string;
           <div className={cn("flex items-center gap-2 px-2 py-1.5 text-xs", shown === c.commit && "bg-accent")}>
             <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => setShown(shown === c.commit ? null : c.commit)}>
               <code className="text-muted-foreground">{c.commit.slice(0, 7)}</code>
+              <LocalBadge commit={c.commit} unpushed={unpushed} />
               <span className="min-w-0 flex-1 truncate">{c.subject}</span>
               <span className="shrink-0 text-muted-foreground">
                 {c.author} · {when(c.date)}
@@ -387,6 +472,7 @@ function CommitDiff({ commit }: { commit: string }) {
 
 /** Every commit of the branch, newest first, a page at a time. */
 function CommitList({ refName, onOpenFile }: { refName: string; onOpenFile: (path: string, commit: string) => void }) {
+  const unpushed = new Set(useRemoteStatus(refName).data?.unpushed ?? []);
   const [pages, setPages] = useState(1);
   const limit = 50 * pages;
   const { data, isLoading, error } = useQuery({
@@ -410,6 +496,7 @@ function CommitList({ refName, onOpenFile }: { refName: string; onOpenFile: (pat
                 <GitCommitHorizontal className="size-3" />
                 {c.commit.slice(0, 7)}
               </code>
+              <LocalBadge commit={c.commit} unpushed={unpushed} />
               <span className="min-w-0 flex-1 truncate text-sm">{c.subject}</span>
               <span className="shrink-0 text-xs text-muted-foreground">
                 {c.author} · {when(c.date)} · {c.files.length} file{c.files.length === 1 ? "" : "s"}

@@ -31,6 +31,7 @@ class RepositoryRoutes(WebRoutes):
         app.router.add_get("/api/repository/tree", self._tree)
         app.router.add_get("/api/repository/file", self._read)
         app.router.add_get("/api/repository/history", self._history)
+        app.router.add_get("/api/repository/remote", self._remote)
         app.router.add_get("/api/repository/commits/{commit}", self._diff)
         app.router.add_put("/api/repository/file", self._write)
 
@@ -60,6 +61,11 @@ class RepositoryRoutes(WebRoutes):
         path = request.query.get("path") or None
         commits = await self._run(self._files.history(ref, path, skip, limit))
         return web.json_response({"commits": commits, "more": len(commits) == limit})
+
+    async def _remote(self, request: web.Request) -> web.Response:
+        WebAuth.caller(request, Permission.ADMINISTER)
+        branch = request.query.get("branch") or self._files.current_branch()
+        return web.json_response(await self._run(self._files.remote(branch)))
 
     async def _diff(self, request: web.Request) -> web.Response:
         WebAuth.caller(request, Permission.ADMINISTER)
