@@ -158,9 +158,7 @@ export interface RoleDoc {
 
 export interface Settings {
   config: string;
-  /** What aios.yaml sets, defaults left out; null when it does not parse. */
-  config_values: Record<string, unknown> | null;
-  /** aios.yaml's model as JSON schema, for the form. */
+  /** aios.yaml's model as JSON schema, for the reference beside the editor. */
   config_schema: Record<string, any>;
   users: User[];
   roles: RoleDoc[];

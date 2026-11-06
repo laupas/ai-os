@@ -1,13 +1,12 @@
 import { Plus, RotateCcw, Trash2 } from "lucide-react";
 import { Fragment, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 
-// A form drawn from a pydantic model's JSON schema. It edits the values a file
-// *sets*: an empty field is a key left out, so its default applies, and the
-// default is shown as the placeholder. Unknown shapes are left to the YAML tab.
+// A form drawn from a JSON schema, for a code connector's settings. It edits the
+// values that are *set*: an empty field is a key left out, so its default applies,
+// and the default is shown as the placeholder.
 
 export type Schema = Record<string, any>;
 export type Values = Record<string, unknown>;
@@ -84,58 +83,6 @@ function Doc({ text }: { text?: string }) {
 
 const label = (key: string) => key.replace(/_/g, " ");
 const shown = (v: unknown) => (v === undefined || v === null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
-
-/** The whole form: plain top-level settings in one card, each section in its own. */
-export function SchemaForm({ schema, values, onChange, hidden = [] }: { schema: Schema; values: Values; onChange: (v: Values) => void; hidden?: string[] }) {
-  const defs = schema.$defs ?? {};
-  const keys = Object.keys(schema.properties ?? {}).filter((k) => !hidden.includes(k));
-  const sectionKeys = keys.filter((k) => isObject(resolve(schema.properties[k], defs).schema));
-  const plainKeys = keys.filter((k) => !sectionKeys.includes(k));
-  return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>General</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {plainKeys.map((k) => (
-            <Field key={k} name={k} schema={schema.properties[k]} defs={defs} values={values} onChange={onChange} />
-          ))}
-        </CardContent>
-      </Card>
-      {sectionKeys.map((k) => {
-        const { schema: s, nullable } = resolve(schema.properties[k], defs);
-        const value = values[k];
-        return (
-          <Card key={k}>
-            <CardHeader className="flex-row items-start gap-3">
-              <div className="min-w-0 flex-1 space-y-1.5">
-                <CardTitle className="capitalize">{label(k)}</CardTitle>
-                <CardDescription>
-                  <Doc text={s.description} />
-                </CardDescription>
-              </div>
-              {nullable && isPlain(value) ? (
-                <Button size="sm" variant="ghost" className="text-destructive" onClick={() => onChange(set(values, k, undefined))}>
-                  <Trash2 /> Remove
-                </Button>
-              ) : null}
-            </CardHeader>
-            <CardContent>
-              {nullable && !isPlain(value) ? (
-                <Button size="sm" variant="outline" onClick={() => onChange(set(values, k, {}))}>
-                  <Plus /> Configure
-                </Button>
-              ) : (
-                <ObjectFields schema={s} defs={defs} values={isPlain(value) ? value : {}} onChange={(v) => onChange(set(values, k, v))} />
-              )}
-            </CardContent>
-          </Card>
-        );
-      })}
-    </div>
-  );
-}
 
 /** A code connector's settings: the fields of its schema, with those aios.yaml
  * fixes shown with their value and not editable. */
@@ -287,7 +234,7 @@ function Control({ schema, nullable, defs, value, onChange }: { schema: Schema; 
       </div>
     );
   }
-  return <p className="text-xs text-muted-foreground">Edit this one on the aios.yaml tab.</p>;
+  return <p className="text-xs text-muted-foreground">Edit this one on the JSON tab.</p>;
 }
 
 /** A list of strings, one per line. Empty means the default list. */

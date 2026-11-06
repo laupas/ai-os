@@ -16,7 +16,7 @@ from aios.entities.users.permission import Permission
 from aios.entities.users.role import Role
 from aios.entities.users.user import User
 from aios.storage.collection import Collection
-from aios.web.config_values_request import ConfigValuesRequest
+from aios.web.config_insert_request import ConfigInsertRequest
 from aios.web.request_body import RequestBody
 from aios.web.restart_request import RestartRequest
 from aios.web.text_request import TextRequest
@@ -61,7 +61,7 @@ class SettingsRoutes(WebRoutes):
     def register(self, app: web.Application) -> None:
         app.router.add_get("/api/settings", self._read)
         app.router.add_put("/api/settings/config", self._save_config)
-        app.router.add_put("/api/settings/config-values", self._save_config_values)
+        app.router.add_post("/api/settings/config-insert", self._insert)
         app.router.add_post("/api/settings/users", self._create_user)
         app.router.add_put("/api/settings/users/{id}", self._save_user)
         app.router.add_delete("/api/settings/users/{id}", self._delete_user)
@@ -77,7 +77,6 @@ class SettingsRoutes(WebRoutes):
         return web.json_response(
             {
                 "config": text,
-                "config_values": self._values(text),
                 "config_schema": AppConfig.model_json_schema(),
                 "restart_needed": text != self._started_with,
                 "in_repository": self._in_repository(),
@@ -97,16 +96,17 @@ class SettingsRoutes(WebRoutes):
             raise web.HTTPBadRequest(text=str(exc)) from exc
         return await self._write_config(body.text)
 
-    async def _save_config_values(self, request: web.Request) -> web.Response:
-        """The form's save: the values go into the file as it is, so its comments
-        and everything the form does not show survive."""
+    async def _insert(self, request: web.Request) -> web.Response:
+        """A key from the reference written into the text being edited, which is
+        not saved: the editor shows it, and Save is still the editor's."""
         WebAuth.caller(request, Permission.ADMINISTER)
-        body = await RequestBody.parse(request, ConfigValuesRequest)
+        body = await RequestBody.parse(request, ConfigInsertRequest)
         try:
-            AppConfig.model_validate(body.values)
-        except ValidationError as exc:
-            raise web.HTTPBadRequest(text=str(exc)) from exc
-        return await self._write_config(self._editor.apply(self._current_text(), body.values))
+            return web.json_response(
+                {"text": self._editor.insert(body.text, body.path, body.value)}
+            )
+        except Exception as exc:  # noqa: BLE001 - text that does not parse cannot take a key
+            raise web.HTTPBadRequest(text=f"aios.yaml does not parse: {exc}") from exc
 
     async def _write_config(self, text: str) -> web.Response:
         if self._in_repository():
@@ -114,13 +114,6 @@ class SettingsRoutes(WebRoutes):
         else:
             await asyncio.to_thread(self._config_file.write_text, text, "utf-8")
         return web.json_response({"ok": True, "restart_needed": text != self._started_with})
-
-    def _values(self, text: str) -> dict | None:
-        """None when the file does not parse; the form then has nothing to show."""
-        try:
-            return self._editor.values(text)
-        except Exception:  # noqa: BLE001 - any parse failure means "use the YAML tab"
-            return None
 
     async def _restart_needed(self, request: web.Request) -> web.Response:
         WebAuth.caller(request, Permission.ADMINISTER)
