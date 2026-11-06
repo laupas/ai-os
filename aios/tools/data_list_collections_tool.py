@@ -31,7 +31,7 @@ class DataListCollectionsTool(AiosTool):
                     "name": name,
                     "access": collection.definition.agent_access.value,
                     "writes_need_approval": collection.definition.agent_writes_need_approval,
-                    "count": len(collection.all()),
+                    "count": len(self._guard.visible(collection, context.user.id)),
                     "schema": collection.definition.entity.model_json_schema(),
                 }
             )

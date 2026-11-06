@@ -120,7 +120,10 @@ class StorageContainer(containers.DeclarativeContainer):
     conversations_definition = providers.Singleton(
         overrides.provided.apply.call(
             CollectionDefinition(
-                name="conversations", entity=Conversation, agent_access=AgentAccess.READ
+                name="conversations",
+                entity=Conversation,
+                agent_access=AgentAccess.READ,
+                owner_field="participants",
             )
         )
     )
@@ -137,6 +140,8 @@ class StorageContainer(containers.DeclarativeContainer):
                 entity=Memory,
                 agent_access=AgentAccess.WRITE,
                 agent_writes_need_approval=False,
+                approver_permission=Permission.ADMINISTER,
+                owner_field="user_id",
             )
         )
     )

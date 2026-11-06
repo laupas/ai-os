@@ -6,9 +6,11 @@ from aios.entities.memories.memory_kind import MemoryKind
 
 
 class Memory(BaseModel):
-    """Something the user asked ai-os to remember."""
+    """Something a user asked ai-os to remember."""
 
     id: str
+    user_id: str | None = None
+    """The user it belongs to; None makes it shared with every user."""
     kind: MemoryKind = MemoryKind.NOTE
     subject: str | None = None
     """Who or what it is about, e.g. a person's or project's name."""

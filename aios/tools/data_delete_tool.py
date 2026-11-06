@@ -33,7 +33,7 @@ class DataDeleteTool(AiosTool):
     async def run(self, args: dict[str, Any], context: ToolContext) -> str:
         collection = self._guard.writable(str(args["collection"]))
         doc_id = str(args["id"])
-        if collection.get(doc_id) is None:
+        if self._guard.get_visible(collection, doc_id, context.user.id) is None:
             raise ToolError(f"No document {doc_id!r} in {collection.name}.")
         await collection.delete(doc_id)
         return f"Deleted {collection.name}/{doc_id}."

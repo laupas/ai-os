@@ -26,8 +26,10 @@ channel (web, Slack) ──► Gateway ──► Engine (Claude Agent SDK) ─�
 - **Users and roles** decide who may chat, who may approve, and who can be messaged
   without asking.
 - **Scheduler** runs stored prompts on cron times or once.
-- **Memories** keep what the user asked to remember; preferences go into every
-  system prompt.
+- **Memories** keep what a user asked to remember. Each belongs to one user, whose
+  turns alone see it, or is shared with every user; agents save shared ones only
+  with an administrator's approval. Shared preferences and the user's own go into
+  the system prompt.
 
 ## Quick start (Docker)
 

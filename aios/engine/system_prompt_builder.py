@@ -12,8 +12,8 @@ from aios.storage.collection import Collection
 class SystemPromptBuilder:
     """The main agent's prompt from the agent catalog (the orchestrator's, or that of
     the agent the conversation was started with), plus who is talking, where and when,
-    the user's remembered preferences, and the connectors this turn goes without
-    because the user has not signed in to them."""
+    the remembered preferences shared by every user and the user's own, and the
+    connectors this turn goes without because the user has not signed in to them."""
 
     def __init__(
         self,
@@ -48,12 +48,21 @@ class SystemPromptBuilder:
                 "do not try another way."
             )
         preferences = self._memories.filter(lambda m: m.kind is MemoryKind.PREFERENCE)
-        if preferences:
+        shared = [m for m in preferences if m.user_id is None]
+        own = [m for m in preferences if m.user_id == request.user.id]
+        if shared or own:
             lines += [
                 "",
                 "# Remembered preferences",
                 "Apply each one only where it fits: a mail signoff belongs in mails, never "
                 "in your chat replies.",
             ]
-            lines += [f"- {m.subject + ': ' if m.subject else ''}{m.text}" for m in preferences]
+        if shared:
+            lines += ["", "## Shared by every user"] + [self._line(m) for m in shared]
+        if own:
+            lines += ["", f"## {request.user.name}'s own"] + [self._line(m) for m in own]
         return "\n".join(lines) + "\n"
+
+    @staticmethod
+    def _line(memory: Memory) -> str:
+        return f"- {memory.subject + ': ' if memory.subject else ''}{memory.text}"

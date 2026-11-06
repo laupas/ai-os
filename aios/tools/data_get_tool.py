@@ -28,7 +28,7 @@ class DataGetTool(AiosTool):
 
     async def run(self, args: dict[str, Any], context: ToolContext) -> str:
         collection = self._guard.readable(str(args["collection"]))
-        item = collection.get(str(args["id"]))
+        item = self._guard.get_visible(collection, str(args["id"]), context.user.id)
         if item is None:
             raise ToolError(f"No document {args['id']!r} in {collection.name}.")
         return item.model_dump_json()

@@ -6,7 +6,8 @@ from aios.tools.tool_error import ToolError
 
 
 class CollectionAccessGuard:
-    """Hands out a collection only within the agent access its definition grants."""
+    """Hands out a collection only within the agent access its definition grants,
+    and of an owned collection only the documents of the turn user and shared ones."""
 
     def __init__(self, registry: CollectionRegistry) -> None:
         self._registry = registry
@@ -25,3 +26,16 @@ class CollectionAccessGuard:
 
     def readable_names(self) -> list[str]:
         return [c.name for c in self._registry.all() if c.definition.agent_access.allows_read()]
+
+    @staticmethod
+    def visible(collection: Collection[BaseModel], user_id: str) -> list[BaseModel]:
+        return collection.filter(lambda item: collection.definition.visible_to(item, user_id))
+
+    @staticmethod
+    def get_visible(
+        collection: Collection[BaseModel], item_id: str, user_id: str
+    ) -> BaseModel | None:
+        item = collection.get(item_id)
+        if item is None or not collection.definition.visible_to(item, user_id):
+            return None
+        return item

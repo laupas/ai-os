@@ -27,7 +27,10 @@ class DataPutTool(AiosTool):
         return (
             "Create or replace a document in a collection. Without an `id` a new one is "
             "created. The document must match the collection's schema; read the current "
-            "document first when changing one, since this replaces it whole."
+            "document first when changing one, since this replaces it whole. In a "
+            "collection with an owner field (`user_id`), leave it out to save the document "
+            "for the current user; set it to null to share it with every user, which an "
+            "administrator must approve."
         )
 
     @property
@@ -42,9 +45,19 @@ class DataPutTool(AiosTool):
         collection = self._guard.writable(str(args["collection"]))
         document = dict(args["document"])
         document.setdefault("id", self._ids.new_id())
+        definition = collection.definition
+        if definition.owner_field is not None:
+            document.setdefault(definition.owner_field, context.user.id)
+            existing = collection.get(str(document["id"]))
+            if existing is not None and not definition.visible_to(existing, context.user.id):
+                raise ToolError(f"No document {document['id']!r} in {collection.name}.")
         try:
             item = collection.parse(document)
         except ValidationError as exc:
             raise ToolError(f"The document does not fit {collection.name}: {exc}") from exc
+        if not definition.visible_to(item, context.user.id):
+            raise ToolError(
+                f"A document in {collection.name} belongs to the current user or is shared."
+            )
         await collection.put(item)
         return f"Saved {collection.name}/{document['id']}."

@@ -34,6 +34,9 @@ class DataQueryTool(AiosTool):
     async def run(self, args: dict[str, Any], context: ToolContext) -> str:
         collection = self._guard.readable(str(args["collection"]))
         where: dict[str, Any] = args.get("where") or {}
-        documents = [item.model_dump(mode="json") for item in collection.all()]
+        documents = [
+            item.model_dump(mode="json")
+            for item in self._guard.visible(collection, context.user.id)
+        ]
         matches = [d for d in documents if all(d.get(k) == v for k, v in where.items())]
         return json.dumps(matches[:MAX_RESULTS], ensure_ascii=False)

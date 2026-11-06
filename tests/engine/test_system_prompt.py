@@ -22,7 +22,7 @@ class _Clock(Clock):
         return datetime(2026, 10, 9, 12, 0, tzinfo=UTC)
 
 
-async def test_prompt_has_local_time_and_only_preferences(tmp_path) -> None:
+async def test_prompt_has_local_time_and_shared_and_own_preferences(tmp_path) -> None:
     (tmp_path / "orchestrator.md").write_text("---\nname: orchestrator\n---\nYou are ai-os.\n")
     store = InMemoryDocumentStore()
     memories: Collection[Memory] = Collection(
@@ -34,6 +34,8 @@ async def test_prompt_has_local_time_and_only_preferences(tmp_path) -> None:
     agents = AgentCatalog(stored)
     await memories.put(Memory(id="1", kind=MemoryKind.PREFERENCE, subject="Signoff", text="P."))
     await memories.put(Memory(id="2", kind=MemoryKind.NOTE, text="secret journal"))
+    await memories.put(Memory(id="3", kind=MemoryKind.PREFERENCE, user_id="u1", text="Mine."))
+    await memories.put(Memory(id="4", kind=MemoryKind.PREFERENCE, user_id="u2", text="Bob's."))
     builder = SystemPromptBuilder(agents, _Clock(), "Europe/Zurich", memories)
     now = datetime(2026, 10, 9, tzinfo=UTC)
     prompt = builder.build(
@@ -47,6 +49,7 @@ async def test_prompt_has_local_time_and_only_preferences(tmp_path) -> None:
     assert prompt.startswith("You are ai-os.")
     assert "Friday 2026-10-09 14:00 (Europe/Zurich)" in prompt
     assert "- Signoff: P." in prompt and "secret journal" not in prompt
+    assert "## Alice's own\n- Mine." in prompt and "Bob's." not in prompt
     assert "user id u1" in prompt and "address D1" in prompt
 
 
