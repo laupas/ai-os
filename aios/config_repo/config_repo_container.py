@@ -7,6 +7,8 @@ from aios.config_repo.config_remote import ConfigRemote
 from aios.config_repo.config_repo_initializer import ConfigRepoInitializer
 from aios.config_repo.config_repo_watcher import ConfigRepoWatcher
 from aios.config_repo.remote_from_environment import RemoteFromEnvironment
+from aios.config_repo.repository_file_check import RepositoryFileCheck
+from aios.config_repo.repository_files import RepositoryFiles
 from aios.config_repo.skills_link import SkillsLink
 
 
@@ -45,6 +47,12 @@ class ConfigRepoContainer(containers.DeclarativeContainer):
         target=providers.Callable(lambda s: s.repo.root / "skills", store),
     )
     watcher = providers.Singleton(ConfigRepoWatcher, store=store, collections=collections)
+    files = providers.Singleton(
+        RepositoryFiles,
+        store=store,
+        watcher=watcher,
+        check=providers.Singleton(RepositoryFileCheck, store=store, collections=collections),
+    )
     branches = providers.Singleton(ConfigBranches, store=store, collections=collections)
     remote = providers.Singleton(
         ConfigRemote,

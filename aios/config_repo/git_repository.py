@@ -74,13 +74,17 @@ class GitRepository:
             )
         return entries
 
-    def changes(self, limit: int) -> list[dict]:
-        """The newest `limit` commits on the checked-out branch, newest first, each
-        with the files it touched: commit, author, email, date, subject and
-        `files`, a list of (status letter, path)."""
+    def changes(
+        self, limit: int, ref: str = "HEAD", path: str | None = None, skip: int = 0
+    ) -> list[dict]:
+        """The newest `limit` commits of `ref` (after skipping `skip`), newest first,
+        each with the files it touched: commit, author, email, date, subject and
+        `files`, a list of (status letter, path). With `path`, only the commits
+        touching it."""
         result = self._git(
-            "log", f"-{limit}", "--name-status", "--no-renames",
-            "--format=%x1e%H%x1f%an%x1f%ae%x1f%aI%x1f%s", check=False,
+            "log", f"-{limit}", f"--skip={skip}", "--name-status", "--no-renames",
+            "--format=%x1e%H%x1f%an%x1f%ae%x1f%aI%x1f%s", ref, "--", *([path] if path else []),
+            check=False,
         )  # fmt: skip
         entries = []
         for block in result.stdout.split("\x1e")[1:]:
@@ -88,14 +92,62 @@ class GitRepository:
             commit, name, email, date, subject = head.split("\x1f")
             files = []
             for line in lines:
-                status, _, path = line.partition("\t")
-                if path:
-                    files.append((status[:1], path))
+                status, _, file = line.partition("\t")
+                if file:
+                    files.append((status[:1], file))
             entries.append(
                 {"commit": commit, "author": name, "email": email, "date": date,
                  "subject": subject, "files": files}
             )  # fmt: skip
         return entries
+
+    def resolve(self, ref: str) -> str | None:
+        """The commit `ref` names (a branch or a commit id), or None."""
+        if not ref or ref.startswith("-"):
+            return None
+        result = self._git("rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}", check=False)
+        return result.stdout.strip() or None
+
+    def tree(self, ref: str) -> list[dict]:
+        """Every file in `ref`: path, blob id and size in bytes."""
+        result = self._git("ls-tree", "-r", "--long", "-z", ref)
+        files = []
+        for entry in result.stdout.split("\0"):
+            if not entry:
+                continue
+            meta, _, path = entry.partition("\t")
+            _mode, kind, blob, size = meta.split()
+            if kind == "blob":
+                files.append({"path": path, "blob": blob, "size": int(size)})
+        return files
+
+    def blob(self, ref: str, path: str) -> str | None:
+        """The blob id of `path` in `ref`; None when it is not there."""
+        result = self._git("rev-parse", "--verify", "--quiet", f"{ref}:{path}", check=False)
+        return result.stdout.strip() or None
+
+    def commit_on(
+        self, branch: str, files: dict[str, str | None], message: str, author: ChangeAuthor
+    ) -> str | None:
+        """Commits `files` (text, or None to remove) on `branch` in a temporary
+        worktree, so the checked-out configuration is not touched. Returns the new
+        commit, or None when nothing changed."""
+        with tempfile.TemporaryDirectory(prefix="aios-edit-") as tmp:
+            place = Path(tmp) / "tree"
+            self._git("worktree", "add", "--quiet", str(place), branch)
+            try:
+                other = GitRepository(place)
+                for path, text in files.items():
+                    file = place / path
+                    if text is None:
+                        file.unlink(missing_ok=True)
+                    else:
+                        file.parent.mkdir(parents=True, exist_ok=True)
+                        file.write_text(text, encoding="utf-8")
+                return other.commit(list(files), message, author)
+            finally:
+                self._git("worktree", "remove", "--force", str(place), check=False)
+                self._git("worktree", "prune", check=False)
 
     def show(self, commit: str, path: str) -> str | None:
         """The file as it was in `commit`; None when it did not exist there."""

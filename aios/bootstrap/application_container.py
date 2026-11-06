@@ -234,6 +234,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         audit_trail=storage.audit_trail,
         claude_credentials=engine.credentials,
         code_connectors=connectors.code,
+        repository_files=config_repo.files,
     )
 
     background = providers.Callable(

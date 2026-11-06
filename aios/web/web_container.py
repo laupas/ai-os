@@ -15,6 +15,7 @@ from aios.web.routes.health_routes import HealthRoutes
 from aios.web.routes.history_routes import HistoryRoutes
 from aios.web.routes.log_routes import LogRoutes
 from aios.web.routes.memory_routes import MemoryRoutes
+from aios.web.routes.repository_routes import RepositoryRoutes
 from aios.web.routes.schedule_routes import ScheduleRoutes
 from aios.web.routes.settings_routes import SettingsRoutes
 from aios.web.routes.skill_routes import SkillRoutes
@@ -68,6 +69,7 @@ class WebContainer(containers.DeclarativeContainer):
     audit_trail = providers.Dependency()
     claude_credentials = providers.Dependency(default=None)
     code_connectors = providers.Dependency(default=None)
+    repository_files = providers.Dependency()
 
     identity = providers.Singleton(WebIdentityFactory.create, app_config.provided.web)
     auth = providers.Singleton(WebAuth, identity=identity, users=users, authorizer=authorizer)
@@ -97,6 +99,7 @@ class WebContainer(containers.DeclarativeContainer):
         ),
         providers.Singleton(LogRoutes, log_reader=log_reader, clock=clock),
         providers.Singleton(AuditRoutes, feed=audit_feed),
+        providers.Singleton(RepositoryRoutes, files=repository_files),
         providers.Singleton(
             ConversationRoutes,
             conversations=conversations,
