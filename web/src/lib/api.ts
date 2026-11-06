@@ -119,7 +119,13 @@ export interface Memory {
   kind: MemoryKind;
   subject: string | null;
   text: string;
+  user_id: string | null;
   created_at: string;
+}
+
+export interface MemoryOwner {
+  id: string;
+  name: string;
 }
 
 export interface Health {

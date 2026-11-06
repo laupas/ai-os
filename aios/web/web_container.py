@@ -123,7 +123,7 @@ class WebContainer(containers.DeclarativeContainer):
             users=users,
             agents=agents,
         ),
-        providers.Singleton(MemoryRoutes, memories=memories, ids=ids, clock=clock),
+        providers.Singleton(MemoryRoutes, memories=memories, users=users, ids=ids, clock=clock),
         providers.Singleton(
             AgentRoutes,
             agents=agents,

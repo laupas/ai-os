@@ -22,6 +22,7 @@ from aios.conversations.message_recorder import MessageRecorder
 from aios.conversations.turn_canceller import TurnCanceller
 from aios.engine.agent_engine import AgentEngine
 from aios.entities.connectors.connector_token import ConnectorToken
+from aios.entities.memories.memory import Memory
 from aios.entities.schedules.schedule import Schedule
 from aios.entities.skills.skill import Skill
 from aios.entities.users.channel_account import ChannelAccount
@@ -42,6 +43,7 @@ from aios.web.routes.connector_routes import ConnectorRoutes
 from aios.web.routes.conversation_routes import ConversationRoutes
 from aios.web.routes.history_routes import HistoryRoutes
 from aios.web.routes.log_routes import LogRoutes
+from aios.web.routes.memory_routes import MemoryRoutes
 from aios.web.routes.schedule_routes import ScheduleRoutes
 from aios.web.routes.settings_routes import SettingsRoutes
 from aios.web.routes.skill_routes import SkillRoutes
@@ -120,6 +122,9 @@ class Console:
         self.schedules: Collection[Schedule] = Collection(
             CollectionDefinition(name="schedules", entity=Schedule), w.store
         )
+        self.memories: Collection[Memory] = Collection(
+            CollectionDefinition(name="memories", entity=Memory), w.store
+        )
         self._channel_task = asyncio.create_task(self.channel.start(gateway, w.approval_service))
         self.config_file = self.tmp_path / "config.yaml"
         self.config_file.write_text("channels: [web]\n")
@@ -196,6 +201,7 @@ class Console:
                     ),
                 ),
                 SettingsRoutes(self.config_file, w.users, w.roles, w.ids, self.restart),
+                MemoryRoutes(self.memories, w.users, w.ids, w.clock),
                 ScheduleRoutes(
                     self.schedules,
                     ScheduleTiming(),
