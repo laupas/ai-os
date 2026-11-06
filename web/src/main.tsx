@@ -26,9 +26,21 @@ const fitKeyboard = () => {
   document.documentElement.style.setProperty("--keyboard", `${keyboard}px`);
   if (window.scrollY) window.scrollTo(0, 0);
 };
+// Chrome on iOS can scroll the window or settle its toolbars without a visual
+// viewport event, leaving the top bar pushed under its address bar until the tab
+// is switched. So the window's own events count too, and each fit is checked again
+// once the browser has finished moving.
+let settle: number | undefined;
+const fitNowAndLater = () => {
+  fitKeyboard();
+  window.clearTimeout(settle);
+  settle = window.setTimeout(fitKeyboard, 300);
+};
 fitKeyboard();
-viewport?.addEventListener("resize", fitKeyboard);
-viewport?.addEventListener("scroll", fitKeyboard);
+viewport?.addEventListener("resize", fitNowAndLater);
+viewport?.addEventListener("scroll", fitNowAndLater);
+window.addEventListener("resize", fitNowAndLater);
+window.addEventListener("scroll", fitNowAndLater, { passive: true });
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: true, retry: 1 } },
