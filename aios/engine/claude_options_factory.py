@@ -25,7 +25,15 @@ class ClaudeOptionsFactory:
 
     The main thread is the orchestrator, or the agent the conversation was started
     with; subagents are offered only to a main agent that may delegate.
+
+    Background tasks are switched off. The CLI runs a subagent in the background
+    unless told otherwise, and a turn ends when the main thread stops writing: the
+    session closes, `can_use_tool` goes with it, and every call the subagent makes
+    after that fails with "Stream closed". The user is told a result will follow
+    and nothing ever does.
     """
+
+    ENV = {"CLAUDE_CODE_DISABLE_BACKGROUND_TASKS": "1"}
 
     def __init__(
         self,
@@ -73,6 +81,7 @@ class ClaudeOptionsFactory:
             hooks=tracker.hooks(),  # type: ignore[arg-type]
             can_use_tool=self._gate.for_context(context, tracker, deadline),
             permission_mode="default",
+            env=dict(self.ENV),
             resume=resume,
             model=main.model or self._config.model,
             # Partial messages let a channel show the reply while it is written.
