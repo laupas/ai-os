@@ -60,6 +60,11 @@ Read `README.md` for what ai-os is. This file is the rules for changing it.
   `SecretExtractor`, so no literal secret reaches the configuration repository. Keep
   it in front of any new way of writing a connector.
 
+- The audit trail (`<data>/audit.jsonl`, `AuditedDocumentStore`) records field
+  names, and old and new values only where `AuditPolicy.show_values` is set. Never
+  set that on a collection that can hold a secret (variables, tokens, remotes).
+  Configuration in the git repository is not audited twice: `ConfigHistory` reads
+  its commits into the same feed.
 - Configuration (agents, skills, connectors, schedules) is the git repository
   `<data>/config` (`GitDocumentStore`). Never put a secret into it: connector configs
   carry `${VAR}`, and git history keeps whatever was committed. Runtime fields

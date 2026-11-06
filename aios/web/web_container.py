@@ -1,8 +1,12 @@
 from dependency_injector import containers, providers
 
+from aios.audit.audit_feed import AuditFeed
+from aios.audit.config_history import ConfigHistory
+from aios.web.audit_middleware import AuditMiddleware
 from aios.web.restart_request import RestartRequest
 from aios.web.routes.agent_routes import AgentRoutes
 from aios.web.routes.approval_routes import ApprovalRoutes
+from aios.web.routes.audit_routes import AuditRoutes
 from aios.web.routes.connector_auth_routes import ConnectorAuthRoutes
 from aios.web.routes.connector_routes import ConnectorRoutes
 from aios.web.routes.conversation_routes import ConversationRoutes
@@ -61,10 +65,17 @@ class WebContainer(containers.DeclarativeContainer):
     config_collections = providers.Dependency()
     config_branches = providers.Dependency()
     config_remote = providers.Dependency()
+    audit_trail = providers.Dependency()
 
     identity = providers.Singleton(WebIdentityFactory.create, app_config.provided.web)
     auth = providers.Singleton(WebAuth, identity=identity, users=users, authorizer=authorizer)
     restart = providers.Singleton(RestartRequest)
+    audit = providers.Singleton(AuditMiddleware, trail=audit_trail)
+    audit_feed = providers.Singleton(
+        AuditFeed,
+        trail=audit_trail,
+        history=providers.Singleton(ConfigHistory, repo=config_store.provided.repo),
+    )
 
     routes = providers.List(
         providers.Singleton(
@@ -82,6 +93,7 @@ class WebContainer(containers.DeclarativeContainer):
             connectors=connector_catalog,
         ),
         providers.Singleton(LogRoutes, log_reader=log_reader, clock=clock),
+        providers.Singleton(AuditRoutes, feed=audit_feed),
         providers.Singleton(
             ConversationRoutes,
             conversations=conversations,
@@ -157,4 +169,5 @@ class WebContainer(containers.DeclarativeContainer):
         routes=routes,
         restart=restart,
         port=app_config.provided.web.port,
+        audit=audit,
     )

@@ -5,6 +5,7 @@ import {
   GitBranch,
   KeyRound,
   CalendarClock,
+  ClipboardList,
   Brain,
   MenuIcon,
   MessagesSquare,
@@ -40,6 +41,7 @@ export const NAV: NavItem[] = [
   // Everyone who may chat signs in to per-user connectors here; the rest is for administrators.
   { id: "connectors", label: "Connectors", icon: Plug, needs: "chat" },
   { id: "variables", label: "Variables", icon: KeyRound, needs: "administer" },
+  { id: "audit", label: "Audit", icon: ClipboardList, needs: "administer" },
   { id: "logs", label: "Logs", icon: ScrollText, needs: "administer" },
   { id: "health", label: "Health", icon: Activity, needs: "administer" },
   { id: "settings", label: "Settings", icon: Settings, needs: "administer" },

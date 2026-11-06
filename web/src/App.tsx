@@ -4,6 +4,7 @@ import { useRoute } from "@/lib/router";
 import { useMe } from "@/lib/use-me";
 import { AgentsPage } from "@/pages/agents-page";
 import { ApprovalsPage } from "@/pages/approvals-page";
+import { AuditPage } from "@/pages/audit-page";
 import { ChatPage } from "@/pages/chat/chat-page";
 import { ConnectorsPage } from "@/pages/connectors-page";
 import { HealthPage } from "@/pages/health-page";
@@ -41,6 +42,7 @@ export function App() {
     skills: <SkillsPage />,
     connectors: <ConnectorsPage />,
     variables: <VariablesPage />,
+    audit: <AuditPage />,
     logs: <LogsPage />,
     health: <HealthPage />,
     settings: <SettingsPage tab={arg} />,

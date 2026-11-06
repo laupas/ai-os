@@ -4,6 +4,7 @@ from pathlib import Path
 from aiohttp import web
 
 from aios.bootstrap.background_service import BackgroundService
+from aios.web.audit_middleware import AuditMiddleware
 from aios.web.restart_request import RestartRequest
 from aios.web.web_auth import WebAuth
 from aios.web.web_routes import WebRoutes
@@ -35,15 +36,21 @@ class WebServer(BackgroundService):
         restart: RestartRequest,
         port: int,
         static_dir: Path = STATIC_DIR,
+        audit: AuditMiddleware | None = None,
     ) -> None:
         self._auth = auth
         self._routes = routes
         self._restart = restart
         self._port = port
         self._static_dir = Path(static_dir)
+        self._audit = audit
 
     def build(self) -> web.Application:
-        app = web.Application(middlewares=[self._auth.middleware], client_max_size=1024**2)
+        # Audit inside auth: it records only what an identified caller did.
+        middlewares = [self._auth.middleware]
+        if self._audit is not None:
+            middlewares.append(self._audit.middleware)
+        app = web.Application(middlewares=middlewares, client_max_size=1024**2)
         app.on_response_prepare.append(self._caching)
         for routes in self._routes:
             routes.register(app)

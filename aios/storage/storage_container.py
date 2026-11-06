@@ -1,5 +1,8 @@
 from dependency_injector import containers, providers
 
+from aios.audit.audit_policy import AuditPolicy
+from aios.audit.audit_trail import AuditTrail
+from aios.audit.audited_document_store import AuditedDocumentStore
 from aios.config_repo.front_matter_layout import FrontMatterLayout
 from aios.config_repo.git_document_store import GitDocumentStore
 from aios.config_repo.git_repository import GitRepository
@@ -38,9 +41,38 @@ class StorageContainer(containers.DeclarativeContainer):
     data_dir = providers.Dependency()
     access_overrides = providers.Dependency(default={})
     config_dir = providers.Dependency()
+    clock = providers.Dependency()
 
     document_store = providers.Singleton(JsonFileDocumentStore, root=data_dir)
     append_log = providers.Singleton(JsonlAppendLog, root=data_dir)
+    audit_trail = providers.Singleton(AuditTrail, log=append_log, clock=clock)
+    # Settings kept in the data dir. Those in the configuration repository need no
+    # entry: their git history is the record (`ConfigHistory`).
+    settings_store = providers.Singleton(
+        AuditedDocumentStore,
+        inner=document_store,
+        trail=audit_trail,
+        policies=providers.Dict(
+            users=providers.Object(AuditPolicy(show_values=True)),
+            variables=providers.Object(
+                AuditPolicy(ignored_fields=frozenset({"updated_at", "updated_by"}))
+            ),
+            **{
+                "git-remotes": providers.Object(
+                    AuditPolicy(ignored_fields=frozenset({"updated_at", "updated_by"}))
+                ),
+                # A renewal changes only the tokens; signing in again changes
+                # `signed_in_at` and is recorded.
+                "connector-tokens": providers.Object(
+                    AuditPolicy(
+                        ignored_fields=frozenset(
+                            {"access_token", "refresh_token", "expires_at", "encrypted"}
+                        )
+                    )
+                ),
+            },
+        ),
+    )
     config_repo = providers.Singleton(GitRepository, root=config_dir)
     config_store = providers.Singleton(
         GitDocumentStore,
@@ -138,7 +170,7 @@ class StorageContainer(containers.DeclarativeContainer):
         CollectionDefinition, name="connectors", entity=Connector, agent_access=AgentAccess.NONE
     )
 
-    users = providers.Singleton(Collection, definition=users_definition, store=document_store)
+    users = providers.Singleton(Collection, definition=users_definition, store=settings_store)
     memories = providers.Singleton(Collection, definition=memories_definition, store=document_store)
     schedules = providers.Singleton(Collection, definition=schedules_definition, store=config_store)
     trades = providers.Singleton(Collection, definition=trades_definition, store=document_store)
@@ -149,13 +181,13 @@ class StorageContainer(containers.DeclarativeContainer):
     )
     roles = providers.Singleton(Collection, definition=roles_definition, store=config_store)
     variables = providers.Singleton(
-        Collection, definition=variables_definition, store=document_store
+        Collection, definition=variables_definition, store=settings_store
     )
     git_remotes = providers.Singleton(
-        Collection, definition=git_remotes_definition, store=document_store
+        Collection, definition=git_remotes_definition, store=settings_store
     )
     connector_tokens = providers.Singleton(
-        Collection, definition=connector_tokens_definition, store=document_store
+        Collection, definition=connector_tokens_definition, store=settings_store
     )
     conversations = providers.Singleton(
         Collection, definition=conversations_definition, store=document_store

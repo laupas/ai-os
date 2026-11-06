@@ -74,6 +74,29 @@ class GitRepository:
             )
         return entries
 
+    def changes(self, limit: int) -> list[dict]:
+        """The newest `limit` commits on the checked-out branch, newest first, each
+        with the files it touched: commit, author, email, date, subject and
+        `files`, a list of (status letter, path)."""
+        result = self._git(
+            "log", f"-{limit}", "--name-status", "--no-renames",
+            "--format=%x1e%H%x1f%an%x1f%ae%x1f%aI%x1f%s", check=False,
+        )  # fmt: skip
+        entries = []
+        for block in result.stdout.split("\x1e")[1:]:
+            head, *lines = block.splitlines()
+            commit, name, email, date, subject = head.split("\x1f")
+            files = []
+            for line in lines:
+                status, _, path = line.partition("\t")
+                if path:
+                    files.append((status[:1], path))
+            entries.append(
+                {"commit": commit, "author": name, "email": email, "date": date,
+                 "subject": subject, "files": files}
+            )  # fmt: skip
+        return entries
+
     def show(self, commit: str, path: str) -> str | None:
         """The file as it was in `commit`; None when it did not exist there."""
         result = self._git("show", f"{commit}:{path}", check=False)

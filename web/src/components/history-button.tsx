@@ -145,7 +145,7 @@ function CommitDetail({
   );
 }
 
-function Diff({ text }: { text: string }) {
+export function Diff({ text }: { text: string }) {
   const lines = text.split("\n").filter((l) => !/^(diff --git|index |--- |\+\+\+ |new file mode|deleted file mode)/.test(l));
   if (!lines.some((l) => l.trim())) return <p className="text-xs text-muted-foreground">No change in this file.</p>;
   return (

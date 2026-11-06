@@ -290,3 +290,15 @@ export interface SignInState {
   expires_at: string | null;
   renewable: boolean;
 }
+
+export interface AuditEntry {
+  at: string;
+  actor: string;
+  actor_email: string;
+  area: string;
+  item: string;
+  action: "created" | "changed" | "deleted" | "performed";
+  fields: string[];
+  detail: string | null;
+  commit: string | null;
+}

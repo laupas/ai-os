@@ -37,6 +37,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         data_dir=config.settings.provided.data_dir,
         access_overrides=app_config.provided.collection_access,
         config_dir=config.settings.provided.config_dir.call(),
+        clock=common.clock,
     )
     users = providers.Container(
         UsersContainer,
@@ -231,6 +232,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         ),
         config_branches=config_repo.branches,
         config_remote=config_repo.remote,
+        audit_trail=storage.audit_trail,
     )
 
     background = providers.Callable(
