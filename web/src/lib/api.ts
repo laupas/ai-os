@@ -130,6 +130,8 @@ export interface Health {
   senders: string[];
   mcp_servers: string[];
   scheduler: boolean;
+  /** Which credential signs ai-os in to Claude, and where it comes from; never its value. */
+  claude: { auth: "subscription" | "api_key"; variable: string; source: "variable" | "environment" | null } | null;
   counts: Record<string, number>;
   last_problem: string | null;
 }
@@ -156,6 +158,10 @@ export interface RoleDoc {
 
 export interface Settings {
   config: string;
+  /** What aios.yaml sets, defaults left out; null when it does not parse. */
+  config_values: Record<string, unknown> | null;
+  /** aios.yaml's model as JSON schema, for the form. */
+  config_schema: Record<string, any>;
   users: User[];
   roles: RoleDoc[];
   permissions: Permission[];

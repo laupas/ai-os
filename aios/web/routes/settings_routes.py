@@ -9,12 +9,14 @@ from pydantic import ValidationError
 
 from aios.common.id_generator import IdGenerator
 from aios.config.app_config import AppConfig
+from aios.config.config_yaml_editor import ConfigYamlEditor
 from aios.config.settings import CONFIG_FILE_NAME
 from aios.config_repo.git_document_store import GitDocumentStore
 from aios.entities.users.permission import Permission
 from aios.entities.users.role import Role
 from aios.entities.users.user import User
 from aios.storage.collection import Collection
+from aios.web.config_values_request import ConfigValuesRequest
 from aios.web.request_body import RequestBody
 from aios.web.restart_request import RestartRequest
 from aios.web.text_request import TextRequest
@@ -54,10 +56,12 @@ class SettingsRoutes(WebRoutes):
         self._roles = roles
         self._ids = ids
         self._restart = restart
+        self._editor = ConfigYamlEditor()
 
     def register(self, app: web.Application) -> None:
         app.router.add_get("/api/settings", self._read)
         app.router.add_put("/api/settings/config", self._save_config)
+        app.router.add_put("/api/settings/config-values", self._save_config_values)
         app.router.add_post("/api/settings/users", self._create_user)
         app.router.add_put("/api/settings/users/{id}", self._save_user)
         app.router.add_delete("/api/settings/users/{id}", self._delete_user)
@@ -73,6 +77,8 @@ class SettingsRoutes(WebRoutes):
         return web.json_response(
             {
                 "config": text,
+                "config_values": self._values(text),
+                "config_schema": AppConfig.model_json_schema(),
                 "restart_needed": text != self._started_with,
                 "in_repository": self._in_repository(),
                 "users": [u.model_dump(mode="json") for u in self._users.all()],
@@ -89,11 +95,32 @@ class SettingsRoutes(WebRoutes):
             AppConfig.model_validate(yaml.safe_load(body.text) or {})
         except (yaml.YAMLError, ValidationError) as exc:
             raise web.HTTPBadRequest(text=str(exc)) from exc
+        return await self._write_config(body.text)
+
+    async def _save_config_values(self, request: web.Request) -> web.Response:
+        """The form's save: the values go into the file as it is, so its comments
+        and everything the form does not show survive."""
+        WebAuth.caller(request, Permission.ADMINISTER)
+        body = await RequestBody.parse(request, ConfigValuesRequest)
+        try:
+            AppConfig.model_validate(body.values)
+        except ValidationError as exc:
+            raise web.HTTPBadRequest(text=str(exc)) from exc
+        return await self._write_config(self._editor.apply(self._current_text(), body.values))
+
+    async def _write_config(self, text: str) -> web.Response:
         if self._in_repository():
-            await self._store.write_file(CONFIG_FILE_NAME, body.text, f"{CONFIG_FILE_NAME}: update")  # type: ignore[union-attr]
+            await self._store.write_file(CONFIG_FILE_NAME, text, f"{CONFIG_FILE_NAME}: update")  # type: ignore[union-attr]
         else:
-            await asyncio.to_thread(self._config_file.write_text, body.text, "utf-8")
-        return web.json_response({"ok": True, "restart_needed": body.text != self._started_with})
+            await asyncio.to_thread(self._config_file.write_text, text, "utf-8")
+        return web.json_response({"ok": True, "restart_needed": text != self._started_with})
+
+    def _values(self, text: str) -> dict | None:
+        """None when the file does not parse; the form then has nothing to show."""
+        try:
+            return self._editor.values(text)
+        except Exception:  # noqa: BLE001 - any parse failure means "use the YAML tab"
+            return None
 
     async def _restart_needed(self, request: web.Request) -> web.Response:
         WebAuth.caller(request, Permission.ADMINISTER)

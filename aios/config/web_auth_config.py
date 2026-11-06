@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, ConfigDict, model_validator
 
 
 class WebAuthConfig(BaseModel):
@@ -16,6 +16,8 @@ class WebAuthConfig(BaseModel):
       with the secret named by `secret_env` in `secret_header`;
     - `dev`: every request is `dev_email`. Only on your own machine.
     """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
 
     mode: Literal["cloudflare", "jwt", "header", "dev"]
     team_domain: str | None = None

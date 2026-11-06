@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from aios.config.web_auth_config import WebAuthConfig
 
@@ -10,6 +10,8 @@ class WebConfig(BaseModel):
     `auth`): anything on the network may reach the port directly, past the proxy.
     Without `auth` (or the older `access_*` / `dev_email`) every request is refused.
     """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
 
     enabled: bool = False
     port: int = 8080

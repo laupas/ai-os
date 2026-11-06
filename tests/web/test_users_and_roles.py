@@ -69,3 +69,20 @@ async def test_a_user_cannot_get_a_role_that_does_not_exist(tmp_path) -> None:
         assert (
             await c.client.post("/api/settings/users", json=text(body), headers=h)
         ).status == 201
+
+
+async def test_the_form_saves_values_into_the_file_keeping_its_comments(tmp_path) -> None:
+    async with Console(tmp_path) as c:
+        h = c.headers(ALICE, write=True)
+        c.config_file.write_text("# keep me\nchannels: [web]\n")
+        settings = await (await c.client.get("/api/settings", headers=h)).json()
+        assert settings["config_values"] == {"channels": ["web"]}
+        assert "AgentConfig" in settings["config_schema"]["$defs"]
+        values = {"channels": ["web"], "agent": {"auth": "api_key"}}
+        r = await c.client.put("/api/settings/config-values", json={"values": values}, headers=h)
+        assert r.status == 200 and (await r.json())["restart_needed"]
+        text = c.config_file.read_text()
+        assert text.startswith("# keep me\n") and "auth: api_key" in text
+        bad = {"agent": {"auth": "password"}}
+        r = await c.client.put("/api/settings/config-values", json={"values": bad}, headers=h)
+        assert r.status == 400

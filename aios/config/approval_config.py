@@ -1,7 +1,9 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class ApprovalConfig(BaseModel):
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
     always: list[str] = []
     """Tool names that always need a human's approval."""
 

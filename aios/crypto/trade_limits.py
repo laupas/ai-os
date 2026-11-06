@@ -1,9 +1,11 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class TradeLimits(BaseModel):
     """Hard limits, enforced in code before Kraken is contacted. Override in
     config.yaml under `trading`; a prompt can never widen them."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
 
     pairs: dict[str, str] = {"BTC": "XBTCHF", "ETH": "ETHCHF"}
     min_chf: float = 10

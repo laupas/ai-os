@@ -1,6 +1,6 @@
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from aios.config.agent_config import AgentConfig
 from aios.config.approval_config import ApprovalConfig
@@ -14,6 +14,8 @@ from aios.storage.agent_access import AgentAccess
 
 class AppConfig(BaseModel):
     """Behaviour, from config.yaml on the data volume."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
 
     channels: list[str] = ["web"]
     senders: list[str] = []
