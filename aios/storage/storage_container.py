@@ -16,7 +16,6 @@ from aios.entities.git.git_remote import GitRemote
 from aios.entities.memories.memory import Memory
 from aios.entities.schedules.schedule import Schedule
 from aios.entities.skills.skill import Skill
-from aios.entities.trades.trade import Trade
 from aios.entities.users.permission import Permission
 from aios.entities.users.role import Role
 from aios.entities.users.user import User
@@ -146,11 +145,6 @@ class StorageContainer(containers.DeclarativeContainer):
             CollectionDefinition(name="schedules", entity=Schedule, agent_access=AgentAccess.WRITE)
         )
     )
-    trades_definition = providers.Singleton(
-        overrides.provided.apply.call(
-            CollectionDefinition(name="trades", entity=Trade, agent_access=AgentAccess.READ)
-        )
-    )
 
     # Not through `overrides`: an agent that could write these could grant itself
     # anything, so `collection_access` in config.yaml cannot open them.
@@ -180,7 +174,6 @@ class StorageContainer(containers.DeclarativeContainer):
     users = providers.Singleton(Collection, definition=users_definition, store=settings_store)
     memories = providers.Singleton(Collection, definition=memories_definition, store=document_store)
     schedules = providers.Singleton(Collection, definition=schedules_definition, store=config_store)
-    trades = providers.Singleton(Collection, definition=trades_definition, store=document_store)
     agents = providers.Singleton(Collection, definition=agents_definition, store=config_store)
     skills = providers.Singleton(Collection, definition=skills_definition, store=config_store)
     connectors = providers.Singleton(
@@ -212,7 +205,6 @@ class StorageContainer(containers.DeclarativeContainer):
             approvals,
             memories,
             schedules,
-            trades,
             agents,
             skills,
             connectors,

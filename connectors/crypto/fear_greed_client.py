@@ -1,5 +1,5 @@
-from aios.crypto.fear_greed import FearGreed
-from aios.crypto.http_json import HttpJson
+from fear_greed import FearGreed
+from http_json import HttpJson
 
 
 class FearGreedClient:

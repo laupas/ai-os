@@ -1,27 +1,24 @@
+import sys
+import tempfile
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
-from aios.approvals.policy_verdict import PolicyVerdict
-from aios.approvals.tool_call import ToolCall
-from aios.common.clock import Clock
-from aios.crypto.rsi_calculator import RsiCalculator
-from aios.crypto.signal_call import SignalCall
-from aios.crypto.signal_rule import SignalRule
-from aios.crypto.trade_limit_guard import TradeLimitGuard
-from aios.crypto.trade_limits import TradeLimits
-from aios.entities.trades.trade import Trade
-from aios.entities.trades.trade_side import TradeSide
-from aios.entities.users.user import User
-from aios.storage.collection import Collection
-from aios.storage.collection_definition import CollectionDefinition
-from aios.storage.in_memory_document_store import InMemoryDocumentStore
-from aios.tools.crypto_trade_approval_rule import CryptoTradeApprovalRule
+import yaml
+
+CRYPTO = Path(__file__).parents[2] / "connectors" / "crypto"
+sys.path.insert(0, str(CRYPTO))
+
+from crypto_connector import CryptoConnector  # noqa: E402
+from rsi_calculator import RsiCalculator  # noqa: E402
+from signal_call import SignalCall  # noqa: E402
+from signal_rule import SignalRule  # noqa: E402
+from trade import Trade  # noqa: E402
+from trade_limit_guard import TradeLimitGuard  # noqa: E402
+from trade_limits import TradeLimits  # noqa: E402
+from trade_log import TradeLog  # noqa: E402
+from trade_side import TradeSide  # noqa: E402
 
 NOW = datetime(2026, 10, 9, 21, 30, tzinfo=UTC)  # 23:30 in Zurich
-
-
-class _Clock(Clock):
-    def now(self) -> datetime:
-        return NOW
 
 
 def _trade(chf: float, at: datetime) -> Trade:
@@ -41,12 +38,10 @@ def _trade(chf: float, at: datetime) -> Trade:
 
 
 async def _guard(*trades: Trade) -> TradeLimitGuard:
-    collection: Collection[Trade] = Collection(
-        CollectionDefinition(name="trades", entity=Trade), InMemoryDocumentStore()
-    )
+    log = TradeLog(Path(tempfile.mkdtemp(prefix="aios-trades-")))
     for trade in trades:
-        await collection.put(trade)
-    return TradeLimitGuard(TradeLimits(), collection, _Clock(), "Europe/Zurich")
+        log.add(trade)
+    return TradeLimitGuard(TradeLimits(), log, lambda: NOW, "Europe/Zurich")
 
 
 def test_rsi() -> None:
@@ -93,18 +88,41 @@ async def test_cooldown_and_order_count() -> None:
     assert "5 orders" in (await _guard(*many)).check_order("buy", "BTC", 10)  # type: ignore[operator]
 
 
-async def test_trade_rule_asks_or_refuses() -> None:
-    rule = CryptoTradeApprovalRule(await _guard())
-    user = User(id="u", name="U")
+def test_preflight_asks_or_refuses(tmp_path) -> None:
+    connector = CryptoConnector({"AIOS_CONNECTOR_STATE": str(tmp_path)})
+    assert (
+        "Place a market order"
+        in connector.preflight("trade", {"side": "buy", "coin": "btc", "chf": 50})["ask"]
+    )
+    assert (
+        "per-order"
+        in connector.preflight("trade", {"side": "buy", "coin": "BTC", "chf": 1000})["deny"]
+    )
+    assert (
+        "numeric"
+        in connector.preflight("trade", {"side": "buy", "coin": "BTC", "chf": "lots"})["deny"]
+    )
 
-    def call(chf: object) -> ToolCall:
-        return ToolCall(
-            tool_name=CryptoTradeApprovalRule.TOOL,
-            tool_input={"side": "buy", "coin": "btc", "chf": chf},
-            user=user,
-            conversation_id="c",
-        )
 
-    assert rule.evaluate(call(50)).verdict is PolicyVerdict.ASK  # type: ignore[union-attr]
-    assert rule.evaluate(call(1000)).verdict is PolicyVerdict.DENY  # type: ignore[union-attr]
-    assert rule.evaluate(call("lots")).verdict is PolicyVerdict.DENY  # type: ignore[union-attr]
+def test_settings_are_the_limits(tmp_path) -> None:
+    env = {
+        "AIOS_CONNECTOR_STATE": str(tmp_path),
+        "AIOS_CONNECTOR_SETTINGS": '{"max_chf_per_order": 20}',
+    }
+    assert (
+        "per-order cap of 20"
+        in CryptoConnector(env).preflight("trade", {"side": "buy", "coin": "BTC", "chf": 50})[
+            "deny"
+        ]
+    )
+
+
+def test_an_unset_variable_is_no_key(tmp_path) -> None:
+    env = {"AIOS_CONNECTOR_STATE": str(tmp_path), "KRAKEN_API_KEY": "${KRAKEN_API_KEY}"}
+    assert not CryptoConnector(env).trader._client.has_credentials()
+
+
+def test_the_manifest_describes_the_limits_the_code_applies() -> None:
+    manifest = yaml.safe_load((CRYPTO / "connector.yaml").read_text())
+    defaults = {k: p["default"] for k, p in manifest["settings"]["properties"].items()}
+    assert defaults == TradeLimits().model_dump()

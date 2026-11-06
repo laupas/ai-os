@@ -1,6 +1,7 @@
 import os
 from typing import Any, Protocol
 
+from aios.connectors.code_connectors import CodeConnectors
 from aios.connectors.connector_tokens import ConnectorTokens
 from aios.connectors.oauth_client_config import OAuthClientConfig
 from aios.entities.connectors.connector import Connector
@@ -32,7 +33,9 @@ class ConnectorCatalog:
         builtin_tools: list[str],
         tokens: ConnectorTokens | None = None,
         expander: Expander | None = None,
+        code: CodeConnectors | None = None,
     ) -> None:
+        self._code = code
         self._expander = expander
         self._connectors = connectors
         self._builtin_tools = builtin_tools
@@ -63,10 +66,11 @@ class ConnectorCatalog:
         A per-user connector the user has not signed in to is left out: given to the
         CLI without a token, it would try to sign in by itself and fail."""
         missing = set(self.unavailable_for(user))
+        configs = {c.id: self._launch(c) for c in self.all() if c.enabled and c.id not in missing}
         return {
-            c.id: self._with_token(c, user, self._expand(self._server_part(c.config)))
-            for c in self.all()
-            if c.enabled and c.id not in missing
+            name: self._with_token(self._connectors.get(name), user, self._expand(config))  # type: ignore[arg-type]
+            for name, config in configs.items()
+            if config is not None
         }
 
     def unavailable_for(self, user: User | None) -> list[str]:
@@ -94,9 +98,10 @@ class ConnectorCatalog:
     def server_config(self, name: str, user: User | None = None) -> dict[str, Any] | None:
         """One connector's config as a turn of `user` would start it, enabled or not."""
         connector = self._connectors.get(name)
-        if connector is None:
+        config = self._launch(connector) if connector else None
+        if connector is None or config is None:
             return None
-        return self._with_token(connector, user, self._expand(self._server_part(connector.config)))
+        return self._with_token(connector, user, self._expand(config))
 
     def oauth_of(self, name: str) -> OAuthClientConfig | None:
         """The connector's own OAuth client, with `${VAR}` filled in, if it has one."""
@@ -104,8 +109,12 @@ class ConnectorCatalog:
         raw = connector.config.get(self.OAUTH_KEY) if connector else None
         return OAuthClientConfig.model_validate(self._expand(raw)) if raw else None
 
-    def _server_part(self, config: dict[str, Any]) -> dict[str, Any]:
-        return {k: v for k, v in config.items() if k != self.OAUTH_KEY}
+    def _launch(self, connector: Connector) -> dict[str, Any] | None:
+        """What Claude Code is given to start it: a code connector's own launch, or
+        the config minus ai-os's keys. None for a code connector that is gone."""
+        if self._code is not None and CodeConnectors.is_code(connector):
+            return self._code.launch_config(connector)
+        return {k: v for k, v in connector.config.items() if k != self.OAUTH_KEY}
 
     def tool_prefixes(self) -> list[str]:
         return [f"mcp__{name}__" for name in [self.BUILTIN, *self.enabled_names()]]

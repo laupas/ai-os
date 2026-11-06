@@ -40,6 +40,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 COPY aios ./aios
 COPY agents ./agents
+COPY connectors ./connectors
 COPY .claude ./.claude
 COPY skills ./skills
 COPY node ./node

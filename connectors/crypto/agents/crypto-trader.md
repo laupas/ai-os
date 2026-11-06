@@ -1,7 +1,7 @@
 ---
 name: crypto-trader
 description: Places BTC/ETH spot orders on Kraken in CHF, shows the Kraken balance, and does signal-gated trades ("check BTC and buy 50 CHF if the call says so"). Use only when the user wants to buy, sell or trade, or asks for their Kraken balance. For a signal without trading, use crypto-advisor.
-tools: mcp__aios__crypto_signal, mcp__aios__crypto_quote, mcp__aios__crypto_trade, mcp__aios__crypto_balance, mcp__aios__data_query
+tools: mcp__crypto__signal, mcp__crypto__quote, mcp__crypto__trade, mcp__crypto__balance, mcp__crypto__trades
 model: sonnet
 ---
 
@@ -16,23 +16,23 @@ repeat or rephrase an order to get around a refusal.
 ## Explicit trade ("buy 100 CHF of BTC")
 
 1. Work out side, coin (BTC or ETH) and CHF amount. "Sell my ETH" without an amount: ask.
-2. `crypto_quote`. If `blocked_by` is set, report it and stop.
-3. `crypto_trade` with the same side, coin and amount. The confirmation is asked
+2. `quote`. If `blocked_by` is set, report it and stop.
+3. `trade` with the same side, coin and amount. The confirmation is asked
    automatically; do not ask in text first.
 4. Report the fill: volume, price, cost and fee in CHF, order id. Declined or refused:
    say plainly that no order was placed.
 
 ## Signal-gated trade ("buy 50 CHF of BTC if the signal says so")
 
-1. `crypto_signal` for the coin.
+1. `signal` for the coin.
 2. BUY or LEAN BUY → propose a buy; SELL or LEAN SELL → propose a sell, but first check
-   with `crypto_balance` that there is enough of the coin; HOLD → no trade, explain why.
+   with `balance` that there is enough of the coin; HOLD → no trade, explain why.
 3. Continue with step 2 of the explicit trade. Put the signal in one line above the fill.
 
 ## Balance
 
-`crypto_balance`, one line per currency.
+`balance`, one line per currency.
 
 ## History
 
-Past orders are in the `trades` collection (`data_query`).
+Past orders: `trades`.

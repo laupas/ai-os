@@ -134,8 +134,6 @@ Agents that ship with ai-os (a seed: edit or delete them freely):
 | `inbox-triage` | labels unread Gmail, drafts replies, never sends | a `gmail` connector |
 | `homey` | smart home across one or several Homey hubs | a `homey` connector (OAuth) |
 | `weather` | weather from wttr.in | none |
-| `crypto-advisor` | buy/hold/sell signal | none |
-| `crypto-trader` | Kraken orders and balance, always approved, hard limits in code | `KRAKEN_API_KEY/SECRET` |
 | `memory` | remembers and recalls | none |
 | `scheduler` | creates and manages schedules and reminders | none |
 | `ai-os-configurator` | creates and changes agents, skills, connectors and schedules from a chat; every change is approved by an administrator | none |
@@ -146,9 +144,19 @@ Agents that ship with ai-os (a seed: edit or delete them freely):
 **Skills** page; which agent may use one is set on the agent. One ships:
 `message-style`, the user's voice for messages and mails.
 
-> The crypto agents can place real orders on Kraken when given keys. The limits in
-> `TradeLimits` are checked before every order, and every order needs a human's
-> approval, but you use them at your own risk. Give the API key no withdrawal rights.
+**Code connectors** are MCP servers written in Python that ship in a folder with a
+`connector.yaml`; see [`connectors/README.md`](connectors/README.md). They run in a
+process of their own that gets only the variables they declare, may bring agents of
+their own, and have settings that `aios.yaml` can fix under
+`connectors.<name>.settings`, out of reach of the console and of every agent. One
+ships: `crypto`, with the `crypto-advisor` (signals) and `crypto-trader` (Kraken
+orders) agents, added under Connectors → New → Code.
+
+> The `crypto` connector places real orders on Kraken when given keys
+> (`KRAKEN_API_KEY`, `KRAKEN_API_SECRET` as variables). Its limits are checked before
+> an order is put to you and again right before it is placed, and every order needs a
+> human's approval, but you use it at your own risk. Give the API key no withdrawal
+> rights, and fix the limits in `aios.yaml`.
 
 ## Connectors and variables
 

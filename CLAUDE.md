@@ -47,8 +47,13 @@ Read `README.md` for what ai-os is. This file is the rules for changing it.
   an administrator before every save or delete. Never relax either half.
 - A granted connector tool is still subject to approvals; its write tools belong in
   `approval.always` or `approval.deny`.
-- Trading limits live in `TradeLimits` and are checked again right before every
-  order; the approval is extra, not instead.
+- A code connector (`connectors/`, `<config>/code/`) runs in its own process through
+  `CodeConnectorLauncher`, which drops every environment variable its manifest does
+  not declare: never start one any other way, and never import its code into ai-os.
+  Agents must never be able to write those folders.
+- The `crypto` connector's trading limits are checked in its preflight and again
+  right before every order; the approval is extra, not instead. Limits that must
+  hold belong in `aios.yaml` (`connectors.crypto.settings`).
 - Who may chat, approve or be messaged is decided from users and roles in code
   (`Authorizer`), never by a prompt.
 - A `per_user` connector carries only the turn user's own sign-in

@@ -1,8 +1,7 @@
 from datetime import datetime
 
 from pydantic import BaseModel
-
-from aios.entities.trades.trade_side import TradeSide
+from trade_side import TradeSide
 
 
 class Trade(BaseModel):

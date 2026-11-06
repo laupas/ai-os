@@ -1,11 +1,11 @@
 import logging
 
-from aios.crypto.coin_gecko_client import CoinGeckoClient
-from aios.crypto.coin_signal import CoinSignal
-from aios.crypto.fear_greed import FearGreed
-from aios.crypto.fear_greed_client import FearGreedClient
-from aios.crypto.rsi_calculator import RsiCalculator
-from aios.crypto.signal_rule import SignalRule
+from coin_gecko_client import CoinGeckoClient
+from coin_signal import CoinSignal
+from fear_greed import FearGreed
+from fear_greed_client import FearGreedClient
+from rsi_calculator import RsiCalculator
+from signal_rule import SignalRule
 
 log = logging.getLogger(__name__)
 

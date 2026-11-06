@@ -1,15 +1,16 @@
 import asyncio
+import uuid
+from collections.abc import Callable
+from datetime import datetime
 
-from aios.common.clock import Clock
-from aios.common.id_generator import IdGenerator
-from aios.crypto.kraken_client import KrakenClient
-from aios.crypto.kraken_error import KrakenError
-from aios.crypto.trade_limit_guard import TradeLimitGuard
-from aios.crypto.trade_limits import TradeLimits
-from aios.crypto.trade_quote import TradeQuote
-from aios.entities.trades.trade import Trade
-from aios.entities.trades.trade_side import TradeSide
-from aios.storage.collection import Collection
+from kraken_client import KrakenClient
+from kraken_error import KrakenError
+from trade import Trade
+from trade_limit_guard import TradeLimitGuard
+from trade_limits import TradeLimits
+from trade_log import TradeLog
+from trade_quote import TradeQuote
+from trade_side import TradeSide
 
 FILL_POLL_SECONDS = 2.0
 
@@ -26,16 +27,14 @@ class KrakenTrader:
         client: KrakenClient,
         guard: TradeLimitGuard,
         limits: TradeLimits,
-        trades: Collection[Trade],
-        clock: Clock,
-        ids: IdGenerator,
+        trades: TradeLog,
+        now: Callable[[], datetime],
     ) -> None:
         self._client = client
         self._guard = guard
         self._limits = limits
         self._trades = trades
-        self._clock = clock
-        self._ids = ids
+        self._now = now
 
     async def quote(self, side: str, coin: str, chf: float) -> TradeQuote:
         coin = coin.upper()
@@ -76,9 +75,9 @@ class KrakenTrader:
         )
         executed_volume = float(fill.get("vol_exec") or volume)
         executed_cost = float(fill.get("cost") or chf)
-        return await self._trades.put(
+        return self._trades.add(
             Trade(
-                id=self._ids.new_id(),
+                id=uuid.uuid4().hex,
                 side=TradeSide(side),
                 coin=coin,
                 pair=pair,
@@ -88,7 +87,7 @@ class KrakenTrader:
                 executed_cost_chf=executed_cost,
                 fee_chf=float(fill.get("fee") or chf * self._limits.taker_fee_rate),
                 order_id=txids[0],
-                executed_at=self._clock.now(),
+                executed_at=self._now(),
             )
         )
 

@@ -1,5 +1,5 @@
-from aios.crypto.coin_market import CoinMarket
-from aios.crypto.http_json import HttpJson
+from coin_market import CoinMarket
+from http_json import HttpJson
 
 API = "https://api.coingecko.com/api/v3"
 ALIASES = {

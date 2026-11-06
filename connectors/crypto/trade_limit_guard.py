@@ -1,9 +1,10 @@
+from collections.abc import Callable
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from aios.common.clock import Clock
-from aios.crypto.trade_limits import TradeLimits
-from aios.entities.trades.trade import Trade
-from aios.storage.collection import Collection
+from trade import Trade
+from trade_limits import TradeLimits
+from trade_log import TradeLog
 
 
 class TradeLimitGuard:
@@ -14,11 +15,11 @@ class TradeLimitGuard:
     """
 
     def __init__(
-        self, limits: TradeLimits, trades: Collection[Trade], clock: Clock, timezone: str
+        self, limits: TradeLimits, trades: TradeLog, now: Callable[[], datetime], timezone: str
     ) -> None:
         self._limits = limits
         self._trades = trades
-        self._clock = clock
+        self._now = now
         self._zone = ZoneInfo(timezone)
 
     def check_order(self, side: str, coin: str, chf: float) -> str | None:
@@ -39,11 +40,13 @@ class TradeLimitGuard:
             return f"would exceed the daily {limits.max_chf_per_day} CHF cap ({spent:.2f} used)"
         latest = max((t.executed_at for t in self._trades.all()), default=None)
         if latest is not None:
-            age = (self._clock.now() - latest).total_seconds()
+            age = (self._now() - latest).total_seconds()
             if age < limits.cooldown_seconds:
                 return f"cooldown: {limits.cooldown_seconds - age:.0f}s left"
         return None
 
     def trades_today(self) -> list[Trade]:
-        today = self._clock.now().astimezone(self._zone).date()
-        return self._trades.filter(lambda t: t.executed_at.astimezone(self._zone).date() == today)
+        today = self._now().astimezone(self._zone).date()
+        return [
+            t for t in self._trades.all() if t.executed_at.astimezone(self._zone).date() == today
+        ]

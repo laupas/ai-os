@@ -2,8 +2,9 @@ from pydantic import BaseModel, ConfigDict
 
 
 class TradeLimits(BaseModel):
-    """Hard limits, enforced in code before Kraken is contacted. Override in
-    config.yaml under `trading`; a prompt can never widen them."""
+    """Hard limits, enforced in code before Kraken is contacted: the connector's
+    settings. Fix them in aios.yaml under `connectors.crypto.settings`, where no
+    agent can change them; `connector.yaml` describes them for the console."""
 
     model_config = ConfigDict(use_attribute_docstrings=True)
 

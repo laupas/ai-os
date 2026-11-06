@@ -1,4 +1,4 @@
-from aios.crypto.signal_call import SignalCall
+from signal_call import SignalCall
 
 
 class SignalRule:

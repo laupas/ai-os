@@ -38,12 +38,6 @@ class ProgressLabeler:
             return "Waiting for your answer"
         if name in ("data_put", "data_delete"):
             return f"Changing {tool_input.get('collection', 'data')}"
-        if name == "crypto_signal":
-            return "Checking the crypto market"
-        if name in ("crypto_quote", "crypto_balance"):
-            return "Asking Kraken"
-        if name == "crypto_trade":
-            return "Placing an order on Kraken"
         if name == "read_logs":
             return "Reading the logs"
         if name.startswith("data_"):

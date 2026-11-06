@@ -11,11 +11,6 @@ from aios.tools.config_editor import ConfigEditor
 from aios.tools.config_get_tool import ConfigGetTool
 from aios.tools.config_list_tool import ConfigListTool
 from aios.tools.config_put_tool import ConfigPutTool
-from aios.tools.crypto_balance_tool import CryptoBalanceTool
-from aios.tools.crypto_quote_tool import CryptoQuoteTool
-from aios.tools.crypto_signal_tool import CryptoSignalTool
-from aios.tools.crypto_trade_approval_rule import CryptoTradeApprovalRule
-from aios.tools.crypto_trade_tool import CryptoTradeTool
 from aios.tools.data_access_approval_rule import DataAccessApprovalRule
 from aios.tools.data_delete_tool import DataDeleteTool
 from aios.tools.data_get_tool import DataGetTool
@@ -39,9 +34,6 @@ class ToolsContainer(containers.DeclarativeContainer):
     registry = providers.Dependency()
     ids = providers.Dependency()
     clock = providers.Dependency()
-    crypto_signals = providers.Dependency()
-    trader = providers.Dependency()
-    trade_guard = providers.Dependency()
     log_reader = providers.Dependency()
     agents = providers.Dependency()
     skills = providers.Dependency()
@@ -72,10 +64,6 @@ class ToolsContainer(containers.DeclarativeContainer):
     config_get = providers.Singleton(ConfigGetTool, editor=config_editor)
     config_put = providers.Singleton(ConfigPutTool, editor=config_editor)
     config_delete = providers.Singleton(ConfigDeleteTool, editor=config_editor)
-    crypto_signal = providers.Singleton(CryptoSignalTool, signals=crypto_signals)
-    crypto_quote = providers.Singleton(CryptoQuoteTool, trader=trader)
-    crypto_trade = providers.Singleton(CryptoTradeTool, trader=trader)
-    crypto_balance = providers.Singleton(CryptoBalanceTool, trader=trader)
     read_logs = providers.Singleton(ReadLogsTool, reader=log_reader, clock=clock)
 
     server = providers.Singleton(
@@ -92,10 +80,6 @@ class ToolsContainer(containers.DeclarativeContainer):
             config_get,
             config_put,
             config_delete,
-            crypto_signal,
-            crypto_quote,
-            crypto_trade,
-            crypto_balance,
             read_logs,
         ),
     )
@@ -104,5 +88,4 @@ class ToolsContainer(containers.DeclarativeContainer):
         providers.Singleton(SendMessageApprovalRule, users=users, authorizer=authorizer),
         providers.Singleton(DataAccessApprovalRule, registry=registry),
         providers.Singleton(ConfigChangeApprovalRule),
-        providers.Singleton(CryptoTradeApprovalRule, guard=trade_guard),
     )

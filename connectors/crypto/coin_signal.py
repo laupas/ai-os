@@ -1,8 +1,7 @@
+from coin_market import CoinMarket
+from fear_greed import FearGreed
 from pydantic import BaseModel
-
-from aios.crypto.coin_market import CoinMarket
-from aios.crypto.fear_greed import FearGreed
-from aios.crypto.signal_call import SignalCall
+from signal_call import SignalCall
 
 
 class CoinSignal(BaseModel):

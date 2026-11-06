@@ -12,7 +12,6 @@ from aios.config_repo.config_repo_container import ConfigRepoContainer
 from aios.connectors.connectors_container import ConnectorsContainer
 from aios.conversations.conversations_container import ConversationsContainer
 from aios.conversations.gateway_container import GatewayContainer
-from aios.crypto.crypto_container import CryptoContainer
 from aios.engine.engine_container import EngineContainer
 from aios.logs.log_reader import LogReader
 from aios.messaging.messaging_container import MessagingContainer
@@ -79,15 +78,6 @@ class ApplicationContainer(containers.DeclarativeContainer):
         ids=common.ids,
         observers=providers.List(channels.web_hub),
     )
-    crypto = providers.Container(
-        CryptoContainer,
-        settings=config.settings,
-        limits=app_config.provided.trading,
-        trades=storage.trades,
-        clock=common.clock,
-        ids=common.ids,
-        timezone=app_config.provided.timezone,
-    )
     log_reader = providers.Singleton(LogReader, log_file=config.settings.provided.log_file.call())
     variables = providers.Container(
         VariablesContainer,
@@ -105,9 +95,6 @@ class ApplicationContainer(containers.DeclarativeContainer):
         registry=storage.registry,
         ids=common.ids,
         clock=common.clock,
-        crypto_signals=crypto.signals,
-        trader=crypto.trader,
-        trade_guard=crypto.guard,
         log_reader=log_reader,
         agents=storage.agents,
         skills=storage.skills,
@@ -122,6 +109,15 @@ class ApplicationContainer(containers.DeclarativeContainer):
         builtin_tools=tools.server.provided.tool_names.call(),
         clock=common.clock,
         box=variables.box,
+        # Shipped with ai-os first, then those put in the configuration repository.
+        code_roots=providers.List(
+            providers.Callable(lambda s: s.repo_dir / "connectors", config.settings),
+            providers.Callable(lambda s: s.config_dir() / "code", config.settings),
+        ),
+        overrides=app_config.provided.connectors,
+        state_root=providers.Callable(lambda s: s.data_dir / "connector-state", config.settings),
+        timezone=app_config.provided.timezone,
+        agents=storage.agents,
     )
     agents = providers.Container(
         AgentsContainer,
@@ -136,7 +132,10 @@ class ApplicationContainer(containers.DeclarativeContainer):
         builtin_tools=app_config.provided.agent.builtin_tools,
         tool_prefixes=connectors.catalog.provided.tool_prefixes,
         extra_rules=providers.Callable(
-            lambda grant, rules: [grant, *rules], agents.grant_rule, tools.approval_rules
+            lambda grant, code, rules: [grant, code, *rules],
+            agents.grant_rule,
+            connectors.approval_rule,
+            tools.approval_rules,
         ),
     )
     engine = providers.Container(
@@ -267,6 +266,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
             config_repo.remote_from_env,
             config_repo.skills_link,
             connectors.migration,
+            connectors.crypto_migration,
         ),
         approvals=approvals.service,
         channels=channels.directory,

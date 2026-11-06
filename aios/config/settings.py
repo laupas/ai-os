@@ -43,9 +43,6 @@ class Settings(BaseSettings):
     """Encrypts the secret variables set in the console: a Fernet key or a long
     generated password. Unset, a key is generated into the data dir."""
 
-    kraken_api_key: str | None = Field(None, alias="KRAKEN_API_KEY")
-    kraken_api_secret: str | None = Field(None, alias="KRAKEN_API_SECRET")
-
     def resolved_config_file(self) -> Path:
         """`aios.yaml` in the configuration repository; before that exists, the
         data dir's `config.yaml`, which the first start moves into the repository."""

@@ -5,8 +5,8 @@ import time
 import urllib.parse
 from typing import Any
 
-from aios.crypto.http_json import HttpJson
-from aios.crypto.kraken_error import KrakenError
+from http_json import HttpJson
+from kraken_error import KrakenError
 
 API = "https://api.kraken.com"
 
