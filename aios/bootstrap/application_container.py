@@ -88,6 +88,12 @@ class ApplicationContainer(containers.DeclarativeContainer):
         timezone=app_config.provided.timezone,
     )
     log_reader = providers.Singleton(LogReader, log_file=config.settings.provided.log_file.call())
+    variables = providers.Container(
+        VariablesContainer,
+        variables=storage.variables,
+        settings=config.settings,
+        clock=common.clock,
+    )
     tools = providers.Container(
         ToolsContainer,
         users=storage.users,
@@ -105,12 +111,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         agents=storage.agents,
         skills=storage.skills,
         connectors=storage.connectors,
-    )
-    variables = providers.Container(
-        VariablesContainer,
-        variables=storage.variables,
-        settings=config.settings,
-        clock=common.clock,
+        secret_extractor=variables.extractor,
     )
     connectors = providers.Container(
         ConnectorsContainer,
@@ -223,6 +224,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         variable_catalog=variables.catalog,
         variable_resolver=variables.resolver,
         connector_probe=engine.connector_probe,
+        secret_extractor=variables.extractor,
         config_store=storage.config_store,
         config_collections=providers.List(
             storage.agents, storage.skills, storage.connectors, storage.schedules, storage.roles

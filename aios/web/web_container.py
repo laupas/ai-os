@@ -56,6 +56,7 @@ class WebContainer(containers.DeclarativeContainer):
     variable_catalog = providers.Dependency()
     variable_resolver = providers.Dependency()
     connector_probe = providers.Dependency(default=None)
+    secret_extractor = providers.Dependency(default=None)
     config_store = providers.Dependency()
     config_collections = providers.Dependency()
     config_branches = providers.Dependency()
@@ -126,6 +127,7 @@ class WebContainer(containers.DeclarativeContainer):
             tokens=connector_tokens,
             resolver=variable_resolver,
             probe=connector_probe,
+            secrets=secret_extractor,
         ),
         providers.Singleton(
             VariableRoutes,

@@ -17,7 +17,9 @@ class VariableResolver:
 
     `${file:NAME}` becomes the path of a file holding the value, written (mode
     0600) only when the value changed since it was last written: an MCP server that
-    keeps its refreshed credentials in that file keeps them across turns.
+    keeps its refreshed credentials in that file keeps them across turns. The file
+    is a decrypted copy: keep the directory on a tmpfs (`AIOS_VARIABLE_FILES_DIR`),
+    and it is removed with its variable.
     """
 
     def __init__(self, variables: Collection[Variable], box: SecretBox, files_dir: Path) -> None:
@@ -52,6 +54,11 @@ class VariableResolver:
 
     def missing(self, value: Any) -> list[str]:
         return sorted(n for n in self.references(value) if self.value_of(n) is None)
+
+    def forget(self, name: str) -> None:
+        """Removes the file written for `name`, if any."""
+        for path in (self._files / name, self._files / f".{name}.sha256"):
+            path.unlink(missing_ok=True)
 
     def _replace(self, match: re.Match[str]) -> str:
         as_file, name = match.group(1), match.group(2)

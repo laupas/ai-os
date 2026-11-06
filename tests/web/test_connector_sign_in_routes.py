@@ -114,3 +114,23 @@ async def test_saving_a_connector_keeps_its_sign_in_mode_unless_given(tmp_path) 
         await c.client.put("/api/connectors/mail", json=body, headers=h)
         mail = c.agent_world.connector_store.get("mail")
         assert mail is not None and mail.sign_in is SignInMode.SHARED and mail.shared_fallback
+
+
+async def test_a_literal_secret_saved_in_the_console_becomes_a_variable(tmp_path) -> None:
+    async with Console(tmp_path) as c:
+        h = c.headers(ALICE, write=True)
+        body = {
+            "name": "svc",
+            "config": {
+                "type": "http",
+                "url": "https://s",
+                "headers": {"Authorization": "Bearer x"},
+            },
+        }
+        r = await c.client.post("/api/connectors", json=body, headers=h)
+        assert r.status == 201
+        data = await r.json()
+        assert data["moved_secrets"] == ["SVC_AUTHORIZATION"]
+        assert data["config"]["headers"]["Authorization"] == "${SVC_AUTHORIZATION}"
+        saved = c.agent_world.connector_store.get("svc")
+        assert saved is not None and "Bearer x" not in str(saved.config)

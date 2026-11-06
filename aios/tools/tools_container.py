@@ -46,6 +46,7 @@ class ToolsContainer(containers.DeclarativeContainer):
     agents = providers.Dependency()
     skills = providers.Dependency()
     connectors = providers.Dependency()
+    secret_extractor = providers.Dependency(default=None)
 
     guard = providers.Singleton(CollectionAccessGuard, registry=registry)
 
@@ -65,6 +66,7 @@ class ToolsContainer(containers.DeclarativeContainer):
         agents=providers.Singleton(AgentCatalog, agents=agents),
         skills=providers.Singleton(SkillCatalog, skills=skills),
         connectors=connectors,
+        secrets=secret_extractor,
     )
     config_list = providers.Singleton(ConfigListTool, editor=config_editor)
     config_get = providers.Singleton(ConfigGetTool, editor=config_editor)

@@ -13,6 +13,7 @@ from aios.entities.connectors.connector_token import ConnectorToken
 from aios.entities.connectors.sign_in_mode import SignInMode
 from aios.entities.users.permission import Permission
 from aios.storage.collection import Collection
+from aios.variables.secret_extractor import SecretExtractor
 from aios.variables.variable_resolver import VariableResolver
 from aios.web.connector_request import ConnectorRequest
 from aios.web.request_body import RequestBody
@@ -43,7 +44,9 @@ class ConnectorRoutes(WebRoutes):
         tokens: ConnectorTokens | None = None,
         resolver: VariableResolver | None = None,
         probe: ConnectorProbe | None = None,
+        secrets: SecretExtractor | None = None,
     ) -> None:
+        self._secrets = secrets
         self._probe = probe
         self._resolver = resolver
         self._authorizer = authorizer
@@ -93,15 +96,20 @@ class ConnectorRoutes(WebRoutes):
             raise web.HTTPBadRequest(text="a name is lower-case letters, digits, - and _")
         if self._connectors.get(name) is not None:
             raise web.HTTPConflict(text=f"there is already a connector called {name}")
-        connector = await self._connectors.put(self._connector(name, body, None))
-        return web.json_response(self._row(connector, caller), status=201)
+        connector, moved = await self._without_secrets(self._connector(name, body, None), caller)
+        connector = await self._connectors.put(connector)
+        row = {**self._row(connector, caller), "moved_secrets": moved}
+        return web.json_response(row, status=201)
 
     async def _save(self, request: web.Request) -> web.Response:
         caller = WebAuth.caller(request, Permission.ADMINISTER)
         existing = self._existing(request)
         body = await RequestBody.parse(request, ConnectorRequest)
-        connector = await self._connectors.put(self._connector(existing.id, body, existing))
-        return web.json_response(self._row(connector, caller))
+        connector, moved = await self._without_secrets(
+            self._connector(existing.id, body, existing), caller
+        )
+        connector = await self._connectors.put(connector)
+        return web.json_response({**self._row(connector, caller), "moved_secrets": moved})
 
     async def _delete(self, request: web.Request) -> web.Response:
         WebAuth.caller(request, Permission.ADMINISTER)
@@ -116,6 +124,18 @@ class ConnectorRoutes(WebRoutes):
             raise web.HTTPServiceUnavailable(text="starting a connector is not available here")
         result = await self._probe.probe(connector.id, caller.user)
         return web.json_response(result.model_dump())
+
+    async def _without_secrets(
+        self, connector: Connector, caller: WebCaller
+    ) -> tuple[Connector, list[str]]:
+        """A literal secret in the config becomes an encrypted variable: the config
+        is a git repository."""
+        if self._secrets is None:
+            return connector, []
+        config, moved = await self._secrets.extract(
+            connector.id, connector.config, caller.user.name
+        )
+        return connector.model_copy(update={"config": config}), moved
 
     @staticmethod
     def _connector(name: str, body: ConnectorRequest, existing: Connector | None) -> Connector:

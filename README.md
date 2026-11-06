@@ -66,7 +66,7 @@ kind of use you have in mind.
 
 | Where | What |
 |---|---|
-| environment | secrets and paths: `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN`, `AIOS_SECRETS_KEY`, `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `RESEND_API_KEY`, `AIOS_MAIL_FROM`, `SIGNAL_API_URL`, `SIGNAL_SENDER`, `OPENAI_API_KEY` (voice notes), `AIOS_DATA_DIR`, `AIOS_LOG_LEVEL`; see `.env.example` |
+| environment | secrets and paths: `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN`, `AIOS_SECRETS_KEY`, `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `RESEND_API_KEY`, `AIOS_MAIL_FROM`, `SIGNAL_API_URL`, `SIGNAL_SENDER`, `OPENAI_API_KEY` (voice notes), `AIOS_DATA_DIR`, `AIOS_VARIABLE_FILES_DIR` (best a tmpfs), `AIOS_LOG_LEVEL`; see `.env.example` |
 | `<data>/config` | the configuration repository (git): `aios.yaml`, agents, skills, connectors, schedules, roles |
 | `<data>/users` | who is who, with their accounts on each channel |
 | `<data>/variables` | values and secrets for connectors, set in the console; secrets encrypted |
@@ -203,6 +203,16 @@ it. A connector does nothing until an agent is granted it.
   value, `${file:NAME}` for a server that wants the path of a file holding it (a JSON
   key file). Secrets are encrypted with `AIOS_SECRETS_KEY` and never shown again.
   The process environment is the fallback.
+  - A `${file:…}` value is a decrypted copy on disk, so point
+    `AIOS_VARIABLE_FILES_DIR` at a tmpfs: it then never reaches a disk, and a server
+    that rewrites it (a refreshed token) keeps that until the next restart, when the
+    stored value is written again. Deleting the variable removes its file.
+  - A literal secret is never kept in a connector's config, which is a git
+    repository: saving one from the console or through the configurator moves
+    `oauth.client_secret`, and every header or environment value whose name says
+    key, token, secret, password, credential, auth or cookie, into an encrypted
+    variable (`<CONNECTOR>_<KEY>`) and writes `${NAME}` in its place. A commit made
+    on the host is not checked; keep `${…}` there yourself.
 - `approval.always` and `approval.deny` in `aios.yaml` list connector tools that must
   be asked or are never allowed, whichever agent calls them.
 - A Node server built on Google's older client libraries (gaxios 6, node-fetch 2),

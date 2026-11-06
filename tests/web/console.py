@@ -29,6 +29,7 @@ from aios.scheduler.schedule_timing import ScheduleTiming
 from aios.storage.collection import Collection
 from aios.storage.collection_definition import CollectionDefinition
 from aios.variables.secret_box import SecretBox
+from aios.variables.secret_extractor import SecretExtractor
 from aios.variables.variable_catalog import VariableCatalog
 from aios.variables.variable_resolver import VariableResolver
 from aios.web.restart_request import RestartRequest
@@ -135,6 +136,8 @@ class Console:
             CollectionDefinition(name="variables", entity=Variable), w.store
         )
         box = SecretBox(None, self.tmp_path / "secrets.key")
+        self.variables = VariableCatalog(variables, box, w.clock)
+        self.variable_resolver = VariableResolver(variables, box, self.tmp_path / "variable-files")
         self.tokens = ConnectorTokens(
             Collection(
                 CollectionDefinition(name="connector-tokens", entity=ConnectorToken), w.store
@@ -169,11 +172,7 @@ class Console:
                 ),
                 SkillRoutes(self.skills, aw.agents),
                 HistoryRoutes(self.repo_world.store, self.repo_world.collections),
-                VariableRoutes(
-                    VariableCatalog(variables, box, w.clock),
-                    VariableResolver(variables, box, self.tmp_path / "variable-files"),
-                    aw.connectors,
-                ),
+                VariableRoutes(self.variables, self.variable_resolver, aw.connectors),
                 ConnectorAuthRoutes(authorizer, aw.connectors, None),
                 ConnectorRoutes(
                     aw.connector_store,
@@ -183,6 +182,7 @@ class Console:
                     authorizer=authorizer,
                     tokens=self.tokens,
                     probe=self.probe,
+                    secrets=SecretExtractor(self.variables, self.variable_resolver),
                 ),
                 SettingsRoutes(self.config_file, w.users, w.roles, w.ids, self.restart),
                 ScheduleRoutes(

@@ -12,6 +12,7 @@ from aios.entities.connectors.connector import Connector
 from aios.entities.skills.skill import Skill
 from aios.storage.collection import Collection
 from aios.tools.tool_error import ToolError
+from aios.variables.secret_extractor import SecretExtractor
 
 CONNECTOR_NAME = re.compile(r"^[a-z][a-z0-9_-]{0,40}$")
 
@@ -27,8 +28,13 @@ class ConfigEditor:
     KINDS = ("agents", "skills", "connectors")
 
     def __init__(
-        self, agents: AgentCatalog, skills: SkillCatalog, connectors: Collection[Connector]
+        self,
+        agents: AgentCatalog,
+        skills: SkillCatalog,
+        connectors: Collection[Connector],
+        secrets: SecretExtractor | None = None,
     ) -> None:
+        self._secrets = secrets
         self._agents = agents
         self._skills = skills
         self._connectors = connectors
@@ -84,6 +90,9 @@ class ConfigEditor:
             raise CatalogError("the built-in aios connector cannot be changed")
         if not CONNECTOR_NAME.match(connector.id):
             raise CatalogError("a connector name is lower-case letters, digits, - and _")
+        if self._secrets is not None:
+            config, _ = await self._secrets.extract(connector.id, connector.config, "ai-os")
+            connector = connector.model_copy(update={"config": config})
         await self._connectors.put(connector)
 
     def _kind(self, kind: str) -> str:

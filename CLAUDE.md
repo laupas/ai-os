@@ -56,6 +56,9 @@ Read `README.md` for what ai-os is. This file is the rules for changing it.
   shared account is used only with `shared_fallback`. Never hand one user's token
   to another user's turn, and never send a token, or another user's sign-in, to the
   console. Tokens are encrypted at rest; only `ConnectorTokens` reads or writes them.
+- Every connector save from the console or a `config_*` tool goes through
+  `SecretExtractor`, so no literal secret reaches the configuration repository. Keep
+  it in front of any new way of writing a connector.
 
 - Configuration (agents, skills, connectors, schedules) is the git repository
   `<data>/config` (`GitDocumentStore`). Never put a secret into it: connector configs

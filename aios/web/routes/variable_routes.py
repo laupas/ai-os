@@ -64,6 +64,7 @@ class VariableRoutes(WebRoutes):
         if self._variables.get(name) is None:
             raise web.HTTPNotFound(text="no such variable")
         await self._variables.delete(name)
+        self._resolver.forget(name)
         return web.json_response({"ok": True})
 
     async def _store(self, name: str, body: VariableRequest, author: str) -> None:

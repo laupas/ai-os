@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     config_ssh_key: str | None = Field(None, alias="AIOS_CONFIG_SSH_KEY")
     config_token: str | None = Field(None, alias="AIOS_CONFIG_TOKEN")
 
+    variable_files: Path | None = Field(None, alias="AIOS_VARIABLE_FILES_DIR")
+    """Where `${file:NAME}` values are written; best a tmpfs, so a decrypted copy
+    never reaches a disk. Default: `<data>/variable-files`."""
+
     secrets_key: str | None = Field(None, alias="AIOS_SECRETS_KEY")
     """Encrypts the secret variables set in the console: a Fernet key or a long
     generated password. Unset, a key is generated into the data dir."""
@@ -62,7 +66,7 @@ class Settings(BaseSettings):
 
     def variable_files_dir(self) -> Path:
         """Where `${file:NAME}` variables are written for the MCP servers that read them."""
-        return self.data_dir / "variable-files"
+        return self.variable_files or self.data_dir / "variable-files"
 
     def known_hosts_file(self) -> Path:
         """SSH host keys of the configuration repository's remote, learnt on first use."""

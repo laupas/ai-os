@@ -355,9 +355,13 @@ function ConnectorForm({ connector: c, onDone }: { connector: Connector | null; 
     setBusy(true);
     try {
       const body = { description: description.trim(), config: build(), enabled, sign_in: signInMode, shared_fallback: signInMode === "per_user" && fallback };
-      if (c) await api("PUT", `/api/connectors/${encodeURIComponent(c.id)}`, body);
-      else await api("POST", "/api/connectors", { ...body, name: name.trim() });
+      const saved = c
+        ? await api<{ moved_secrets?: string[] }>("PUT", `/api/connectors/${encodeURIComponent(c.id)}`, body)
+        : await api<{ moved_secrets?: string[] }>("POST", "/api/connectors", { ...body, name: name.trim() });
       toast.success(c ? "Saved. Applies to the next turn." : "Added. Now grant it to an agent.");
+      const moved = saved?.moved_secrets ?? [];
+      if (moved.length)
+        toast.info(`Moved ${moved.length === 1 ? "a secret" : `${moved.length} secrets`} into encrypted variables: ${moved.join(", ")}.`);
       void queryClient.invalidateQueries({ queryKey: ["connectors"] });
       onDone();
     } catch (e) {

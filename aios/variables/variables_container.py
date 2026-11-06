@@ -1,12 +1,14 @@
 from dependency_injector import containers, providers
 
 from aios.variables.secret_box import SecretBox
+from aios.variables.secret_extractor import SecretExtractor
 from aios.variables.variable_catalog import VariableCatalog
 from aios.variables.variable_resolver import VariableResolver
 
 
 class VariablesContainer(containers.DeclarativeContainer):
-    """Variables and secrets set in the console, and filling them into connectors."""
+    """Variables and secrets set in the console, filling them into connectors, and
+    moving literal secrets out of connector configs."""
 
     variables = providers.Dependency()
     settings = providers.Dependency()
@@ -24,3 +26,4 @@ class VariablesContainer(containers.DeclarativeContainer):
         box=box,
         files_dir=settings.provided.variable_files_dir.call(),
     )
+    extractor = providers.Singleton(SecretExtractor, variables=catalog, resolver=resolver)
