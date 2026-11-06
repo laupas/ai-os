@@ -41,6 +41,10 @@ class ConnectorCatalog:
         self._builtin_tools = builtin_tools
         self._tokens = tokens
 
+    @property
+    def code(self) -> CodeConnectors | None:
+        return self._code
+
     def all(self) -> list[Connector]:
         return sorted(self._connectors.all(), key=lambda c: c.id)
 

@@ -6,6 +6,7 @@ from aios.agents.skill_catalog import SkillCatalog
 from aios.connectors.connector_catalog import ConnectorCatalog
 from aios.connectors.connector_status_board import ConnectorStatusBoard
 from aios.entities.agents.agent import Agent
+from aios.entities.connectors.connector import Connector
 from aios.entities.users.permission import Permission
 from aios.web.agent_request import AgentRequest
 from aios.web.request_body import RequestBody
@@ -33,6 +34,14 @@ class AgentRoutes(WebRoutes):
         self._board = board
         self._builtin_tools = builtin_tools
 
+    def _settings_of(self, connector: Connector) -> dict:
+        """A code connector's settings as they apply, and which of them aios.yaml
+        fixes: shown on the agent, changed on the connector."""
+        code = self._connectors.code
+        if code is None or not code.is_code(connector):
+            return {}
+        return {"settings": code.settings(connector), "fixed": sorted(code.fixed(connector))}
+
     def register(self, app: web.Application) -> None:
         app.router.add_get("/api/agents", self._list)
         app.router.add_post("/api/agents", self._create)
@@ -49,7 +58,12 @@ class AgentRoutes(WebRoutes):
                 "tools": self._connectors.builtin_tools(),
             },
             *(
-                {"name": c.id, "enabled": c.enabled, "tools": self._board.tools_of(c.id)}
+                {
+                    "name": c.id,
+                    "enabled": c.enabled,
+                    "tools": self._board.tools_of(c.id),
+                    **self._settings_of(c),
+                }
                 for c in self._connectors.all()
             ),
         ]

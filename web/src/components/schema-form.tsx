@@ -137,12 +137,51 @@ export function SchemaForm({ schema, values, onChange, hidden = [] }: { schema: 
   );
 }
 
-function ObjectFields({ schema, defs, values, onChange }: { schema: Schema; defs: Schema; values: Values; onChange: (v: Values) => void }) {
+/** A code connector's settings: the fields of its schema, with those aios.yaml
+ * fixes shown with their value and not editable. */
+export function SettingsFields({ schema, values, onChange, fixed = {} }: { schema: Schema; values: Values; onChange: (v: Values) => void; fixed?: Values }) {
+  return <ObjectFields schema={schema} defs={schema.$defs ?? {}} values={values} onChange={onChange} fixed={fixed} />;
+}
+
+function ObjectFields({
+  schema,
+  defs,
+  values,
+  onChange,
+  fixed = {},
+}: {
+  schema: Schema;
+  defs: Schema;
+  values: Values;
+  onChange: (v: Values) => void;
+  fixed?: Values;
+}) {
   return (
     <div className="space-y-4">
-      {Object.keys(schema.properties ?? {}).map((k) => (
-        <Field key={k} name={k} schema={schema.properties[k]} defs={defs} values={values} onChange={onChange} required={schema.required?.includes(k)} />
-      ))}
+      {Object.keys(schema.properties ?? {}).map((k) =>
+        k in fixed ? (
+          <FixedField key={k} name={k} schema={schema.properties[k]} value={fixed[k]} />
+        ) : (
+          <Field key={k} name={k} schema={schema.properties[k]} defs={defs} values={values} onChange={onChange} required={schema.required?.includes(k)} />
+        ),
+      )}
+    </div>
+  );
+}
+
+function FixedField({ name, schema, value }: { name: string; schema: Schema; value: unknown }) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium">{label(name)}</span>
+        <span className="rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">set in aios.yaml</span>
+      </div>
+      {schema.description ? (
+        <p className="text-xs text-muted-foreground">
+          <Doc text={schema.description} />
+        </p>
+      ) : null}
+      <code className="block rounded-md border bg-muted/40 px-3 py-2 text-xs">{shown(value)}</code>
     </div>
   );
 }

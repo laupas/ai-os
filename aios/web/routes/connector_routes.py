@@ -3,6 +3,8 @@ import re
 from aiohttp import web
 
 from aios.agents.agent_catalog import AgentCatalog
+from aios.connectors.code_connector_manifest import CodeConnectorManifest
+from aios.connectors.code_connectors import CODE_KEY, SETTINGS_KEY, CodeConnectors
 from aios.connectors.connector_authorizer import ConnectorAuthorizer
 from aios.connectors.connector_catalog import ConnectorCatalog
 from aios.connectors.connector_probe import ConnectorProbe
@@ -45,7 +47,9 @@ class ConnectorRoutes(WebRoutes):
         resolver: VariableResolver | None = None,
         probe: ConnectorProbe | None = None,
         secrets: SecretExtractor | None = None,
+        code: CodeConnectors | None = None,
     ) -> None:
+        self._code = code
         self._secrets = secrets
         self._probe = probe
         self._resolver = resolver
@@ -74,7 +78,7 @@ class ConnectorRoutes(WebRoutes):
             return web.json_response({"connectors": rows})
         builtin = {
             "id": ConnectorCatalog.BUILTIN,
-            "description": "ai-os's own tools: data, messages, approvals, crypto, logs.",
+            "description": "ai-os's own tools: data, messages, approvals, logs.",
             "config": None,
             "enabled": True,
             "builtin": True,
@@ -86,7 +90,7 @@ class ConnectorRoutes(WebRoutes):
         agents = self._agents.all()
         for row in rows:
             row["used_by"] = [a.name for a in agents if row["id"] in a.connectors]
-        return web.json_response({"connectors": rows})
+        return web.json_response({"connectors": rows, "library": self._library()})
 
     async def _create(self, request: web.Request) -> web.Response:
         caller = WebAuth.caller(request, Permission.ADMINISTER)
@@ -97,8 +101,12 @@ class ConnectorRoutes(WebRoutes):
         if self._connectors.get(name) is not None:
             raise web.HTTPConflict(text=f"there is already a connector called {name}")
         connector, moved = await self._without_secrets(self._connector(name, body, None), caller)
+        manifest = self._manifest(connector)
+        if CodeConnectors.is_code(connector) and manifest is None:
+            raise web.HTTPBadRequest(text="there is no code connector of that name")
         connector = await self._connectors.put(connector)
-        row = {**self._row(connector, caller), "moved_secrets": moved}
+        added = await self._add_agents(manifest) if manifest else []
+        row = {**self._row(connector, caller), "moved_secrets": moved, "added_agents": added}
         return web.json_response(row, status=201)
 
     async def _save(self, request: web.Request) -> web.Response:
@@ -106,7 +114,7 @@ class ConnectorRoutes(WebRoutes):
         existing = self._existing(request)
         body = await RequestBody.parse(request, ConnectorRequest)
         connector, moved = await self._without_secrets(
-            self._connector(existing.id, body, existing), caller
+            self._unfixed(self._connector(existing.id, body, existing)), caller
         )
         connector = await self._connectors.put(connector)
         return web.json_response({**self._row(connector, caller), "moved_secrets": moved})
@@ -150,6 +158,57 @@ class ConnectorRoutes(WebRoutes):
             else bool(existing and existing.shared_fallback),
         )
 
+    def _manifest(self, connector: Connector) -> CodeConnectorManifest | None:
+        return self._code.manifest_of(connector) if self._code else None
+
+    def _library(self) -> list[dict]:
+        if self._code is None:
+            return []
+        return [
+            {
+                "name": m.name,
+                "description": m.description,
+                "agents": [a.id for a in CodeConnectors.agents_of(m)],
+            }
+            for m in self._code.library.all()
+        ]
+
+    async def _add_agents(self, manifest: CodeConnectorManifest) -> list[str]:
+        """The agents a code connector brings, those not there yet; an agent of the
+        same name is the administrator's and is left alone."""
+        added = []
+        for agent in CodeConnectors.agents_of(manifest):
+            if self._agents.get(agent.id) is None:
+                await self._agents.save(agent)
+                added.append(agent.id)
+        return added
+
+    def _unfixed(self, connector: Connector) -> Connector:
+        """Settings aios.yaml fixes are not stored on the connector: they would be
+        shadowed now and silently apply the day the line in aios.yaml is removed."""
+        if self._code is None or not CodeConnectors.is_code(connector):
+            return connector
+        fixed = self._code.fixed(connector)
+        settings = connector.config.get(SETTINGS_KEY) or {}
+        kept = {k: v for k, v in settings.items() if k not in fixed}
+        return connector.model_copy(update={"config": {**connector.config, SETTINGS_KEY: kept}})
+
+    def _code_part(self, connector: Connector) -> dict | None:
+        """For a code connector: what it is, its settings' schema, what is set on
+        it, what aios.yaml fixes, and what applies."""
+        if self._code is None or not CodeConnectors.is_code(connector):
+            return None
+        manifest = self._manifest(connector)
+        return {
+            "name": connector.config.get(CODE_KEY),
+            "found": manifest is not None,
+            "description": manifest.description if manifest else "",
+            "schema": manifest.settings if manifest else {},
+            "settings": connector.config.get(SETTINGS_KEY) or {},
+            "fixed": self._code.fixed(connector),
+            "effective": self._code.settings(connector),
+        }
+
     def _member_row(self, connector: Connector, caller: WebCaller) -> dict:
         """What somebody who is not an administrator sees of a connector."""
         return {
@@ -179,8 +238,15 @@ class ConnectorRoutes(WebRoutes):
             "sign_in_mode": connector.sign_in.value,
             "sign_in": self._sign_in(connector, caller),
             # Referred to as ${NAME} but set neither in the console nor the environment.
-            "missing_variables": self._resolver.missing(connector.config) if self._resolver else [],
+            "missing_variables": self._missing(connector),
+            "code": self._code_part(connector),
         }
+
+    def _missing(self, connector: Connector) -> list[str]:
+        if self._resolver is None:
+            return []
+        manifest = self._manifest(connector)
+        return self._resolver.missing(manifest.env if manifest else connector.config)
 
     def _sign_in(self, connector: Connector, caller: WebCaller) -> dict | None:
         """Whether it can be signed in to, and how: the caller's own sign-in for a

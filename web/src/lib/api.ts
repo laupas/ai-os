@@ -195,7 +195,14 @@ export interface Skill {
 export interface AgentsData {
   agents: Agent[];
   skills: Skill[];
-  connectors: { name: string; enabled: boolean; tools: string[] | null }[];
+  connectors: {
+    name: string;
+    enabled: boolean;
+    tools: string[] | null;
+    /** A code connector's settings as they apply, and which aios.yaml fixes. */
+    settings?: Record<string, unknown>;
+    fixed?: string[];
+  }[];
   builtin_tools: string[];
   orchestrator: string;
 }
@@ -258,8 +265,28 @@ export interface ProbeResult {
   seconds: number;
 }
 
+/** A code connector, as the console sees it: its settings and what aios.yaml fixes. */
+export interface CodeConnectorPart {
+  name: string;
+  found: boolean;
+  description: string;
+  schema: Record<string, any>;
+  settings: Record<string, unknown>;
+  fixed: Record<string, unknown>;
+  effective: Record<string, unknown>;
+}
+
+/** A code connector that can be added, and the agents it brings. */
+export interface CodeConnectorOffer {
+  name: string;
+  description: string;
+  agents: string[];
+}
+
 export interface Connector {
   id: string;
+  /** Set for a code connector. */
+  code?: CodeConnectorPart | null;
   description: string;
   config: Record<string, unknown> | null;
   enabled: boolean;

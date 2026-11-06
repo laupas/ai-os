@@ -67,6 +67,7 @@ class WebContainer(containers.DeclarativeContainer):
     config_remote = providers.Dependency()
     audit_trail = providers.Dependency()
     claude_credentials = providers.Dependency(default=None)
+    code_connectors = providers.Dependency(default=None)
 
     identity = providers.Singleton(WebIdentityFactory.create, app_config.provided.web)
     auth = providers.Singleton(WebAuth, identity=identity, users=users, authorizer=authorizer)
@@ -142,6 +143,7 @@ class WebContainer(containers.DeclarativeContainer):
             resolver=variable_resolver,
             probe=connector_probe,
             secrets=secret_extractor,
+            code=code_connectors,
         ),
         providers.Singleton(
             VariableRoutes,

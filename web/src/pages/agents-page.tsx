@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Bot, ChevronRight, Plus } from "lucide-react";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { toast } from "sonner";
 import { ListView } from "@/components/list-view";
 import { ErrorBox, Loading, Page, PageHeader } from "@/components/page";
@@ -119,7 +119,7 @@ function AgentForm({ data, name }: { data: AgentsData; name: string }) {
     ...data.connectors.map((c) => ({ ...c, missing: false })),
     ...Object.keys(a?.connectors ?? {})
       .filter((c) => !known.has(c))
-      .map((c) => ({ name: c, enabled: false, tools: null as string[] | null, missing: true })),
+      .map((c) => ({ name: c, enabled: false, tools: null as string[] | null, missing: true, settings: undefined, fixed: undefined })),
   ];
   const [form, setForm] = useState(() => ({
     name: "",
@@ -311,6 +311,7 @@ function AgentForm({ data, name }: { data: AgentsData; name: string }) {
                           />
                         )
                       ) : null}
+                      {c.settings ? <ConnectorSettings name={c.name} settings={c.settings} fixed={c.fixed ?? []} /> : null}
                     </div>
                   ) : null}
                 </div>
@@ -340,5 +341,31 @@ function AgentForm({ data, name }: { data: AgentsData; name: string }) {
         </div>
       </form>
     </Page>
+  );
+}
+
+/** A code connector's settings where an agent uses it: read here, changed on the
+ * connector, and those aios.yaml fixes not even there. */
+function ConnectorSettings({ name, settings, fixed }: { name: string; settings: Record<string, unknown>; fixed: string[] }) {
+  return (
+    <div className="rounded-md border bg-muted/30 p-2 text-xs">
+      <div className="mb-1 text-muted-foreground">
+        Settings, changed on the{" "}
+        <a className="underline" href={href("connectors")}>
+          {name} connector
+        </a>
+      </div>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
+        {Object.entries(settings).map(([k, v]) => (
+          <Fragment key={k}>
+            <dt className="text-muted-foreground">{k.replace(/_/g, " ")}</dt>
+            <dd className="font-mono">
+              {typeof v === "object" ? JSON.stringify(v) : String(v)}
+              {fixed.includes(k) ? <span className="ml-2 font-sans text-muted-foreground">(aios.yaml)</span> : null}
+            </dd>
+          </Fragment>
+        ))}
+      </dl>
+    </div>
   );
 }

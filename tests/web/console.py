@@ -8,6 +8,9 @@ from aios.agents.skill_catalog import SkillCatalog
 from aios.channels.channel_directory import ChannelDirectory
 from aios.channels.web.web_channel import WebChannel
 from aios.channels.web.web_event_hub import WebEventHub
+from aios.config.connector_override import ConnectorOverride
+from aios.connectors.code_connector_library import CodeConnectorLibrary
+from aios.connectors.code_connectors import CodeConnectors
 from aios.connectors.connector_authorizer import ConnectorAuthorizer
 from aios.connectors.connector_status_board import ConnectorStatusBoard
 from aios.connectors.connector_tokens import ConnectorTokens
@@ -181,8 +184,15 @@ class Console:
                     aw.agents,
                     authorizer=authorizer,
                     tokens=self.tokens,
+                    resolver=self.variable_resolver,
                     probe=self.probe,
                     secrets=SecretExtractor(self.variables, self.variable_resolver),
+                    code=CodeConnectors(
+                        CodeConnectorLibrary([Path(__file__).parents[2] / "connectors"]),
+                        {"crypto": ConnectorOverride(settings={"max_chf_per_day": 300})},
+                        self.tmp_path / "connector-state",
+                        "UTC",
+                    ),
                 ),
                 SettingsRoutes(self.config_file, w.users, w.roles, w.ids, self.restart),
                 ScheduleRoutes(

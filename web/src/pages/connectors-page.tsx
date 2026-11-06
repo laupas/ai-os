@@ -3,6 +3,7 @@ import { KeyRound, Loader2, LogOut, Pencil, Play, Plug, Plus } from "lucide-reac
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ListView } from "@/components/list-view";
+import { prune, SettingsFields, type Values } from "@/components/schema-form";
 import { ErrorBox, Loading, Page, PageHeader } from "@/components/page";
 import { HistoryButton } from "@/components/history-button";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +13,7 @@ import { Hint, Input, Label, NativeSelect, Textarea } from "@/components/ui/inpu
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { api, type Connector, type ProbeResult, type SignInMode, type SignInState } from "@/lib/api";
+import { api, type CodeConnectorOffer, type Connector, type ProbeResult, type SignInMode, type SignInState } from "@/lib/api";
 import { useConfirm } from "@/lib/confirm";
 import { href } from "@/lib/router";
 import { can, useMe } from "@/lib/use-me";
@@ -32,7 +33,7 @@ export function ConnectorsPage() {
   const admin = can(me, "administer");
   const { data, isLoading, error } = useQuery({
     queryKey: ["connectors"],
-    queryFn: () => api<{ connectors: Connector[] }>("GET", "/api/connectors"),
+    queryFn: () => api<{ connectors: Connector[]; library?: CodeConnectorOffer[] }>("GET", "/api/connectors"),
   });
   const [editing, setEditing] = useState<Connector | "new" | null>(null);
   useSignInResult();
@@ -76,7 +77,9 @@ export function ConnectorsPage() {
       ) : null}
       <Sheet open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
         <SheetContent side="right" className="gap-0 p-0 sm:max-w-xl">
-          {editing !== null ? <ConnectorForm connector={editing === "new" ? null : editing} onDone={() => setEditing(null)} /> : null}
+          {editing !== null ? (
+            <ConnectorForm connector={editing === "new" ? null : editing} library={data?.library ?? []} onDone={() => setEditing(null)} />
+          ) : null}
         </SheetContent>
       </Sheet>
     </Page>
@@ -127,6 +130,7 @@ function MemberCard({ connector: c }: { connector: Connector }) {
 /** What the server is, in a few words: its command or its address. */
 function target(config: Config | null): string {
   if (!config) return "";
+  if (typeof config.code === "string") return `code connector ${config.code}`;
   if (typeof config.url === "string") return config.url;
   const args = Array.isArray(config.args) ? config.args.join(" ") : "";
   return `${config.command ?? ""} ${args}`.trim();
@@ -279,14 +283,17 @@ function fromLines(text: string, sep: string): Record<string, string> {
   return out;
 }
 
-function ConnectorForm({ connector: c, onDone }: { connector: Connector | null; onDone: () => void }) {
+function ConnectorForm({ connector: c, library, onDone }: { connector: Connector | null; library: CodeConnectorOffer[]; onDone: () => void }) {
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const original: Config = c?.config ?? {};
   const [name, setName] = useState("");
   const [description, setDescription] = useState(c?.description ?? "");
   const [enabled, setEnabled] = useState(c?.enabled ?? true);
-  const [kind, setKind] = useState(typeof original.url === "string" ? "url" : "command");
+  const [kind, setKind] = useState(typeof original.code === "string" ? "code" : typeof original.url === "string" ? "url" : "command");
+  const [codeName, setCodeName] = useState(String(original.code ?? library[0]?.name ?? ""));
+  const [settings, setSettings] = useState<Values>((original.settings as Values) ?? {});
+  const offer = library.find((o) => o.name === codeName);
   const [command, setCommand] = useState(String(original.command ?? ""));
   const [args, setArgs] = useState(Array.isArray(original.args) ? original.args.join("\n") : "");
   const [env, setEnv] = useState(toLines(original.env, "="));
@@ -326,8 +333,13 @@ function ConnectorForm({ connector: c, onDone }: { connector: Connector | null; 
       }
     }
     const config: Config = { ...original };
-    for (const key of ["command", "args", "env", "url", "type", "headers", "oauth"]) delete config[key];
-    if (kind === "command") {
+    for (const key of ["command", "args", "env", "url", "type", "headers", "oauth", "code", "settings"]) delete config[key];
+    if (kind === "code") {
+      if (!codeName) throw new Error("Choose a code connector.");
+      config.code = codeName;
+      const kept = prune(settings);
+      if (Object.keys(kept).length) config.settings = kept;
+    } else if (kind === "command") {
       if (!command.trim()) throw new Error("Give the command to start.");
       config.command = command.trim();
       const list = args.split("\n").map((a) => a.trim()).filter(Boolean);
@@ -367,10 +379,15 @@ function ConnectorForm({ connector: c, onDone }: { connector: Connector | null; 
     setBusy(true);
     try {
       const body = { description: description.trim(), config: build(), enabled, sign_in: signInMode, shared_fallback: signInMode === "per_user" && fallback };
+      type Saved = { moved_secrets?: string[]; added_agents?: string[] };
       const saved = c
-        ? await api<{ moved_secrets?: string[] }>("PUT", `/api/connectors/${encodeURIComponent(c.id)}`, body)
-        : await api<{ moved_secrets?: string[] }>("POST", "/api/connectors", { ...body, name: name.trim() });
-      toast.success(c ? "Saved. Applies to the next turn." : "Added. Now grant it to an agent.");
+        ? await api<Saved>("PUT", `/api/connectors/${encodeURIComponent(c.id)}`, body)
+        : await api<Saved>("POST", "/api/connectors", { ...body, name: name.trim() });
+      const added = saved?.added_agents ?? [];
+      toast.success(
+        c ? "Saved. Applies to the next turn." : added.length ? `Added, with its agents ${added.join(", ")}.` : "Added. Now grant it to an agent.",
+      );
+      if (added.length) void queryClient.invalidateQueries({ queryKey: ["agents"] });
       const moved = saved?.moved_secrets ?? [];
       if (moved.length)
         toast.info(`Moved ${moved.length === 1 ? "a secret" : `${moved.length} secrets`} into encrypted variables: ${moved.join(", ")}.`);
@@ -437,8 +454,16 @@ function ConnectorForm({ connector: c, onDone }: { connector: Connector | null; 
             }}
           >
             <TabsList>
-              <TabsTrigger value="command">Command</TabsTrigger>
-              <TabsTrigger value="url">URL</TabsTrigger>
+              {/* A code connector stays one: its settings belong to its code. */}
+              {c?.code ? (
+                <TabsTrigger value="code">Code</TabsTrigger>
+              ) : (
+                <>
+                  <TabsTrigger value="command">Command</TabsTrigger>
+                  <TabsTrigger value="url">URL</TabsTrigger>
+                  {library.length ? <TabsTrigger value="code">Code</TabsTrigger> : null}
+                </>
+              )}
               <TabsTrigger value="json">JSON</TabsTrigger>
             </TabsList>
           </Tabs>
@@ -449,6 +474,19 @@ function ConnectorForm({ connector: c, onDone }: { connector: Connector | null; 
             <Textarea rows={14} spellCheck={false} className="font-mono text-xs md:text-xs" value={json} onChange={(e) => setJson(e.target.value)} />
             <Hint>Claude Code's .mcp.json shape for one server.</Hint>
           </Label>
+        ) : kind === "code" ? (
+          <CodeFields
+            connector={c}
+            library={library}
+            codeName={codeName}
+            onCodeName={(n) => {
+              setCodeName(n);
+              setSettings({});
+            }}
+            offer={offer}
+            settings={settings}
+            onSettings={setSettings}
+          />
         ) : kind === "command" ? (
           <>
             <Label>
@@ -570,6 +608,63 @@ function ConnectorForm({ connector: c, onDone }: { connector: Connector | null; 
         ) : null}
       </div>
     </form>
+  );
+}
+
+/** A code connector: which one, what it brings, and its settings. */
+function CodeFields({
+  connector: c,
+  library,
+  codeName,
+  onCodeName,
+  offer,
+  settings,
+  onSettings,
+}: {
+  connector: Connector | null;
+  library: CodeConnectorOffer[];
+  codeName: string;
+  onCodeName: (name: string) => void;
+  offer: CodeConnectorOffer | undefined;
+  settings: Values;
+  onSettings: (v: Values) => void;
+}) {
+  // A new one has no row yet, so its settings' schema arrives with the first save.
+  const part = c?.code;
+  return (
+    <div className="space-y-4">
+      {c ? (
+        <p className="text-sm">
+          Runs <code>{part?.name}</code>
+          {part && !part.found ? <span className="text-destructive">, which is not there any more</span> : null}.
+        </p>
+      ) : (
+        <Label>
+          Code connector
+          <NativeSelect value={codeName} onChange={(e) => onCodeName(e.target.value)}>
+            {library.map((o) => (
+              <option key={o.name}>{o.name}</option>
+            ))}
+          </NativeSelect>
+        </Label>
+      )}
+      {(part?.description ?? offer?.description) ? <p className="text-sm text-muted-foreground">{part?.description ?? offer?.description}</p> : null}
+      {!c && offer?.agents.length ? (
+        <Hint>Adding it also adds its agents, where there is none of that name yet: {offer.agents.join(", ")}.</Hint>
+      ) : null}
+      {part?.found && Object.keys(part.schema.properties ?? {}).length ? (
+        <div className="space-y-3 rounded-md border p-3">
+          <div className="text-sm font-medium">Settings</div>
+          <Hint>
+            An empty field uses its default. What aios.yaml fixes under <code>{`connectors.${c?.id}.settings`}</code> is shown and cannot be changed
+            here, by you or by an agent.
+          </Hint>
+          <SettingsFields schema={part.schema} values={settings} onChange={onSettings} fixed={part.fixed} />
+        </div>
+      ) : !c ? (
+        <Hint>Its settings can be changed once it is added.</Hint>
+      ) : null}
+    </div>
   );
 }
 
