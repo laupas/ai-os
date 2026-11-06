@@ -161,6 +161,10 @@ it. A connector does nothing until an agent is granted it.
   The process environment is the fallback.
 - `approval.always` and `approval.deny` in `aios.yaml` list connector tools that must
   be asked or are never allowed, whichever agent calls them.
+- A Node server built on Google's older client libraries (gaxios 6, node-fetch 2),
+  such as `@gongrzhe/server-gmail-autoauth-mcp`, starts fine and then fails every
+  token refresh with "Premature close". Give it
+  `NODE_OPTIONS: --require /app/node/no-keepalive.cjs` in its `env`.
 
 ## The configuration repository
 

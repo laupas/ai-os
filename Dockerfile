@@ -42,6 +42,7 @@ COPY aios ./aios
 COPY agents ./agents
 COPY .claude ./.claude
 COPY skills ./skills
+COPY node ./node
 COPY --from=web /web/dist ./aios/web/static
 RUN uv sync --frozen --no-dev \
  # Files copied from the Google Drive mount are mode 0600; without this the
