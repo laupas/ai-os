@@ -13,6 +13,8 @@ export interface Facet<T> {
   options?: string[];
 }
 
+const PAGE_SIZES = [10, 20, 50, 100];
+
 const values = (v: string | string[] | null | undefined) => (v == null ? [] : Array.isArray(v) ? v : [v]);
 
 /** The list every page shares: a search box, a select per facet, how many match,
@@ -45,6 +47,7 @@ export function ListView<T>({
   const [query, setQuery] = useState("");
   const [chosen, setChosen] = useState<Record<string, string>>({});
   const [page, setPage] = useState(0);
+  const [size, setSize] = useState(pageSize);
   const options = useMemo(
     () => facets.map((f) => f.options ?? [...new Set(items.flatMap((i) => values(f.value(i))))].sort()),
     [facets, items],
@@ -55,7 +58,7 @@ export function ListView<T>({
       (!needle || !text || text(item).toLowerCase().includes(needle)) &&
       facets.every((f) => !chosen[f.label] || values(f.value(item)).includes(chosen[f.label])),
   );
-  const pages = Math.max(1, Math.ceil(shown.length / pageSize));
+  const pages = Math.max(1, Math.ceil(shown.length / size));
   // A list that shrank (a filter, a delete) must not strand the view past its end.
   const current = Math.min(page, pages - 1);
   const filtering = Boolean(needle) || Object.values(chosen).some(Boolean);
@@ -103,13 +106,34 @@ export function ListView<T>({
         <Empty>Nothing matches.</Empty>
       ) : (
         <div className={cn("grid gap-3", className)}>
-          {shown.slice(current * pageSize, (current + 1) * pageSize).map((item) => (
+          {shown.slice(current * size, (current + 1) * size).map((item) => (
             <Fragment key={keyOf(item)}>{children(item)}</Fragment>
           ))}
         </div>
       )}
-      {pages > 1 ? (
-        <div className="flex items-center justify-center gap-2">
+      {/* Offered once a list is longer than the smallest page, so it can be made shorter as well as longer. */}
+      {shown.length > PAGE_SIZES[0] ? (
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <NativeSelect
+            className="w-auto"
+            value={size}
+            onChange={(e) => {
+              // Keep the first item on screen in view rather than jumping back to the start.
+              const first = current * size;
+              const next = Number(e.target.value);
+              setSize(next);
+              setPage(Math.floor(first / next));
+            }}
+            aria-label="Items per page"
+          >
+            {[...new Set([...PAGE_SIZES, pageSize])]
+              .sort((a, b) => a - b)
+              .map((n) => (
+                <option key={n} value={n}>
+                  {n} per page
+                </option>
+              ))}
+          </NativeSelect>
           <Button variant="outline" size="icon" disabled={current === 0} onClick={() => setPage(current - 1)} aria-label="Previous page">
             <ChevronLeft />
           </Button>
