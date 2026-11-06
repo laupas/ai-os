@@ -61,12 +61,19 @@ class StorageContainer(containers.DeclarativeContainer):
                 "git-remotes": providers.Object(
                     AuditPolicy(ignored_fields=frozenset({"updated_at", "updated_by"}))
                 ),
-                # A renewal changes only the tokens; signing in again changes
-                # `signed_in_at` and is recorded.
+                # A renewal changes only the tokens, and every save seals the
+                # secrets afresh, so their ciphertext changes without them.
+                # Signing in again changes `signed_in_at` and is recorded.
                 "connector-tokens": providers.Object(
                     AuditPolicy(
                         ignored_fields=frozenset(
-                            {"access_token", "refresh_token", "expires_at", "encrypted"}
+                            {
+                                "access_token",
+                                "refresh_token",
+                                "client_secret",
+                                "expires_at",
+                                "encrypted",
+                            }
                         )
                     )
                 ),
