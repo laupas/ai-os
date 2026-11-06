@@ -42,6 +42,12 @@ class VariableResolver:
             return os.environ.get(name)
         return self._box.decrypt(variable.value) if variable.secret else variable.value
 
+    def source_of(self, name: str) -> str | None:
+        """`variable`, `environment`, or None when `name` is set in neither."""
+        if self._variables.get(name) is not None:
+            return "variable"
+        return "environment" if os.environ.get(name) else None
+
     def references(self, value: Any) -> set[str]:
         """Every name `value` refers to."""
         if isinstance(value, str):

@@ -152,6 +152,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         policy=approval_policy.policy,
         approvals=approvals.service,
         clock=common.clock,
+        variable_resolver=variables.resolver,
     )
     gateway = providers.Container(
         GatewayContainer,
@@ -233,6 +234,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         config_branches=config_repo.branches,
         config_remote=config_repo.remote,
         audit_trail=storage.audit_trail,
+        claude_credentials=engine.credentials,
     )
 
     background = providers.Callable(

@@ -1,9 +1,19 @@
-from pydantic import BaseModel
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict
 
 
 class AgentConfig(BaseModel):
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
     model: str | None = None
     """None uses the Claude Code default."""
+
+    auth: Literal["subscription", "api_key"] = "subscription"
+    """How ai-os signs in to Claude: `subscription` with a Claude Code token
+    (`claude setup-token`, the variable CLAUDE_CODE_OAUTH_TOKEN), `api_key` with an
+    Anthropic API key (the variable ANTHROPIC_API_KEY). Set the value on the
+    Variables page, as a secret; the process environment is the fallback."""
 
     builtin_tools: list[str] = [
         "Task",

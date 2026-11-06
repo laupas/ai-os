@@ -59,9 +59,13 @@ has to be built once for that (`cd web && npm ci && npm run build`, then
 copy `web/dist` to `aios/web/static`); the Docker image does it for you.
 
 **Claude**: ai-os runs Claude through the Claude Agent SDK, so it signs in the way
-Claude Code does: `ANTHROPIC_API_KEY` (recommended for a server), or
-`CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token`. Check Anthropic's terms for the
-kind of use you have in mind.
+Claude Code does. `agent.auth` in `aios.yaml` picks how: `api_key` uses
+`ANTHROPIC_API_KEY` (recommended for a server), `subscription` (the default) uses
+`CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token`. Set that one as a secret on the
+console's Variables page; the process environment is the fallback, so it can also
+come from `.env`. Only the chosen one reaches the CLI, and Health shows which is in
+use and where it came from. Check Anthropic's terms for the kind of use you have in
+mind.
 
 ## Configuration
 

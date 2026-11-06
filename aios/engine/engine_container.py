@@ -3,6 +3,7 @@ from dependency_injector import containers, providers
 from aios.engine.agent_definitions_builder import AgentDefinitionsBuilder
 from aios.engine.claude_agent_engine import ClaudeAgentEngine
 from aios.engine.claude_connector_probe import ClaudeConnectorProbe
+from aios.engine.claude_credentials import ClaudeCredentials
 from aios.engine.claude_options_factory import ClaudeOptionsFactory
 from aios.engine.progress_stream_mapper import ProgressStreamMapper
 from aios.engine.system_prompt_builder import SystemPromptBuilder
@@ -23,6 +24,11 @@ class EngineContainer(containers.DeclarativeContainer):
     policy = providers.Dependency()
     approvals = providers.Dependency()
     clock = providers.Dependency()
+    variable_resolver = providers.Dependency()
+
+    credentials = providers.Singleton(
+        ClaudeCredentials, auth=agent_config.provided.auth, resolver=variable_resolver
+    )
 
     labeler = providers.Singleton(ProgressLabeler)
     mapper = providers.Singleton(ProgressStreamMapper, labeler=labeler)
@@ -48,9 +54,14 @@ class EngineContainer(containers.DeclarativeContainer):
         agents=agents,
         connectors=connectors,
         definitions=definitions,
+        credentials=credentials,
     )
     connector_probe = providers.Singleton(
-        ClaudeConnectorProbe, connectors=connectors, board=board, repo_dir=repo_dir
+        ClaudeConnectorProbe,
+        connectors=connectors,
+        board=board,
+        repo_dir=repo_dir,
+        credentials=credentials,
     )
     engine = providers.Singleton(
         ClaudeAgentEngine,

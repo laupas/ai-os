@@ -7,6 +7,7 @@ from aios.agents.agent_tracker import AgentTracker
 from aios.config.agent_config import AgentConfig
 from aios.connectors.connector_catalog import ConnectorCatalog
 from aios.engine.agent_definitions_builder import AgentDefinitionsBuilder
+from aios.engine.claude_credentials import ClaudeCredentials
 from aios.engine.system_prompt_builder import SystemPromptBuilder
 from aios.engine.tool_permission_gate import ToolPermissionGate
 from aios.engine.turn_deadline import TurnDeadline
@@ -48,6 +49,7 @@ class ClaudeOptionsFactory:
         agents: AgentCatalog,
         connectors: ConnectorCatalog,
         definitions: AgentDefinitionsBuilder,
+        credentials: ClaudeCredentials,
     ) -> None:
         self._config = agent_config
         self._repo_dir = Path(repo_dir)
@@ -57,6 +59,7 @@ class ClaudeOptionsFactory:
         self._agents = agents
         self._connectors = connectors
         self._definitions = definitions
+        self._credentials = credentials
 
     def create(
         self, request: TurnRequest, resume: str | None, deadline: TurnDeadline | None = None
@@ -84,7 +87,7 @@ class ClaudeOptionsFactory:
             hooks=tracker.hooks(),  # type: ignore[arg-type]
             can_use_tool=self._gate.for_context(context, tracker, deadline),
             permission_mode="default",
-            env=dict(self.ENV),
+            env={**self.ENV, **self._credentials.env()},
             resume=resume,
             model=main.model or self._config.model,
             # Partial messages let a channel show the reply while it is written.

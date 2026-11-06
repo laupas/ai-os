@@ -66,6 +66,7 @@ class WebContainer(containers.DeclarativeContainer):
     config_branches = providers.Dependency()
     config_remote = providers.Dependency()
     audit_trail = providers.Dependency()
+    claude_credentials = providers.Dependency(default=None)
 
     identity = providers.Singleton(WebIdentityFactory.create, app_config.provided.web)
     auth = providers.Singleton(WebAuth, identity=identity, users=users, authorizer=authorizer)
@@ -91,6 +92,7 @@ class WebContainer(containers.DeclarativeContainer):
             log_reader=log_reader,
             clock=clock,
             connectors=connector_catalog,
+            credentials=claude_credentials,
         ),
         providers.Singleton(LogRoutes, log_reader=log_reader, clock=clock),
         providers.Singleton(AuditRoutes, feed=audit_feed),

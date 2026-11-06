@@ -58,6 +58,20 @@ export function HealthPage() {
               {items.length ? items.map((x) => <Badge key={x} variant="secondary">{x}</Badge>) : <span className="text-sm">none</span>}
             </div>
           ))}
+          {h.claude ? (
+            <div className="flex flex-wrap items-center gap-2 py-3">
+              <span className="w-32 text-sm text-muted-foreground">Claude</span>
+              <Badge variant="secondary">{h.claude.auth === "api_key" ? "API key" : "subscription"}</Badge>
+              <code className="text-xs">{h.claude.variable}</code>
+              {h.claude.source ? (
+                <Badge variant={h.claude.source === "variable" ? "success" : "warning"}>
+                  {h.claude.source === "variable" ? "from Variables" : "from the environment"}
+                </Badge>
+              ) : (
+                <Badge variant="destructive">not set</Badge>
+              )}
+            </div>
+          ) : null}
           <div className="flex items-center gap-2 py-3">
             <span className="w-32 text-sm text-muted-foreground">Scheduler</span>
             <Badge variant={h.scheduler ? "success" : "destructive"}>{h.scheduler ? "running" : "off"}</Badge>

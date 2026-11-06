@@ -4,6 +4,7 @@ from aios.approvals.rule_based_approval_policy import RuleBasedApprovalPolicy
 from aios.config.agent_config import AgentConfig
 from aios.connectors.connector_status_board import ConnectorStatusBoard
 from aios.engine.agent_definitions_builder import AgentDefinitionsBuilder
+from aios.engine.claude_credentials import ClaudeCredentials
 from aios.engine.claude_options_factory import ClaudeOptionsFactory
 from aios.engine.system_prompt_builder import SystemPromptBuilder
 from aios.engine.tool_permission_gate import ToolPermissionGate
@@ -21,7 +22,17 @@ from tests.fakes.fake_clock import FakeClock
 from tests.fakes.world import World
 
 
-async def _options(tmp_path, agent: str | None):  # type: ignore[no-untyped-def]
+class FixedResolver:
+    """Answers `value_of` from a dict, as the variables and environment would."""
+
+    def __init__(self, values: dict[str, str]) -> None:
+        self._values = values
+
+    def value_of(self, name: str) -> str | None:
+        return self._values.get(name)
+
+
+async def _options(tmp_path, agent: str | None, auth: str = "subscription"):  # type: ignore[no-untyped-def]
     w = AgentWorld(tmp_path)
     world = await World().setup()
     memories: Collection[Memory] = Collection(
@@ -36,6 +47,10 @@ async def _options(tmp_path, agent: str | None):  # type: ignore[no-untyped-def]
         w.agents,
         w.connectors,
         AgentDefinitionsBuilder(w.agents, w.connectors, ConnectorStatusBoard(FakeClock())),
+        ClaudeCredentials(
+            auth,  # type: ignore[arg-type]
+            FixedResolver({"CLAUDE_CODE_OAUTH_TOKEN": "oauth", "ANTHROPIC_API_KEY": "key"}),  # type: ignore[arg-type]
+        ),
     )
     now = datetime.now(UTC)
     conversation = Conversation(id="c", agent=agent, created_at=now, updated_at=now)
@@ -68,3 +83,14 @@ async def test_a_chosen_agent_runs_the_turn_itself_without_subagents(tmp_path) -
     assert str(options.system_prompt).startswith("You send messages.")
     assert options.model == "sonnet"  # the agent's own model
     assert options.skills == ["message-style"]
+
+
+async def test_the_cli_gets_only_the_credential_agent_auth_names(tmp_path) -> None:
+    (tmp_path / "s").mkdir()
+    (tmp_path / "a").mkdir()
+    subscription = (await _options(tmp_path / "s", None)).env
+    assert subscription["CLAUDE_CODE_OAUTH_TOKEN"] == "oauth"
+    assert subscription["ANTHROPIC_API_KEY"] == ""
+    api_key = (await _options(tmp_path / "a", None, "api_key")).env
+    assert api_key["ANTHROPIC_API_KEY"] == "key"
+    assert api_key["CLAUDE_CODE_OAUTH_TOKEN"] == ""

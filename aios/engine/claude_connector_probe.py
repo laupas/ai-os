@@ -9,6 +9,7 @@ from aios.connectors.connector_catalog import ConnectorCatalog
 from aios.connectors.connector_probe import ConnectorProbe
 from aios.connectors.connector_status_board import ConnectorStatusBoard
 from aios.connectors.probe_result import ProbeResult
+from aios.engine.claude_credentials import ClaudeCredentials
 from aios.entities.users.user import User
 
 log = logging.getLogger(__name__)
@@ -26,11 +27,16 @@ class ClaudeConnectorProbe(ConnectorProbe):
     """
 
     def __init__(
-        self, connectors: ConnectorCatalog, board: ConnectorStatusBoard, repo_dir: Path
+        self,
+        connectors: ConnectorCatalog,
+        board: ConnectorStatusBoard,
+        repo_dir: Path,
+        credentials: ClaudeCredentials,
     ) -> None:
         self._connectors = connectors
         self._board = board
         self._repo_dir = Path(repo_dir)
+        self._credentials = credentials
 
     async def probe(self, name: str, user: User | None = None) -> ProbeResult:
         config = self._connectors.server_config(name, user)
@@ -50,6 +56,7 @@ class ClaudeConnectorProbe(ConnectorProbe):
             strict_mcp_config=True,
             can_use_tool=refuse,
             permission_mode="default",
+            env=self._credentials.env(),
         )
         entry: dict = {"status": "pending"}
         try:

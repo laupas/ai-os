@@ -7,6 +7,7 @@ from aios.channels.channel_directory import ChannelDirectory
 from aios.common.clock import Clock
 from aios.config.app_config import AppConfig
 from aios.connectors.connector_catalog import ConnectorCatalog
+from aios.engine.claude_credentials import ClaudeCredentials
 from aios.entities.approvals.approval import Approval
 from aios.entities.approvals.approval_status import ApprovalStatus
 from aios.entities.conversations.conversation import Conversation
@@ -37,8 +38,10 @@ class HealthRoutes(WebRoutes):
         log_reader: LogReader,
         clock: Clock,
         connectors: ConnectorCatalog,
+        credentials: ClaudeCredentials | None = None,
     ) -> None:
         self._config = config
+        self._credentials = credentials
         self._connectors = connectors
         self._channels = channels
         self._senders = senders
@@ -80,6 +83,7 @@ class HealthRoutes(WebRoutes):
                 "senders": self._senders.names(),
                 "mcp_servers": sorted(self._connectors.enabled_names()),
                 "scheduler": self._config.scheduler.enabled,
+                "claude": self._credentials.status() if self._credentials else None,
                 "counts": {
                     "conversations": len(self._conversations.all()),
                     "pending_approvals": len(
