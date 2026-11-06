@@ -157,8 +157,9 @@ it. A connector does nothing until an agent is granted it.
   at the host the request names.
 - A server that publishes no OAuth endpoints and lets nobody register (Google's
   `gmailmcp`, `calendarmcp` and `people` MCP servers) signs in with a client of your
-  own, written as `oauth:` in the connector's config. ai-os takes that key out before
-  the config reaches Claude Code:
+  own: **Sign in with an own OAuth client** on the connector's URL tab (with a
+  *Fill in Google* button), stored as `oauth:` in its config. ai-os takes that key
+  out before the config reaches Claude Code:
 
   ```yaml
   config:

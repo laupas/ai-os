@@ -18,6 +18,13 @@ import { when } from "@/lib/utils";
 
 type Config = Record<string, unknown>;
 
+/** Google's OAuth endpoints; its MCP servers neither publish nor register them. */
+const GOOGLE = {
+  authorization_endpoint: "https://accounts.google.com/o/oauth2/v2/auth",
+  token_endpoint: "https://oauth2.googleapis.com/token",
+  params: { access_type: "offline", prompt: "consent" },
+};
+
 export function ConnectorsPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["connectors"],
@@ -221,6 +228,23 @@ function ConnectorForm({ connector: c, onDone }: { connector: Connector | null; 
   const [url, setUrl] = useState(String(original.url ?? ""));
   const [transport, setTransport] = useState(original.type === "sse" ? "sse" : "http");
   const [headers, setHeaders] = useState(toLines(original.headers, ": "));
+  const oauth = (original.oauth ?? {}) as Config;
+  const [ownClient, setOwnClient] = useState(Object.keys(oauth).length > 0);
+  const [authUrl, setAuthUrl] = useState(String(oauth.authorization_endpoint ?? ""));
+  const [tokenUrl, setTokenUrl] = useState(String(oauth.token_endpoint ?? ""));
+  const [clientId, setClientId] = useState(String(oauth.client_id ?? ""));
+  const [clientSecret, setClientSecret] = useState(String(oauth.client_secret ?? ""));
+  const [authMethod, setAuthMethod] = useState(String(oauth.auth_method ?? "client_secret_post"));
+  const [scopes, setScopes] = useState(Array.isArray(oauth.scopes) ? oauth.scopes.join("\n") : "");
+  const [params, setParams] = useState(toLines(oauth.params, "="));
+  const useGoogle = () => {
+    setAuthUrl(GOOGLE.authorization_endpoint);
+    setTokenUrl(GOOGLE.token_endpoint);
+    setAuthMethod("client_secret_post");
+    setParams(toLines(GOOGLE.params, "="));
+    if (!clientId) setClientId("${GOOGLE_CLIENT_ID}");
+    if (!clientSecret) setClientSecret("${GOOGLE_CLIENT_SECRET}");
+  };
   const [raw, setRaw] = useState(false);
   const [json, setJson] = useState(JSON.stringify(original, null, 2));
   const [busy, setBusy] = useState(false);
@@ -235,7 +259,7 @@ function ConnectorForm({ connector: c, onDone }: { connector: Connector | null; 
       }
     }
     const config: Config = { ...original };
-    for (const key of ["command", "args", "env", "url", "type", "headers"]) delete config[key];
+    for (const key of ["command", "args", "env", "url", "type", "headers", "oauth"]) delete config[key];
     if (kind === "command") {
       if (!command.trim()) throw new Error("Give the command to start.");
       config.command = command.trim();
@@ -249,6 +273,18 @@ function ConnectorForm({ connector: c, onDone }: { connector: Connector | null; 
       config.url = url.trim();
       const h = fromLines(headers, ": ");
       if (Object.keys(h).length) config.headers = h;
+      if (ownClient) {
+        if (!authUrl.trim() || !tokenUrl.trim() || !clientId.trim())
+          throw new Error("An own OAuth client needs the sign-in address, the token address and a client id.");
+        const own: Config = { authorization_endpoint: authUrl.trim(), token_endpoint: tokenUrl.trim(), client_id: clientId.trim() };
+        if (clientSecret.trim()) own.client_secret = clientSecret.trim();
+        if (authMethod !== "client_secret_post") own.auth_method = authMethod;
+        const list = scopes.split(/\s+/).map((x) => x.trim()).filter(Boolean);
+        if (list.length) own.scopes = list;
+        const extra = fromLines(params, "=");
+        if (Object.keys(extra).length) own.params = extra;
+        config.oauth = own;
+      }
     }
     return config;
   };
@@ -376,6 +412,58 @@ function ConnectorForm({ connector: c, onDone }: { connector: Connector | null; 
               Headers, Name: value per line
               <Textarea rows={3} spellCheck={false} className="font-mono text-xs md:text-xs" value={headers} onChange={(e) => setHeaders(e.target.value)} placeholder="Authorization: Bearer ${API_TOKEN}" />
             </Label>
+            <div className="space-y-3 rounded-md border p-3">
+              <label className="flex items-center gap-3 text-sm font-medium">
+                <Switch checked={ownClient} onCheckedChange={setOwnClient} /> Sign in with an own OAuth client
+              </label>
+              <Hint>
+                Off: Sign in asks the server where to sign in and registers ai-os by itself (Homey). On: for a server that does neither, such as
+                Google's MCP servers, with a client you created there. Its redirect URI is <code>{`${window.location.origin}/api/oauth/callback`}</code>.
+              </Hint>
+              {ownClient ? (
+                <>
+                  <Button type="button" size="sm" variant="outline" onClick={useGoogle}>
+                    Fill in Google
+                  </Button>
+                  <Label>
+                    Sign-in address
+                    <Input className="font-mono" value={authUrl} onChange={(e) => setAuthUrl(e.target.value)} placeholder="https://accounts.google.com/o/oauth2/v2/auth" />
+                  </Label>
+                  <Label>
+                    Token address
+                    <Input className="font-mono" value={tokenUrl} onChange={(e) => setTokenUrl(e.target.value)} placeholder="https://oauth2.googleapis.com/token" />
+                  </Label>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Label>
+                      Client id
+                      <Input className="font-mono" value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder="${GOOGLE_CLIENT_ID}" />
+                    </Label>
+                    <Label>
+                      Client secret
+                      <Input className="font-mono" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} placeholder="${GOOGLE_CLIENT_SECRET}" />
+                    </Label>
+                  </div>
+                  <Hint>Write the secret as a variable, not as the value itself: the configuration is a git repository.</Hint>
+                  <Label>
+                    Client authentication
+                    <NativeSelect value={authMethod} onChange={(e) => setAuthMethod(e.target.value)}>
+                      <option value="client_secret_post">In the request body (Google)</option>
+                      <option value="client_secret_basic">HTTP Basic</option>
+                      <option value="none">None (public client)</option>
+                    </NativeSelect>
+                  </Label>
+                  <Label>
+                    Scopes, one per line
+                    <Textarea rows={3} spellCheck={false} className="font-mono text-xs md:text-xs" value={scopes} onChange={(e) => setScopes(e.target.value)} placeholder="https://www.googleapis.com/auth/contacts.readonly" />
+                  </Label>
+                  <Label>
+                    Extra sign-in parameters, key=value per line
+                    <Textarea rows={2} spellCheck={false} className="font-mono text-xs md:text-xs" value={params} onChange={(e) => setParams(e.target.value)} placeholder={"access_type=offline\nprompt=consent"} />
+                    <Hint>Google needs access_type=offline, or the sign-in cannot renew itself.</Hint>
+                  </Label>
+                </>
+              ) : null}
+            </div>
           </>
         )}
       </div>
