@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Bot, ChevronDown, Eraser, MessageSquarePlus, Sparkles, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { ListView } from "@/components/list-view";
 import { ErrorBox, Loading } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,7 +37,8 @@ function ConversationList({ current }: { current?: string }) {
   const { data: me } = useMe();
   const { data, isLoading, error } = useQuery({
     queryKey: ["conversations"],
-    queryFn: () => api<{ conversations: ConversationSummary[] }>("GET", "/api/conversations"),
+    // As many as the server hands out, so the filter and the pages cover them all.
+    queryFn: () => api<{ conversations: ConversationSummary[] }>("GET", "/api/conversations?limit=500"),
     refetchInterval: 30_000,
   });
   const [prune, setPrune] = useState(false);
@@ -55,38 +57,48 @@ function ConversationList({ current }: { current?: string }) {
           </Button>
         ) : null}
       </div>
-      <div className="flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
+      <div className="flex-1 overflow-y-auto px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
         {isLoading ? <Loading /> : null}
         {error ? <ErrorBox error={error} /> : null}
-        {data?.conversations.length === 0 ? <p className="p-6 text-sm text-muted-foreground">No conversations yet.</p> : null}
-        {data?.conversations.map((c) => (
-          <a
-            key={c.id}
-            href={href("chat", c.id)}
-            className={cn(
-              "block border-b px-4 py-3 transition-colors hover:bg-accent/50",
-              c.id === current && "bg-accent",
-            )}
+        {data ? (
+          <ListView
+            items={data.conversations}
+            keyOf={(c) => c.id}
+            text={(c) => [c.title, c.preview, c.agent, ...c.participants].filter(Boolean).join(" ")}
+            facets={[
+              { label: "channels", value: (c) => c.channels },
+              { label: "agents", value: (c) => c.agent ?? "orchestrator" },
+              { label: "people", value: (c) => c.participants },
+            ]}
+            empty="No conversations yet."
+            className="-mx-4 gap-0 border-t"
           >
-            <div className="flex items-baseline gap-2">
-              <span className="min-w-0 flex-1 truncate text-sm font-medium">{c.title || c.preview || "(no messages)"}</span>
-              <span className="shrink-0 text-xs text-muted-foreground">{when(c.last_at || c.updated_at)}</span>
-            </div>
-            <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-              {c.agent ? (
-                <Badge variant="outline" className="gap-1 px-1.5 py-0 font-normal">
-                  <Bot className="size-3" /> {c.agent}
-                </Badge>
-              ) : null}
-              {c.channels.map((ch) => (
-                <Badge key={ch} variant="secondary" className="px-1.5 py-0 font-normal">
-                  {ch}
-                </Badge>
-              ))}
-              <span className="truncate">{c.participants.join(", ")}</span>
-            </div>
-          </a>
-        ))}
+            {(c) => (
+              <a
+                href={href("chat", c.id)}
+                className={cn("block border-b px-4 py-3 transition-colors hover:bg-accent/50", c.id === current && "bg-accent")}
+              >
+                <div className="flex items-baseline gap-2">
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">{c.title || c.preview || "(no messages)"}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{when(c.last_at || c.updated_at)}</span>
+                </div>
+                <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                  {c.agent ? (
+                    <Badge variant="outline" className="gap-1 px-1.5 py-0 font-normal">
+                      <Bot className="size-3" /> {c.agent}
+                    </Badge>
+                  ) : null}
+                  {c.channels.map((ch) => (
+                    <Badge key={ch} variant="secondary" className="px-1.5 py-0 font-normal">
+                      {ch}
+                    </Badge>
+                  ))}
+                  <span className="truncate">{c.participants.join(", ")}</span>
+                </div>
+              </a>
+            )}
+          </ListView>
+        ) : null}
       </div>
       <PruneDialog open={prune} onOpenChange={setPrune} />
     </div>
