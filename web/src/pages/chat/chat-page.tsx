@@ -71,12 +71,14 @@ function ConversationList({ current }: { current?: string }) {
               { label: "people", value: (c) => c.participants },
             ]}
             empty="No conversations yet."
-            className="-mx-4 gap-0 border-t"
+            // minmax(0, 1fr): a grid column otherwise grows to the longest title,
+            // which then no longer truncates and widens the page on a phone.
+            className="-mx-4 grid-cols-[minmax(0,1fr)] gap-0 border-t"
           >
             {(c) => (
               <a
                 href={href("chat", c.id)}
-                className={cn("block border-b px-4 py-3 transition-colors hover:bg-accent/50", c.id === current && "bg-accent")}
+                className={cn("block min-w-0 border-b px-4 py-3 transition-colors hover:bg-accent/50", c.id === current && "bg-accent")}
               >
                 <div className="flex items-baseline gap-2">
                   <span className="min-w-0 flex-1 truncate text-sm font-medium">{c.title || c.preview || "(no messages)"}</span>
