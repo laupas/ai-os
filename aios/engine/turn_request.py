@@ -12,3 +12,5 @@ class TurnRequest(BaseModel):
     user: User
     binding: ChannelBinding
     text: str
+    voice: bool = False
+    """The reply will be read aloud, so it should be written for listening."""

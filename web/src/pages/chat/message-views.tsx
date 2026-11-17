@@ -82,12 +82,29 @@ export function ActivityCard({ steps, running, onStop }: { steps: string[]; runn
   );
 }
 
-export function AskCard({ id, question, options, context }: { id: string; question: string; options: string[]; context?: React.ReactNode }) {
-  const [answered, setAnswered] = useState<string | null>(null);
+export function AskCard({
+  id,
+  question,
+  options,
+  context,
+  answered: answeredElsewhere,
+  onAnswered,
+}: {
+  id: string;
+  question: string;
+  options: string[];
+  context?: React.ReactNode;
+  /** An answer given another way, by voice for instance. */
+  answered?: string | null;
+  onAnswered?: (option: string) => void;
+}) {
+  const [tapped, setAnswered] = useState<string | null>(null);
+  const answered = answeredElsewhere ?? tapped;
   const answer = async (option: string) => {
     try {
       await api("POST", `/api/approvals/${encodeURIComponent(id)}`, { answer: option });
       setAnswered(option);
+      onAnswered?.(option);
     } catch (error) {
       toast.error((error as Error).message);
     }

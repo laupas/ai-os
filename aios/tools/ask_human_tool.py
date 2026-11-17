@@ -39,5 +39,6 @@ class AskHumanTool(AiosTool):
             context.binding,
             str(args["question"]),
             [str(o) for o in args["options"]],
+            voice_answerable=True,
         )
         return f"The user answered: {answer}" if answer else "The user did not answer in time."

@@ -51,6 +51,31 @@ async def test_prompt_has_local_time_and_shared_and_own_preferences(tmp_path) ->
     assert "- Signoff: P." in prompt and "secret journal" not in prompt
     assert "## Alice's own\n- Mine." in prompt and "Bob's." not in prompt
     assert "user id u1" in prompt and "address D1" in prompt
+    assert "read aloud" not in prompt
+
+
+async def test_a_spoken_turn_asks_for_a_reply_written_for_listening(tmp_path) -> None:
+    (tmp_path / "orchestrator.md").write_text("---\nname: orchestrator\n---\nYou are ai-os.\n")
+    store = InMemoryDocumentStore()
+    stored: Collection[Agent] = Collection(CollectionDefinition(name="agents", entity=Agent), store)
+    for agent in RepoAgentReader(tmp_path).read():
+        await stored.put(agent)
+    memories: Collection[Memory] = Collection(
+        CollectionDefinition(name="memories", entity=Memory), store
+    )
+    builder = SystemPromptBuilder(AgentCatalog(stored), _Clock(), "Europe/Zurich", memories)
+    now = datetime(2026, 10, 9, tzinfo=UTC)
+    prompt = builder.build(
+        TurnRequest(
+            conversation=Conversation(id="c", created_at=now, updated_at=now),
+            user=User(id="u1", name="Alice"),
+            binding=ChannelBinding(channel="web", address="a@example.com", thread="1"),
+            text="hi",
+            voice=True,
+        )
+    )
+    assert "Alice is speaking, not typing" in prompt
+    assert "read aloud" in prompt
 
 
 def test_config_keeps_env_references_in_mcp_servers(tmp_path, monkeypatch) -> None:

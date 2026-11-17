@@ -20,6 +20,7 @@ from aios.web.routes.schedule_routes import ScheduleRoutes
 from aios.web.routes.settings_routes import SettingsRoutes
 from aios.web.routes.skill_routes import SkillRoutes
 from aios.web.routes.variable_routes import VariableRoutes
+from aios.web.routes.voice_routes import VoiceRoutes
 from aios.web.web_auth import WebAuth
 from aios.web.web_identity_factory import WebIdentityFactory
 from aios.web.web_server import WebServer
@@ -70,6 +71,7 @@ class WebContainer(containers.DeclarativeContainer):
     claude_credentials = providers.Dependency(default=None)
     code_connectors = providers.Dependency(default=None)
     repository_files = providers.Dependency()
+    transcriber = providers.Dependency()
 
     identity = providers.Singleton(WebIdentityFactory.create, app_config.provided.web)
     auth = providers.Singleton(WebAuth, identity=identity, users=users, authorizer=authorizer)
@@ -113,6 +115,7 @@ class WebContainer(containers.DeclarativeContainer):
             approvals=approvals,
         ),
         providers.Singleton(ApprovalRoutes, approvals=approvals, service=approval_service),
+        providers.Singleton(VoiceRoutes, transcriber=transcriber),
         providers.Singleton(
             ScheduleRoutes,
             schedules=schedules,

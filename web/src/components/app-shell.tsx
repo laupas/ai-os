@@ -9,6 +9,7 @@ import {
   Brain,
   MenuIcon,
   MessagesSquare,
+  Mic,
   Plug,
   ScrollText,
   Settings,
@@ -33,6 +34,7 @@ interface NavItem {
 
 export const NAV: NavItem[] = [
   { id: "chat", label: "Chat", icon: MessagesSquare },
+  { id: "voice", label: "Voice", icon: Mic, needs: "chat" },
   { id: "approvals", label: "Approvals", icon: ShieldCheck, needs: "approve" },
   { id: "schedules", label: "Schedules", icon: CalendarClock, needs: "administer" },
   { id: "memories", label: "Memories", icon: Brain, needs: "administer" },

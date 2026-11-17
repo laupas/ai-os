@@ -59,6 +59,7 @@ class ApprovalService(ApprovalAnswerHandler):
         question: str,
         options: list[str],
         approver_permission: Permission = Permission.APPROVE,
+        voice_answerable: bool = False,
     ) -> str | None:
         """Returns the chosen option, or None if nobody answered in time."""
         approval = await self._approvals.put(
@@ -69,6 +70,7 @@ class ApprovalService(ApprovalAnswerHandler):
                 question=question,
                 options=options,
                 approver_permission=approver_permission,
+                voice_answerable=voice_answerable,
                 created_at=self._clock.now(),
             )
         )
@@ -151,6 +153,7 @@ class ApprovalService(ApprovalAnswerHandler):
             text=approval.question,
             approval_id=approval.id,
             options=approval.options,
+            voice_answerable=approval.voice_answerable,
         )
         for observer in self._observers:
             observer.notify(event)

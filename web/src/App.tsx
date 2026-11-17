@@ -13,6 +13,7 @@ import { MemoriesPage } from "@/pages/memories-page";
 import { SchedulesPage } from "@/pages/schedules-page";
 import { SettingsPage } from "@/pages/settings-page";
 import { VariablesPage } from "@/pages/variables-page";
+import { VoicePage } from "@/pages/voice/voice-page";
 import { SkillsPage } from "@/pages/skills-page";
 
 export function App() {
@@ -35,6 +36,7 @@ export function App() {
   const current = allowed.includes(page) ? page : "chat";
   const body = {
     chat: <ChatPage id={arg} />,
+    voice: <VoicePage />,
     approvals: <ApprovalsPage />,
     schedules: <SchedulesPage />,
     memories: <MemoriesPage />,

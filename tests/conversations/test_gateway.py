@@ -101,6 +101,34 @@ async def test_a_typed_yes_answers_a_waiting_approval_instead_of_starting_a_turn
     assert answers == ["Yes"] and len(engine.requests) == 1
 
 
+async def test_a_spoken_yes_never_answers_a_waiting_approval() -> None:
+    answers: list[str | None] = []
+
+    async def ask(request: TurnRequest) -> None:
+        if len(engine.requests) == 1:
+            answers.append(
+                await world.approval_service.request(
+                    request.conversation.id, request.binding, "Go?", ["Yes", "No"]
+                )
+            )
+
+    engine = FakeEngine(behaviour=ask)
+    world = await World(engine=engine).setup()
+    turn = asyncio.create_task(world.gateway.handle(_message("alice", "do it")))
+    await asyncio.sleep(0.01)
+    spoken = asyncio.create_task(
+        world.gateway.handle(_message("alice", "yes").model_copy(update={"voice": True}))
+    )
+    await asyncio.sleep(0.01)
+    assert answers == [] and not spoken.done()  # still waiting, queued behind the turn
+
+    await world.gateway.handle(_message("alice", "no"))
+    await turn
+    await spoken
+    assert answers == ["No"]
+    assert [r.voice for r in engine.requests] == [False, True]
+
+
 async def test_stop_cancels_the_running_turn() -> None:
     async def hang(_: TurnRequest) -> None:
         await asyncio.sleep(60)

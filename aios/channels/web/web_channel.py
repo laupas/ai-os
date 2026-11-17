@@ -45,11 +45,14 @@ class WebChannel(MessageChannel, ThreadStarter):
     def new_binding(self, account: ChannelAccount) -> ChannelBinding:
         return ChannelBinding(channel=self.name, address=account.address, thread=self._ids.new_id())
 
-    def submit(self, binding: ChannelBinding, sender: ChannelAccount, text: str) -> None:
+    def submit(
+        self, binding: ChannelBinding, sender: ChannelAccount, text: str, voice: bool = False
+    ) -> None:
         """Not awaited by the caller: a turn can wait for an approval, which is
-        answered by a later request."""
+        answered by a later request. `voice` marks a transcript whose reply will be
+        read aloud."""
         assert self._inbound is not None, "web channel not started"
-        message = InboundMessage(binding=binding, sender=sender, text=text)
+        message = InboundMessage(binding=binding, sender=sender, text=text, voice=voice)
         self._spawn(self._inbound.handle(message))
 
     async def cancel(self, binding: ChannelBinding, sender: ChannelAccount) -> bool:

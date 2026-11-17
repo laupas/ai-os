@@ -7,3 +7,5 @@ class StartConversationRequest(BaseModel):
     text: str = Field(min_length=1)
     agent: str | None = None
     """An agent to talk to directly; None (or the orchestrator) is the usual way."""
+    voice: bool = False
+    """The text is a transcript, and the reply will be read aloud."""

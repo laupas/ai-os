@@ -12,3 +12,6 @@ class InboundMessage(BaseModel):
     sender: ChannelAccount
     text: str
     attachments: list[Attachment] = []
+    voice: bool = False
+    """Spoken rather than typed, and the reply will be read aloud. A spoken message
+    never answers an approval: speech can be misheard, or come from someone else."""

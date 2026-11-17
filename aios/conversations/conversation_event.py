@@ -9,7 +9,8 @@ class ConversationEvent(BaseModel):
     `kind` is `message` (`message` was recorded), `progress` (the agent started
     doing `text`), `delta` (the agent wrote `text`; `restart` means a new reply
     began and what was streamed so far is superseded), `done` (the turn ended) or
-    `approval` (a question `approval_id` with `options`).
+    `approval` (a question `approval_id` with `options`, which may be answered by
+    speaking when `voice_answerable`).
     """
 
     conversation_id: str
@@ -19,3 +20,4 @@ class ConversationEvent(BaseModel):
     message: Message | None = None
     approval_id: str | None = None
     options: list[str] = []
+    voice_answerable: bool = False

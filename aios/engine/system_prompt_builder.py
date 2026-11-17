@@ -39,6 +39,13 @@ class SystemPromptBuilder:
             f"- Channel: {request.binding.channel}, address {request.binding.address}.",
             f"- Local time: {now.strftime('%A %Y-%m-%d %H:%M')} ({self._zone.key}).",
         ]
+        if request.voice:
+            lines.append(
+                f"- {request.user.name} is speaking, not typing: their message is a "
+                "transcript and may contain misheard words. Your reply will be read aloud, "
+                "so write it for listening: short, plain sentences, no tables, lists, "
+                "headings, links or code. Offer to send details in writing instead."
+            )
         unavailable = self._connectors.unavailable_for(request.user) if self._connectors else []
         if unavailable:
             lines.append(

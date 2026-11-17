@@ -76,11 +76,13 @@ class Gateway(InboundHandler, TurnStarter):
             await self._channels.get(message.binding.channel).send(message.binding, NOT_ALLOWED)
             return
         known = self._resolver.find(message.binding)
-        if known is not None and await self._approvals.answer_from_text(
-            known.id, message.sender, message.text
+        if (
+            known is not None
+            and not message.voice
+            and await self._approvals.answer_from_text(known.id, message.sender, message.text)
         ):
             return
-        await self._converse(user, message.binding, message.text)
+        await self._converse(user, message.binding, message.text, voice=message.voice)
 
     async def start_turn(
         self, user: User, bindings: list[ChannelBinding], text: str, agent: str | None = None
@@ -103,7 +105,12 @@ class Gateway(InboundHandler, TurnStarter):
         return self._resolver.find(binding) is not None
 
     async def _converse(
-        self, user: User, binding: ChannelBinding, text: str, mirror: bool = True
+        self,
+        user: User,
+        binding: ChannelBinding,
+        text: str,
+        mirror: bool = True,
+        voice: bool = False,
     ) -> None:
         conversation = await self._resolver.resolve(binding, user)
         await self._recorder.record(
@@ -112,7 +119,7 @@ class Gateway(InboundHandler, TurnStarter):
         if mirror:
             await self._delivery.mirror(conversation, binding, user, text)
         async with self._locks.lock_for(conversation.id):
-            task = asyncio.create_task(self._run_turn(conversation.id, user, binding, text))
+            task = asyncio.create_task(self._run_turn(conversation.id, user, binding, text, voice))
             self._canceller.track(conversation.id, task)
             try:
                 await task
@@ -129,7 +136,7 @@ class Gateway(InboundHandler, TurnStarter):
         return user if self._authorizer.has(user, Permission.CHAT) else None
 
     async def _run_turn(
-        self, conversation_id: str, user: User, binding: ChannelBinding, text: str
+        self, conversation_id: str, user: User, binding: ChannelBinding, text: str, voice: bool
     ) -> None:
         # Re-read under the lock: the previous turn may have stored a new session id.
         conversation = self._resolver.find(binding)
@@ -149,7 +156,9 @@ class Gateway(InboundHandler, TurnStarter):
         failure: Exception | None = None
         try:
             result = await self._engine.run_turn(
-                TurnRequest(conversation=conversation, user=user, binding=binding, text=text),
+                TurnRequest(
+                    conversation=conversation, user=user, binding=binding, text=text, voice=voice
+                ),
                 on_progress,
                 on_text if self._observers else None,
             )

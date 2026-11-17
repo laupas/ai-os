@@ -18,10 +18,10 @@ from aios.entities.conversations.conversation import Conversation
 from aios.entities.users.permission import Permission
 from aios.entities.users.user import User
 from aios.storage.collection import Collection
+from aios.web.message_request import MessageRequest
 from aios.web.prune_request import PruneRequest
 from aios.web.request_body import RequestBody
 from aios.web.start_conversation_request import StartConversationRequest
-from aios.web.text_request import TextRequest
 from aios.web.web_auth import WebAuth
 from aios.web.web_caller import WebCaller
 from aios.web.web_routes import WebRoutes
@@ -116,7 +116,12 @@ class ConversationRoutes(WebRoutes):
                 ],
                 # A tab opened while the turn waits for an answer must still show it.
                 "approvals": [
-                    {"id": a.id, "question": a.question, "options": a.options}
+                    {
+                        "id": a.id,
+                        "question": a.question,
+                        "options": a.options,
+                        "voice_answerable": a.voice_answerable,
+                    }
                     for a in sorted(self._pending(conversation.id), key=lambda a: a.created_at)
                 ],
             }
@@ -138,7 +143,7 @@ class ConversationRoutes(WebRoutes):
             raise web.HTTPBadRequest(text=str(exc)) from exc
         binding = self._channel.new_binding(caller.account)
         conversation = await self._resolver.resolve(binding, caller.user, agent)
-        self._channel.submit(binding, caller.account, body.text)
+        self._channel.submit(binding, caller.account, body.text, body.voice)
         return web.json_response({"id": conversation.id}, status=201)
 
     async def _chat_agents(self, request: web.Request) -> web.Response:
@@ -153,8 +158,8 @@ class ConversationRoutes(WebRoutes):
         caller = WebAuth.caller(request)
         self._require_chat()
         binding = await self._web_binding(caller, self._visible(caller, request))
-        body = await RequestBody.parse(request, TextRequest)
-        self._channel.submit(binding, caller.account, body.text)
+        body = await RequestBody.parse(request, MessageRequest)
+        self._channel.submit(binding, caller.account, body.text, body.voice)
         return web.json_response({"ok": True}, status=202)
 
     async def _stop(self, request: web.Request) -> web.Response:

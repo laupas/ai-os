@@ -38,6 +38,7 @@ from aios.variables.variable_catalog import VariableCatalog
 from aios.variables.variable_resolver import VariableResolver
 from aios.web.restart_request import RestartRequest
 from aios.web.routes.agent_routes import AgentRoutes
+from aios.web.routes.approval_routes import ApprovalRoutes
 from aios.web.routes.connector_auth_routes import ConnectorAuthRoutes
 from aios.web.routes.connector_routes import ConnectorRoutes
 from aios.web.routes.conversation_routes import ConversationRoutes
@@ -48,6 +49,7 @@ from aios.web.routes.schedule_routes import ScheduleRoutes
 from aios.web.routes.settings_routes import SettingsRoutes
 from aios.web.routes.skill_routes import SkillRoutes
 from aios.web.routes.variable_routes import VariableRoutes
+from aios.web.routes.voice_routes import MAX_AUDIO_BYTES, VoiceRoutes
 from aios.web.web_auth import WebAuth
 from aios.web.web_identity import WebIdentity
 from aios.web.web_server import WebServer
@@ -55,6 +57,7 @@ from tests.agents.agent_world import AgentWorld
 from tests.config_repo.repo_world import RepoWorld
 from tests.connectors.fake_connector_probe import FakeConnectorProbe
 from tests.fakes.fake_channel import FakeChannel
+from tests.fakes.fake_transcriber import FakeTranscriber
 from tests.fakes.world import World
 
 EXAMPLES = Path(__file__).parents[2] / "examples" / "code-connectors"
@@ -73,8 +76,16 @@ class Console:
     """A web console over a `World`: Alice (owner) and Bob (member) both have
     a web account. Use as `async with Console(tmp_path) as c:`."""
 
-    def __init__(self, tmp_path: Path, engine: AgentEngine | None = None) -> None:
+    def __init__(
+        self,
+        tmp_path: Path,
+        engine: AgentEngine | None = None,
+        transcriber: FakeTranscriber | None = None,
+        max_audio_bytes: int = MAX_AUDIO_BYTES,
+    ) -> None:
         self.tmp_path = tmp_path
+        self.transcriber = transcriber or FakeTranscriber()
+        self.voice = VoiceRoutes(self.transcriber, max_audio_bytes)
         self.world = World(engine=engine)
         self.hub = WebEventHub()
         self.channel = WebChannel(self.world.ids)
@@ -202,6 +213,8 @@ class Console:
                 ),
                 SettingsRoutes(self.config_file, w.users, w.roles, w.ids, self.restart),
                 MemoryRoutes(self.memories, w.users, w.ids, w.clock),
+                self.voice,
+                ApprovalRoutes(w.approvals, w.approval_service),
                 ScheduleRoutes(
                     self.schedules,
                     ScheduleTiming(),

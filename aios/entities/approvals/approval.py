@@ -19,6 +19,9 @@ class Approval(BaseModel):
     question: str
     options: list[str]
     approver_permission: Permission = Permission.APPROVE
+    voice_answerable: bool = False
+    """A question an agent asked, which may be answered by speaking. Permission for a
+    tool call never is: speech can be misheard, or come from someone else."""
     status: ApprovalStatus = ApprovalStatus.PENDING
     answer: str | None = None
     answered_by: str | None = None

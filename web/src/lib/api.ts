@@ -63,7 +63,7 @@ export interface Message {
 export interface Conversation extends Omit<ConversationSummary, "preview" | "messages" | "last_at"> {
   messages: Message[];
   /** Approvals still waiting for an answer in this conversation. */
-  approvals: { id: string; question: string; options: string[] }[];
+  approvals: { id: string; question: string; options: string[]; voice_answerable: boolean }[];
 }
 
 export interface ConversationEvent {
@@ -74,6 +74,8 @@ export interface ConversationEvent {
   message: Message | null;
   approval_id: string | null;
   options: string[];
+  /** A question an agent asked, which may be answered by speaking. */
+  voice_answerable: boolean;
 }
 
 export interface Approval {
