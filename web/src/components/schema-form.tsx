@@ -7,6 +7,11 @@ import { Switch } from "@/components/ui/switch";
 // A form drawn from a JSON schema, for a code connector's settings. It edits the
 // values that are *set*: an empty field is a key left out, so its default applies,
 // and the default is shown as the placeholder.
+//
+// Hints a schema may carry, all optional: `title` (the label, else the key),
+// `x-group` (a heading the field is shown under), `x-order` (lower first, else the
+// schema's order), `x-unit` (shown after the input), `x-widget` (`textarea` for a
+// long string, `slider` for a number with `minimum` and `maximum`).
 
 export type Schema = Record<string, any>;
 export type Values = Record<string, unknown>;
@@ -81,7 +86,7 @@ function Doc({ text }: { text?: string }) {
   );
 }
 
-const label = (key: string) => key.replace(/_/g, " ");
+const label = (key: string, schema: Schema) => schema.title ?? key.replace(/_/g, " ");
 const shown = (v: unknown) => (v === undefined || v === null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
 
 /** A code connector's settings: the fields of its schema, those `locked` marked as
@@ -103,22 +108,48 @@ function ObjectFields({
   onChange: (v: Values) => void;
   locked?: string[];
 }) {
+  const field = (k: string) => (
+    <Field
+      key={k}
+      name={k}
+      schema={schema.properties[k]}
+      defs={defs}
+      values={values}
+      onChange={onChange}
+      required={schema.required?.includes(k)}
+      locked={locked.includes(k)}
+    />
+  );
   return (
     <div className="space-y-4">
-      {Object.keys(schema.properties ?? {}).map((k) => (
-        <Field
-          key={k}
-          name={k}
-          schema={schema.properties[k]}
-          defs={defs}
-          values={values}
-          onChange={onChange}
-          required={schema.required?.includes(k)}
-          locked={locked.includes(k)}
-        />
-      ))}
+      {groups(schema.properties ?? {}).map(([group, keys]) =>
+        group ? (
+          <section key={group} className="space-y-4 border-t pt-3">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group}</h4>
+            {keys.map(field)}
+          </section>
+        ) : (
+          <Fragment key="">{keys.map(field)}</Fragment>
+        ),
+      )}
     </div>
   );
+}
+
+/** The keys in `x-order`, then the schema's order; ungrouped ones first, then each
+ * `x-group` in the order it first appears. */
+function groups(properties: Schema): [string, string[]][] {
+  const order = (k: string) => (typeof properties[k]["x-order"] === "number" ? properties[k]["x-order"] : Infinity);
+  const keys = Object.keys(properties)
+    .map((k, i) => ({ k, i }))
+    .sort((a, b) => order(a.k) - order(b.k) || a.i - b.i)
+    .map(({ k }) => k);
+  const out = new Map<string, string[]>([["", []]]);
+  for (const k of keys) {
+    const group = String(properties[k]["x-group"] ?? "");
+    out.set(group, [...(out.get(group) ?? []), k]);
+  }
+  return [...out].filter(([, ks]) => ks.length);
 }
 
 /** One key of an object: its label, its help, its control, and a way back to the default. */
@@ -147,7 +178,7 @@ function Field({
     <div className="space-y-1.5">
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium">
-          {label(name)}
+          {label(name, schema)}
           {required ? <span className="text-destructive"> *</span> : null}
         </span>
         {locked ? (
@@ -171,8 +202,21 @@ function Field({
   );
 }
 
-function Control({ schema, nullable, defs, value, onChange }: { schema: Schema; nullable: boolean; defs: Schema; value: unknown; onChange: (v: unknown) => void }): ReactNode {
+function Control(props: { schema: Schema; nullable: boolean; defs: Schema; value: unknown; onChange: (v: unknown) => void }): ReactNode {
+  const unit = props.schema["x-unit"];
+  const control = <Plain {...props} />;
+  if (!unit) return control;
+  return (
+    <div className="flex items-center gap-2">
+      {control}
+      <span className="text-sm text-muted-foreground">{unit}</span>
+    </div>
+  );
+}
+
+function Plain({ schema, nullable, defs, value, onChange }: { schema: Schema; nullable: boolean; defs: Schema; value: unknown; onChange: (v: unknown) => void }): ReactNode {
   const fallback = schema.default;
+  const widget = schema["x-widget"];
   if (schema.enum) {
     return (
       <NativeSelect className="w-auto min-w-48" value={shown(value)} onChange={(e) => onChange(e.target.value || undefined)}>
@@ -187,11 +231,31 @@ function Control({ schema, nullable, defs, value, onChange }: { schema: Schema; 
     return <Switch checked={Boolean(value ?? fallback)} onCheckedChange={onChange} />;
   }
   if (schema.type === "integer" || schema.type === "number") {
+    const step = schema.type === "integer" ? 1 : "any";
+    if (widget === "slider" && typeof schema.minimum === "number" && typeof schema.maximum === "number") {
+      const current = typeof value === "number" ? value : typeof fallback === "number" ? fallback : schema.minimum;
+      return (
+        <div className="flex w-full max-w-md items-center gap-3">
+          <input
+            type="range"
+            className="flex-1 accent-primary"
+            min={schema.minimum}
+            max={schema.maximum}
+            step={schema.type === "integer" ? 1 : (schema.maximum - schema.minimum) / 100}
+            value={current}
+            onChange={(e) => onChange(Number(e.target.value))}
+          />
+          <span className={`w-16 text-right text-sm tabular-nums ${value === undefined ? "text-muted-foreground" : ""}`}>{current}</span>
+        </div>
+      );
+    }
     return (
       <Input
         type="number"
         className="w-40"
-        step={schema.type === "integer" ? 1 : "any"}
+        step={step}
+        min={schema.minimum}
+        max={schema.maximum}
         placeholder={shown(fallback)}
         value={shown(value)}
         onChange={(e) => onChange(e.target.value === "" ? undefined : Number(e.target.value))}
@@ -199,6 +263,9 @@ function Control({ schema, nullable, defs, value, onChange }: { schema: Schema; 
     );
   }
   if (schema.type === "string") {
+    if (widget === "textarea") {
+      return <Textarea rows={4} placeholder={shown(fallback)} value={shown(value)} onChange={(e) => onChange(e.target.value || undefined)} />;
+    }
     return <Input placeholder={nullable && fallback == null ? "not set" : shown(fallback)} value={shown(value)} onChange={(e) => onChange(e.target.value || undefined)} />;
   }
   if (schema.type === "array") {

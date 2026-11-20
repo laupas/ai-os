@@ -29,16 +29,25 @@ check: true
 # The settings, as a JSON schema with defaults. The console draws a form from it,
 # and the server reads them from AIOS_CONNECTOR_SETTINGS. `x-locked: true` keeps a
 # setting from agents: only an administrator changes it, in the console. That is
-# the place for limits that must hold.
+# the place for limits that must hold. The form takes hints too: `title` (the
+# label), `x-group` (a heading), `x-order` (lower first), `x-unit` (shown after the
+# input) and `x-widget` (`textarea`, or `slider` with `minimum` and `maximum`).
 settings:
   type: object
   properties:
     greeting:
       type: string
       default: Hello
+      x-group: Greeting
       description: Put before every name.
     max_shout_length:
       type: integer
+      title: Longest shout
       default: 20
+      minimum: 1
+      maximum: 100
       x-locked: true
+      x-group: Shouting
+      x-unit: characters
+      x-widget: slider
       description: The longest text it will shout; longer is refused before anyone is asked.

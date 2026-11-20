@@ -180,6 +180,13 @@ manifest, the connector's page has a Test button: ai-os runs `server.py check` w
 the settings and variables shown there, saved or not, and shows the one JSON line it
 prints, `{"ok": true|false, "detail": "..."}`.
 
+The console draws the settings form from the schema. Beyond the JSON Schema basics
+(`type`, `default`, `description`, `enum`, `minimum`, `maximum`, and `title` as the
+label), it reads `x-group` (a heading the field is shown under), `x-order` (lower
+first, else the schema's order), `x-unit` (shown after the input) and `x-widget`
+(`textarea` for a long string, `slider` for a number with `minimum` and `maximum`).
+The server sees none of this; it is only layout.
+
 > A code connector is code that ai-os runs. Whoever can commit to the configuration
 > repository, or push to its remote, can run code on the machine; agents cannot
 > write there.
