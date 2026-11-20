@@ -13,7 +13,7 @@ class ApprovalsContainer(containers.DeclarativeContainer):
     presenters = providers.Dependency()
     clock = providers.Dependency()
     ids = providers.Dependency()
-    approval_config = providers.Dependency()
+    approval_config = providers.Dependency()  # a getter: aios.yaml as it is now
     conversations = providers.Dependency()
     observers = providers.Dependency(default=[])
 
@@ -25,7 +25,7 @@ class ApprovalsContainer(containers.DeclarativeContainer):
         presenters=presenters,
         clock=clock,
         ids=ids,
-        timeout_seconds=approval_config.provided.timeout_seconds,
+        timeout_seconds=providers.Callable(lambda c: lambda: c().timeout_seconds, approval_config),
         conversations=conversations,
         observers=observers,
     )

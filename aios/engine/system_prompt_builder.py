@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from zoneinfo import ZoneInfo
 
 from aios.agents.agent_catalog import AgentCatalog
@@ -19,25 +20,26 @@ class SystemPromptBuilder:
         self,
         agents: AgentCatalog,
         clock: Clock,
-        timezone: str,
+        timezone: Callable[[], str],
         memories: Collection[Memory],
         connectors: ConnectorCatalog | None = None,
     ) -> None:
         self._connectors = connectors
         self._agents = agents
         self._clock = clock
-        self._zone = ZoneInfo(timezone)
+        self._timezone = timezone
         self._memories = memories
 
     def build(self, request: TurnRequest) -> str:
-        now = self._clock.now().astimezone(self._zone)
+        zone = ZoneInfo(self._timezone())
+        now = self._clock.now().astimezone(zone)
         lines = [
             self._agents.prompt_of(self._agents.main(request.conversation.agent)),
             "",
             "# This turn",
             f"- You are talking with {request.user.name} (user id {request.user.id}).",
             f"- Channel: {request.binding.channel}, address {request.binding.address}.",
-            f"- Local time: {now.strftime('%A %Y-%m-%d %H:%M')} ({self._zone.key}).",
+            f"- Local time: {now.strftime('%A %Y-%m-%d %H:%M')} ({zone.key}).",
         ]
         if request.voice:
             lines.append(

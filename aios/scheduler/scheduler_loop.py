@@ -1,9 +1,11 @@
 import asyncio
 import logging
+from collections.abc import Callable
 from datetime import timedelta
 
 from aios.bootstrap.background_service import BackgroundService
 from aios.common.clock import Clock
+from aios.config.scheduler_config import SchedulerConfig
 from aios.entities.schedules.schedule import Schedule
 from aios.scheduler.schedule_runner import ScheduleRunner
 from aios.scheduler.schedule_timing import ScheduleTiming
@@ -18,6 +20,9 @@ class SchedulerLoop(BackgroundService):
     A schedule seen for the first time is only stamped, so it fires from its next
     slot on rather than for a slot in the past. A slot missed by more than
     `max_lateness_minutes` (e.g. the host was down) is skipped, not replayed.
+
+    `scheduler` in aios.yaml is read on every tick: switched off, nothing fires
+    until it is switched on again, without a restart.
     """
 
     def __init__(
@@ -26,23 +31,25 @@ class SchedulerLoop(BackgroundService):
         timing: ScheduleTiming,
         runner: ScheduleRunner,
         clock: Clock,
-        tick_seconds: float,
+        config: Callable[[], SchedulerConfig],
     ) -> None:
         self._schedules = schedules
         self._timing = timing
         self._runner = runner
         self._clock = clock
-        self._tick = tick_seconds
+        self._config = config
         self._tasks: set[asyncio.Task[None]] = set()
 
     async def run(self) -> None:
         log.info("scheduler running, %d schedules", len(self._schedules.all()))
         while True:
-            try:
-                await self.tick()
-            except Exception:
-                log.exception("scheduler tick failed")
-            await asyncio.sleep(self._tick)
+            config = self._config()
+            if config.enabled:
+                try:
+                    await self.tick()
+                except Exception:
+                    log.exception("scheduler tick failed")
+            await asyncio.sleep(config.tick_seconds)
 
     async def tick(self) -> None:
         now = self._clock.now()

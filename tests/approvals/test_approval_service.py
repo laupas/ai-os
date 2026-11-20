@@ -112,7 +112,7 @@ async def test_the_question_is_shown_wherever_the_conversation_is() -> None:
         ),
         world.clock,
         world.ids,
-        5,
+        lambda: 5,
         world.conversations,
         [seen],
     )

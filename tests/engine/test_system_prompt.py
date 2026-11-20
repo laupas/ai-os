@@ -36,7 +36,7 @@ async def test_prompt_has_local_time_and_shared_and_own_preferences(tmp_path) ->
     await memories.put(Memory(id="2", kind=MemoryKind.NOTE, text="secret journal"))
     await memories.put(Memory(id="3", kind=MemoryKind.PREFERENCE, user_id="u1", text="Mine."))
     await memories.put(Memory(id="4", kind=MemoryKind.PREFERENCE, user_id="u2", text="Bob's."))
-    builder = SystemPromptBuilder(agents, _Clock(), "Europe/Zurich", memories)
+    builder = SystemPromptBuilder(agents, _Clock(), lambda: "Europe/Zurich", memories)
     now = datetime(2026, 10, 9, tzinfo=UTC)
     prompt = builder.build(
         TurnRequest(
@@ -63,7 +63,7 @@ async def test_a_spoken_turn_asks_for_a_reply_written_for_listening(tmp_path) ->
     memories: Collection[Memory] = Collection(
         CollectionDefinition(name="memories", entity=Memory), store
     )
-    builder = SystemPromptBuilder(AgentCatalog(stored), _Clock(), "Europe/Zurich", memories)
+    builder = SystemPromptBuilder(AgentCatalog(stored), _Clock(), lambda: "Europe/Zurich", memories)
     now = datetime(2026, 10, 9, tzinfo=UTC)
     prompt = builder.build(
         TurnRequest(

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from collections.abc import Callable
 
 from aios.approvals.approval_answer_handler import ApprovalAnswerHandler
 from aios.approvals.approval_presenter_resolver import ApprovalPresenterResolver
@@ -37,7 +38,7 @@ class ApprovalService(ApprovalAnswerHandler):
         presenters: ApprovalPresenterResolver,
         clock: Clock,
         ids: IdGenerator,
-        timeout_seconds: float,
+        timeout_seconds: Callable[[], float],
         conversations: Collection[Conversation] | None = None,
         observers: list[ConversationObserver] | None = None,
     ) -> None:
@@ -78,7 +79,7 @@ class ApprovalService(ApprovalAnswerHandler):
         self._waiting[approval.id] = future
         try:
             await self._present(approval)
-            return await asyncio.wait_for(future, self._timeout)
+            return await asyncio.wait_for(future, self._timeout())
         except TimeoutError:
             await self._expire(approval.id)
             return None

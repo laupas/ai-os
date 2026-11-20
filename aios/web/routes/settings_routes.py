@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from aios.common.id_generator import IdGenerator
 from aios.config.app_config import AppConfig
 from aios.config.config_yaml_editor import ConfigYamlEditor
+from aios.config.live_app_config import LiveAppConfig
 from aios.entities.users.permission import Permission
 from aios.entities.users.role import Role
 from aios.entities.users.user import User
@@ -27,27 +28,28 @@ ROLE_ID_CHARS = re.compile(r"[^a-z0-9_-]+")
 
 
 class SettingsRoutes(WebRoutes):
-    """aios.yaml, users and roles, and the restart that applies them.
+    """aios.yaml, users and roles, and the restart that applies what needs one.
 
     Administrators only. Every save is validated against the same model ai-os reads
     it with, so a typo is refused here rather than found at the next start. Users
-    and roles take effect at once; aios.yaml at the next restart. With a
-    configuration repository, aios.yaml lives there and every save is a commit; a
-    branch switch can change it too, so "restart needed" compares the file with
-    what this process started from, whoever changed it.
+    and roles take effect at once, and so does aios.yaml within seconds, except
+    the sections read only at startup (`LiveAppConfig`). With a configuration
+    repository, aios.yaml lives there and every save is a commit; a branch switch
+    can change it too, so "restart needed" compares the file with what this
+    process started from, whoever changed it.
     """
 
     def __init__(
         self,
         config: AiosYamlFile,
+        live: LiveAppConfig,
         users: Collection[User],
         roles: Collection[Role],
         ids: IdGenerator,
         restart: RestartRequest,
     ) -> None:
         self._config = config
-        # What this process was started with: the reference for "restart needed".
-        self._started_with = config.read()
+        self._live = live
         self._users = users
         self._roles = roles
         self._ids = ids
@@ -74,7 +76,7 @@ class SettingsRoutes(WebRoutes):
             {
                 "config": text,
                 "config_schema": AppConfig.model_json_schema(),
-                "restart_needed": text != self._started_with,
+                "restart_needed": self._live.restart_needed(text),
                 "in_repository": self._config.in_repository(),
                 "users": [u.model_dump(mode="json") for u in self._users.all()],
                 "roles": [r.model_dump(mode="json") for r in self._roles.all()],
@@ -106,11 +108,11 @@ class SettingsRoutes(WebRoutes):
 
     async def _write_config(self, text: str) -> web.Response:
         await self._config.write(text)
-        return web.json_response({"ok": True, "restart_needed": text != self._started_with})
+        return web.json_response({"ok": True, "restart_needed": self._live.restart_needed(text)})
 
     async def _restart_needed(self, request: web.Request) -> web.Response:
         WebAuth.caller(request, Permission.ADMINISTER)
-        return web.json_response({"restart_needed": self._config.read() != self._started_with})
+        return web.json_response({"restart_needed": self._live.restart_needed(self._config.read())})
 
     async def _create_user(self, request: web.Request) -> web.Response:
         WebAuth.caller(request, Permission.ADMINISTER)

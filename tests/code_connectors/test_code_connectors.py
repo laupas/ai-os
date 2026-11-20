@@ -29,7 +29,7 @@ EXAMPLES = Path(__file__).parents[2] / "examples" / "code-connectors"
 
 def _code(tmp_path: Path) -> CodeConnectors:
     return CodeConnectors(
-        CodeConnectorLibrary([EXAMPLES, tmp_path / "code"]), tmp_path / "state", "UTC"
+        CodeConnectorLibrary([EXAMPLES, tmp_path / "code"]), tmp_path / "state", lambda: "UTC"
     )
 
 
@@ -88,7 +88,7 @@ def test_a_declared_variable_reaches_the_server_with_its_default(tmp_path) -> No
         tmp_path / "files",
     )
     code = CodeConnectors(
-        CodeConnectorLibrary([tmp_path / "code"]), tmp_path / "s", "UTC", resolver
+        CodeConnectorLibrary([tmp_path / "code"]), tmp_path / "s", lambda: "UTC", resolver
     )
     env = code.launch_config(Connector(id="mine", config={"code": "mine"}))["env"]  # type: ignore[index]
     assert env["MINE_KEY"] == "${MINE_KEY}" and env["MINE_REGION"] == "eu"

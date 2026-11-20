@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 import yaml
 from aiohttp import web
 from pydantic import ValidationError
@@ -27,7 +29,7 @@ class ClaudeSettingsRoutes(WebRoutes):
     Administrators only.
 
     The choice is `agent.auth` in aios.yaml, written in place (comments kept) and,
-    with a configuration repository, committed; it applies after a restart. The
+    with a configuration repository, committed; it applies within seconds. The
     token or key is a secret Variable of the name `ClaudeCredentials` reads, so a
     new one applies to the next turn. Neither value is ever sent back. A check
     tries one before it is saved, or the stored one.
@@ -38,7 +40,7 @@ class ClaudeSettingsRoutes(WebRoutes):
         config: AiosYamlFile,
         variables: VariableCatalog,
         resolver: VariableResolver,
-        running_auth: str,
+        running_auth: Callable[[], str],
         sign_in_check: ClaudeSignInCheck | None = None,
     ) -> None:
         self._config = config
@@ -90,7 +92,7 @@ class ClaudeSettingsRoutes(WebRoutes):
     def _state(self) -> dict:
         return {
             "auth": self._configured_auth(),
-            "running_auth": self._running_auth,
+            "running_auth": self._running_auth(),
             "credentials": {
                 auth: {"variable": name, "source": self._resolver.source_of(name)}
                 for auth, name in VARIABLES.items()
@@ -103,4 +105,4 @@ class ClaudeSettingsRoutes(WebRoutes):
         try:
             return AppConfig.model_validate(yaml.safe_load(self._config.read()) or {}).agent.auth
         except (yaml.YAMLError, ValidationError):
-            return self._running_auth
+            return self._running_auth()

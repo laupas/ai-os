@@ -1,5 +1,6 @@
 import logging
 import os
+from collections.abc import Callable
 
 from aios.approvals.approval_rule import ApprovalRule
 from aios.approvals.file_root_guard import FileRootGuard
@@ -20,20 +21,36 @@ class FileAccessRule(ApprovalRule):
     without an explicit path is refused, since it would start in the app's own
     directory. Everything else, such as /proc or the data dir, is out of reach, and
     a configured folder that would reach them (`/`, `/data`, …) is left out.
+
+    The folders are those of aios.yaml as it is now, worked out again when it changes.
     """
 
-    def __init__(self, config: FilesConfig, guard: FileRootGuard | None = None) -> None:
-        guard = guard or FileRootGuard()
+    def __init__(
+        self, config: Callable[[], FilesConfig], guard: FileRootGuard | None = None
+    ) -> None:
+        self._config = config
+        self._guard = guard or FileRootGuard()
+        self._seen: FilesConfig | None = None
+        self._read_roots: list[str] = []
+        self._write_roots: list[str] = []
+        self._refresh()  # the folders left out are logged at start, not at the first call
+
+    def _refresh(self) -> None:
+        config = self._config()
+        if config == self._seen:
+            return
         for root in config.read_roots + config.write_roots:
-            problem = guard.problem(root)
+            problem = self._guard.problem(root)
             if problem:
                 log.warning("files: left out %s", problem)
         self._read_roots = [
-            self._real(r) for r in guard.allowed(config.read_roots + config.write_roots)
+            self._real(r) for r in self._guard.allowed(config.read_roots + config.write_roots)
         ]
-        self._write_roots = [self._real(r) for r in guard.allowed(config.write_roots)]
+        self._write_roots = [self._real(r) for r in self._guard.allowed(config.write_roots)]
+        self._seen = config
 
     def evaluate(self, call: ToolCall) -> PolicyDecision | None:
+        self._refresh()
         if call.tool_name in _WRITE_TOOLS:
             path = call.tool_input.get(_WRITE_TOOLS[call.tool_name])
             return self._check(path, self._write_roots, "write")

@@ -37,7 +37,9 @@ class WebContainer(containers.DeclarativeContainer):
     """The web console. A new API area is a `WebRoutes` class plus an entry in
     `routes`."""
 
-    app_config = providers.Dependency()
+    app_config = providers.Dependency()  # aios.yaml as ai-os started
+    live_config = providers.Dependency()
+    agent_config = providers.Dependency()  # a getter: `agent` as it is now
     config_file = providers.Dependency()
     users = providers.Dependency()
     roles = providers.Dependency()
@@ -88,7 +90,9 @@ class WebContainer(containers.DeclarativeContainer):
     identity = providers.Singleton(WebIdentityFactory.create, app_config.provided.web)
     auth = providers.Singleton(WebAuth, identity=identity, users=users, authorizer=authorizer)
     restart = providers.Singleton(RestartRequest)
-    aios_yaml = providers.Singleton(AiosYamlFile, config_file=config_file, store=config_store)
+    aios_yaml = providers.Singleton(
+        AiosYamlFile, config_file=config_file, store=config_store, live=live_config
+    )
     audit = providers.Singleton(AuditMiddleware, trail=audit_trail)
     audit_feed = providers.Singleton(
         AuditFeed,
@@ -146,7 +150,9 @@ class WebContainer(containers.DeclarativeContainer):
             skills=skills,
             connectors=connector_catalog,
             board=connector_board,
-            builtin_tools=app_config.provided.agent.builtin_tools,
+            builtin_tools=providers.Callable(
+                lambda agent: lambda: agent().builtin_tools, agent_config
+            ),
         ),
         providers.Singleton(SkillRoutes, skills=skills, agents=agents),
         providers.Singleton(HistoryRoutes, store=config_store, collections=config_collections),
@@ -180,6 +186,7 @@ class WebContainer(containers.DeclarativeContainer):
         providers.Singleton(
             SettingsRoutes,
             config=aios_yaml,
+            live=live_config,
             users=users,
             roles=roles,
             ids=ids,
@@ -208,7 +215,7 @@ class WebContainer(containers.DeclarativeContainer):
             config=aios_yaml,
             variables=variable_catalog,
             resolver=variable_resolver,
-            running_auth=app_config.provided.agent.auth,
+            running_auth=providers.Callable(lambda agent: lambda: agent().auth, agent_config),
             sign_in_check=claude_sign_in_check,
         ),
     )

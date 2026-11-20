@@ -24,7 +24,7 @@ class SettingsSectionRoutes(WebRoutes):
 
     A save changes only that section, keeps the comments of what stays, is checked
     against the model ai-os reads the file with, and is a commit like any other
-    save of aios.yaml; it applies after a restart.
+    save of aios.yaml. It applies within seconds, `collection_access` after a restart.
     """
 
     def __init__(

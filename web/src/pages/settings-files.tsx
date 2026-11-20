@@ -66,8 +66,7 @@ function FilesForm({ data }: { data: FilesState }) {
           <CardTitle>Files</CardTitle>
           <CardDescription>
             The folders agents' file tools (Read, Grep, Glob, Edit, Write) may reach; nothing else is. A folder that would reach ai-os's own
-            data, code or the system is refused. In Docker, a folder must be mounted into the container to be there. Applies after a
-            restart.
+            data, code or the system is refused. In Docker, a folder must be mounted into the container to be there. Applies at once.
           </CardDescription>
         </div>
         <Button onClick={save} disabled={!dirty}>

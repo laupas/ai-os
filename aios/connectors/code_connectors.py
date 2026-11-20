@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -40,7 +41,7 @@ class CodeConnectors:
         self,
         library: CodeConnectorLibrary,
         state_root: Path,
-        timezone: str,
+        timezone: Callable[[], str],
         resolver: VariableResolver | None = None,
     ) -> None:
         self._library = library
@@ -91,7 +92,7 @@ class CodeConnectors:
             **self._with_defaults(manifest),
             "AIOS_CONNECTOR_SETTINGS": json.dumps(self.settings(connector)),
             "AIOS_CONNECTOR_STATE": str(state),
-            "AIOS_TIMEZONE": self._timezone,
+            "AIOS_TIMEZONE": self._timezone(),
         }
         return {
             "command": sys.executable,

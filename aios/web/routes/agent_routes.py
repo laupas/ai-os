@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from aiohttp import web
 
 from aios.agents.agent_catalog import AgentCatalog
@@ -26,7 +28,7 @@ class AgentRoutes(WebRoutes):
         skills: SkillCatalog,
         connectors: ConnectorCatalog,
         board: ConnectorStatusBoard,
-        builtin_tools: list[str],
+        builtin_tools: Callable[[], list[str]],
     ) -> None:
         self._agents = agents
         self._skills = skills
@@ -81,7 +83,7 @@ class AgentRoutes(WebRoutes):
                 "agents": [self._row(a) for a in agents],
                 "skills": skills,
                 "connectors": connectors,
-                "builtin_tools": self._builtin_tools,
+                "builtin_tools": self._builtin_tools(),
                 "orchestrator": AgentCatalog.ORCHESTRATOR,
             }
         )
@@ -115,7 +117,7 @@ class AgentRoutes(WebRoutes):
         return web.json_response({"ok": True})
 
     async def _store(self, data: dict) -> Agent:
-        unknown = set(data.get("builtin_tools") or []) - set(self._builtin_tools)
+        unknown = set(data.get("builtin_tools") or []) - set(self._builtin_tools())
         if unknown:
             raise web.HTTPBadRequest(text=f"not enabled for ai-os: {', '.join(sorted(unknown))}")
         missing = set(data.get("skills") or []) - self._skills.names()

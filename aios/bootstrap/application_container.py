@@ -9,6 +9,7 @@ from aios.bootstrap.application import Application
 from aios.bootstrap.startup_notice import StartupNotice
 from aios.channels.channels_container import ChannelsContainer
 from aios.common.common_container import CommonContainer
+from aios.config.app_config_watcher import AppConfigWatcher
 from aios.config.config_container import ConfigContainer
 from aios.config_repo.config_repo_container import ConfigRepoContainer
 from aios.connectors.code_connector_library import CodeConnectorLibrary
@@ -70,7 +71,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         presenters=channels.directory,
         clock=common.clock,
         ids=common.ids,
-        approval_config=app_config.provided.approval,
+        approval_config=config.approval,
         conversations=storage.conversations,
         observers=providers.List(channels.web_hub),
     )
@@ -116,7 +117,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         box=variables.box,
         code_roots=code_roots,
         state_root=providers.Callable(lambda s: s.data_dir / "connector-state", config.settings),
-        timezone=app_config.provided.timezone,
+        timezone=config.timezone,
         tools_file=providers.Callable(
             lambda s: s.data_dir / "connector-tools.json", config.settings
         ),
@@ -129,15 +130,15 @@ class ApplicationContainer(containers.DeclarativeContainer):
     )
     approval_policy = providers.Container(
         ApprovalPolicyContainer,
-        approval_config=app_config.provided.approval,
-        files_config=app_config.provided.files,
+        approval_config=config.approval,
+        files_config=config.files,
         # ai-os's own data and code, the decrypted variables, and the Claude CLI's
         # sign-ins: never reachable by the file tools, whatever aios.yaml says.
         protected_dirs=providers.Callable(
             lambda s: [s.data_dir, s.repo_dir, s.variable_files_dir(), Path.home() / ".claude"],
             config.settings,
         ),
-        builtin_tools=app_config.provided.agent.builtin_tools,
+        builtin_tools=providers.Callable(lambda agent: lambda: agent().builtin_tools, config.agent),
         tool_prefixes=connectors.catalog.provided.tool_prefixes,
         extra_rules=providers.Callable(
             lambda grant, code, rules: [grant, code, *rules],
@@ -148,9 +149,9 @@ class ApplicationContainer(containers.DeclarativeContainer):
     )
     engine = providers.Container(
         EngineContainer,
-        agent_config=app_config.provided.agent,
+        agent_config=config.agent,
         repo_dir=config.settings.provided.repo_dir,
-        timezone=app_config.provided.timezone,
+        timezone=config.timezone,
         memories=storage.memories,
         agents=agents.catalog,
         connectors=connectors.catalog,
@@ -181,7 +182,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         channels=channels.directory,
         turns=gateway.gateway,
         clock=common.clock,
-        scheduler_config=app_config.provided.scheduler,
+        scheduler_config=config.scheduler,
     )
 
     config_repo = providers.Container(
@@ -202,6 +203,8 @@ class ApplicationContainer(containers.DeclarativeContainer):
     web = providers.Container(
         WebContainer,
         app_config=app_config,
+        live_config=config.live,
+        agent_config=config.agent,
         config_file=config.settings.provided.resolved_config_file.call(),
         users=storage.users,
         roles=storage.roles,
@@ -252,14 +255,22 @@ class ApplicationContainer(containers.DeclarativeContainer):
         transcriber=transcription.transcriber,
     )
 
+    # aios.yaml applied while ai-os runs. In the configuration repository only a
+    # commit counts, as for the rest of the configuration.
+    app_config_watcher = providers.Singleton(
+        AppConfigWatcher, config=config.live, read=web.aios_yaml.provided.read_committed
+    )
+    # The scheduler loop always runs: it reads `scheduler.enabled` on every tick.
     background = providers.Callable(
-        lambda config, watcher, renewer, loop, server: [
+        lambda config, yaml_watcher, watcher, renewer, loop, server: [
+            yaml_watcher,
             watcher,
             renewer,
-            *([loop] if config.scheduler.enabled else []),
+            loop,
             *([server] if config.web.enabled else []),
         ],
         app_config,
+        app_config_watcher,
         config_repo.watcher,
         connectors.renewer,
         scheduler.loop,

@@ -23,7 +23,7 @@ class ConnectorsContainer(containers.DeclarativeContainer):
     box = providers.Dependency()
     code_roots = providers.Dependency(default=[])
     state_root = providers.Dependency()
-    timezone = providers.Dependency(default="UTC")
+    timezone = providers.Dependency(default=lambda: "UTC")
     tools_file = providers.Dependency(default=None)
 
     code = providers.Singleton(

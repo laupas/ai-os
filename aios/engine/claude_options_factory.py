@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from pathlib import Path
 
 from claude_agent_sdk import ClaudeAgentOptions
@@ -41,7 +42,7 @@ class ClaudeOptionsFactory:
 
     def __init__(
         self,
-        agent_config: AgentConfig,
+        agent_config: Callable[[], AgentConfig],
         repo_dir: Path,
         prompts: SystemPromptBuilder,
         tool_server: AiosToolServer,
@@ -70,11 +71,12 @@ class ClaudeOptionsFactory:
         main = self._agents.main(request.conversation.agent)
         delegating = self._definitions.delegates_work(main)
         tracker = AgentTracker(main.name)
+        config = self._config()
         return ClaudeAgentOptions(
             system_prompt=self._prompts.build(request),
             cwd=str(self._repo_dir),
             setting_sources=["project"],
-            tools=list(self._config.builtin_tools),
+            tools=list(config.builtin_tools),
             allowed_tools=[],
             agents=self._definitions.build() if delegating else {},
             skills=self._definitions.skills(main, delegating),
@@ -89,7 +91,7 @@ class ClaudeOptionsFactory:
             permission_mode="default",
             env={**self.ENV, **self._credentials.env()},
             resume=resume,
-            model=main.model or self._config.model,
+            model=main.model or config.model,
             # Partial messages let a channel show the reply while it is written.
             include_partial_messages=True,
         )

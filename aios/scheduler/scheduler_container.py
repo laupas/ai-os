@@ -11,7 +11,7 @@ class SchedulerContainer(containers.DeclarativeContainer):
     channels = providers.Dependency()
     turns = providers.Dependency()
     clock = providers.Dependency()
-    scheduler_config = providers.Dependency()
+    scheduler_config = providers.Dependency()  # a getter: aios.yaml as it is now
 
     timing = providers.Singleton(ScheduleTiming)
     runner = providers.Singleton(ScheduleRunner, users=users, channels=channels, turns=turns)
@@ -21,5 +21,5 @@ class SchedulerContainer(containers.DeclarativeContainer):
         timing=timing,
         runner=runner,
         clock=clock,
-        tick_seconds=scheduler_config.provided.tick_seconds,
+        config=scheduler_config,
     )

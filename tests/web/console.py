@@ -13,7 +13,9 @@ from aios.channels.slack.slack_channel_type import SlackChannelType
 from aios.channels.web.web_channel import WebChannel
 from aios.channels.web.web_channel_type import WebChannelType
 from aios.channels.web.web_event_hub import WebEventHub
+from aios.config.app_config_loader import AppConfigLoader
 from aios.config.channel_config import ChannelConfig
+from aios.config.live_app_config import LiveAppConfig
 from aios.connectors.code_connector_library import CodeConnectorLibrary
 from aios.connectors.code_connectors import CodeConnectors
 from aios.connectors.connector_authorizer import ConnectorAuthorizer
@@ -159,6 +161,7 @@ class Console:
         self._channel_task = asyncio.create_task(self.channel.start(gateway, w.approval_service))
         self.config_file = self.tmp_path / "config.yaml"
         self.config_file.write_text("channels: [web]\n")
+        self.live_config = LiveAppConfig(AppConfigLoader(self.config_file).load())
         log_file = self.tmp_path / "aios.log"
         log_file.write_text("2099-01-01 00:00:00,000 ERROR aios.x boom\n")
         self.agent_world = AgentWorld(self.tmp_path)
@@ -233,7 +236,7 @@ class Console:
                     self.skills,
                     aw.connectors,
                     board,
-                    ["Task", "WebSearch", "WebFetch"],
+                    lambda: ["Task", "WebSearch", "WebFetch"],
                 ),
                 SkillRoutes(self.skills, aw.agents),
                 HistoryRoutes(self.repo_world.store, self.repo_world.collections),
@@ -252,13 +255,18 @@ class Console:
                     code=CodeConnectors(
                         CodeConnectorLibrary([EXAMPLES]),
                         self.tmp_path / "connector-state",
-                        "UTC",
+                        lambda: "UTC",
                         self.variable_resolver,
                     ),
                     variables=self.variables,
                 ),
                 SettingsRoutes(
-                    AiosYamlFile(self.config_file), w.users, w.roles, w.ids, self.restart
+                    AiosYamlFile(self.config_file, live=self.live_config),
+                    self.live_config,
+                    w.users,
+                    w.roles,
+                    w.ids,
+                    self.restart,
                 ),
                 SettingsSectionRoutes(AiosYamlFile(self.config_file), self.collection_overrides),
                 VoiceSettingsRoutes(self.variables, self.variable_resolver),
@@ -276,10 +284,10 @@ class Console:
                     ["web"],
                 ),
                 ClaudeSettingsRoutes(
-                    AiosYamlFile(self.config_file),
+                    AiosYamlFile(self.config_file, live=self.live_config),
                     self.variables,
                     self.variable_resolver,
-                    "subscription",
+                    lambda: self.live_config.current().agent.auth,
                     self.sign_in_check,
                 ),
                 MemoryRoutes(self.memories, w.users, w.ids, w.clock),

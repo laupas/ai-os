@@ -3,6 +3,7 @@ from aios.approvals.known_tools_rule import KnownToolsRule
 from aios.approvals.policy_verdict import PolicyVerdict
 from aios.approvals.rule_based_approval_policy import RuleBasedApprovalPolicy
 from aios.approvals.tool_call import ToolCall
+from aios.config.approval_config import ApprovalConfig
 from aios.entities.users.user import User
 
 USER = User(id="u", name="U")
@@ -14,8 +15,8 @@ def _call(tool: str) -> ToolCall:
 
 POLICY = RuleBasedApprovalPolicy(
     [
-        KnownToolsRule(["WebSearch", "WebFetch"], lambda: ["mcp__aios__"]),
-        AlwaysAskRule(["WebFetch"]),
+        KnownToolsRule(lambda: ["WebSearch", "WebFetch"], lambda: ["mcp__aios__"]),
+        AlwaysAskRule(lambda: ApprovalConfig(always=["WebFetch"])),
     ]
 )
 

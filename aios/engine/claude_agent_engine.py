@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from collections.abc import Callable
 
 from claude_agent_sdk import ClaudeSDKClient, ResultMessage, SystemMessage
 
@@ -27,7 +28,7 @@ class ClaudeAgentEngine(AgentEngine):
         options_factory: ClaudeOptionsFactory,
         mapper: ProgressStreamMapper,
         text_mapper: TextStreamMapper,
-        timeout_seconds: float,
+        timeout_seconds: Callable[[], float],
         board: ConnectorStatusBoard | None = None,
     ) -> None:
         self._options = options_factory
@@ -69,7 +70,8 @@ class ClaudeAgentEngine(AgentEngine):
         on_progress: ProgressCallback,
         on_text: TextCallback | None,
     ) -> TurnResult:
-        deadline = TurnDeadline(self._timeout)
+        timeout = self._timeout()
+        deadline = TurnDeadline(timeout)
         options = self._options.create(request, resume, deadline)
         result: ResultMessage | None = None
         try:
@@ -89,7 +91,7 @@ class ClaudeAgentEngine(AgentEngine):
                     if isinstance(message, ResultMessage):
                         result = message
         except TimeoutError as exc:
-            minutes = round(self._timeout / 60)
+            minutes = round(timeout / 60)
             raise TimeoutError(
                 f"the agent worked for more than {minutes} minutes and was stopped"
             ) from exc

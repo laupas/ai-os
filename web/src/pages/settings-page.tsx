@@ -143,8 +143,8 @@ function ConfigEditor({ text: initial, schema, inRepository }: { text: string; s
           <CardTitle>aios.yaml</CardTitle>
           <CardDescription>
             {inRepository
-              ? "In the configuration repository: every save is a commit, with History and branches like the rest. Checked before it is saved; applies after a restart."
-              : "Checked before it is saved; applies after a restart."}
+              ? "In the configuration repository: every save is a commit, with History and branches like the rest. Checked before it is saved; applies at once, except channels, web, owner and collection access, which need a restart."
+              : "Checked before it is saved; applies at once, except channels, web, owner and collection access, which need a restart."}
           </CardDescription>
         </div>
         <Button onClick={save} disabled={text === initial}>

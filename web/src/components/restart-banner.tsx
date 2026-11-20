@@ -35,7 +35,7 @@ export function RestartBanner() {
         <a className="underline" href={href("settings", "config")}>
           aios.yaml
         </a>{" "}
-        changed since ai-os started: channels, approvals and the rest of it apply after a restart.
+        changed since ai-os started in a part that applies only after a restart: channels, web, owner or collection access.
       </span>
       <Button size="sm" onClick={restart}>
         <Power /> Restart now

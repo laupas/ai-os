@@ -62,7 +62,7 @@ class World:
             self.channels,
             self.clock,
             self.ids,
-            timeout_seconds,
+            lambda: timeout_seconds,
         )
         self.resolver = ConversationResolver(self.conversations, self.clock, self.ids)
         self.recorder = MessageRecorder(self.log, self.clock, self.ids)

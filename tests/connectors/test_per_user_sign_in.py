@@ -96,7 +96,9 @@ async def test_the_prompt_tells_the_agent_which_connectors_need_a_sign_in(tmp_pa
     memories: Collection[Memory] = Collection(
         CollectionDefinition(name="memories", entity=Memory), InMemoryDocumentStore()
     )
-    prompts = SystemPromptBuilder(w.agents, FakeClock(), "Europe/Zurich", memories, w.connectors)
+    prompts = SystemPromptBuilder(
+        w.agents, FakeClock(), lambda: "Europe/Zurich", memories, w.connectors
+    )
     now = datetime.now(UTC)
     request = TurnRequest(
         conversation=Conversation(id="c", created_at=now, updated_at=now),

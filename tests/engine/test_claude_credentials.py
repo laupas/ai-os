@@ -10,7 +10,9 @@ class Resolver:
 
 
 def test_env_for_another_auth_blanks_the_configured_one() -> None:
-    credentials = ClaudeCredentials("subscription", Resolver({"CLAUDE_CODE_OAUTH_TOKEN": "tok"}))  # type: ignore[arg-type]
+    credentials = ClaudeCredentials(
+        lambda: "subscription", Resolver({"CLAUDE_CODE_OAUTH_TOKEN": "tok"})
+    )  # type: ignore[arg-type]
     assert credentials.env() == {"CLAUDE_CODE_OAUTH_TOKEN": "tok", "ANTHROPIC_API_KEY": ""}
     assert credentials.env_for("api_key", "key") == {
         "CLAUDE_CODE_OAUTH_TOKEN": "",

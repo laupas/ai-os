@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 // The aios.yaml sections the forms edit, one PUT per section. What is not set
 // stays out of the file, so its default applies; each save is a commit and
-// applies after a restart, which the restart banner then offers.
+// applies at once, except collection access, which the restart banner then offers.
 
 type Section = SettingsSections["sections"][string];
 
@@ -136,7 +136,7 @@ function GeneralForm({ timezone, scheduler }: { timezone: Section; scheduler: Se
     void save(changes);
   };
   return (
-    <SectionCard title="General" description="Time zone and the scheduler. Applies after a restart." dirty={zoneDirty || schedDirty} onSave={onSave}>
+    <SectionCard title="General" description="Time zone and the scheduler. Applies at once." dirty={zoneDirty || schedDirty} onSave={onSave}>
       <Label>
         Time zone
         <Input list="aios-timezones" className="max-w-sm" placeholder={timezone.schema.default} value={zone} onChange={(e) => setZone(e.target.value.trim())} />
@@ -216,7 +216,7 @@ function AgentsForm({ section }: { section: Section }) {
   return (
     <SectionCard
       title="Agents"
-      description="What applies to every agent: the model when an agent names none, the built-in tools any agent may be given, and how long a turn may run. Applies after a restart."
+      description="What applies to every agent: the model when an agent names none, the built-in tools any agent may be given, and how long a turn may run. Applies from the next turn."
       dirty={dirty}
       onSave={() => void save({ agent: Object.keys(values).length ? values : null })}
     >
@@ -355,7 +355,7 @@ function ApprovalsForm({ section, known, connectors }: { section: Section; known
   return (
     <SectionCard
       title="Approvals"
-      description="Tools that need a person's Yes every time, and tools that are never allowed, whichever agent asks. Applies after a restart."
+      description="Tools that need a person's Yes every time, and tools that are never allowed, whichever agent asks. Applies at once."
       dirty={dirty}
       onSave={() => void save({ approval: Object.keys(values).length ? values : null })}
     >

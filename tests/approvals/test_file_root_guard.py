@@ -27,7 +27,7 @@ def test_a_symlink_into_a_protected_folder_is_refused(tmp_path) -> None:
 def test_the_rule_leaves_out_a_root_the_guard_refuses(tmp_path) -> None:
     data = tmp_path / "data"
     (data / "users").mkdir(parents=True)
-    rule = FileAccessRule(FilesConfig(read_roots=[str(tmp_path)]), FileRootGuard([data]))
+    rule = FileAccessRule(lambda: FilesConfig(read_roots=[str(tmp_path)]), FileRootGuard([data]))
     call = ToolCall(
         tool_name="Read",
         tool_input={"file_path": str(data / "users" / "a.json")},

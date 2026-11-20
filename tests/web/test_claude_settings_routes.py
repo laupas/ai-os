@@ -27,7 +27,7 @@ async def test_switching_to_an_api_key_writes_aios_yaml_and_a_secret(tmp_path) -
         )
         state = await response.json()
         assert response.status == 200
-        assert state["auth"] == "api_key" and state["running_auth"] == "subscription"
+        assert state["auth"] == "api_key" and state["running_auth"] == "api_key"
         assert state["credentials"]["api_key"]["source"] == "variable"
         assert "sk-ant" not in str(state)
         assert yaml.safe_load(c.config_file.read_text()) == {

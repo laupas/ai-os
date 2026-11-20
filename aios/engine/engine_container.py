@@ -14,7 +14,7 @@ from aios.progress.progress_labeler import ProgressLabeler
 
 
 class EngineContainer(containers.DeclarativeContainer):
-    agent_config = providers.Dependency()
+    agent_config = providers.Dependency()  # a getter: aios.yaml as it is now
     repo_dir = providers.Dependency()
     timezone = providers.Dependency()
     memories = providers.Dependency()
@@ -28,7 +28,9 @@ class EngineContainer(containers.DeclarativeContainer):
     variable_resolver = providers.Dependency()
 
     credentials = providers.Singleton(
-        ClaudeCredentials, auth=agent_config.provided.auth, resolver=variable_resolver
+        ClaudeCredentials,
+        auth=providers.Callable(lambda c: lambda: c().auth, agent_config),
+        resolver=variable_resolver,
     )
 
     labeler = providers.Singleton(ProgressLabeler)
@@ -72,6 +74,8 @@ class EngineContainer(containers.DeclarativeContainer):
         options_factory=options_factory,
         mapper=mapper,
         text_mapper=providers.Singleton(TextStreamMapper),
-        timeout_seconds=agent_config.provided.turn_timeout_seconds,
+        timeout_seconds=providers.Callable(
+            lambda c: lambda: c().turn_timeout_seconds, agent_config
+        ),
         board=board,
     )

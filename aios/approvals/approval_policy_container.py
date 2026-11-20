@@ -12,7 +12,7 @@ class ApprovalPolicyContainer(containers.DeclarativeContainer):
     """General rules first (unknown or denied tools refused, files kept in their
     folders, `approval.always` asked), then the rules other domains contribute."""
 
-    approval_config = providers.Dependency()
+    approval_config = providers.Dependency()  # getters: aios.yaml as it is now
     files_config = providers.Dependency()
     builtin_tools = providers.Dependency()
     tool_prefixes = providers.Dependency()
@@ -22,12 +22,12 @@ class ApprovalPolicyContainer(containers.DeclarativeContainer):
     known_tools_rule = providers.Singleton(
         KnownToolsRule, builtin_tools=builtin_tools, tool_prefixes=tool_prefixes
     )
-    deny_list_rule = providers.Singleton(DenyListRule, tool_names=approval_config.provided.deny)
+    deny_list_rule = providers.Singleton(DenyListRule, config=approval_config)
     file_root_guard = providers.Singleton(FileRootGuard, protected=protected_dirs)
     file_access_rule = providers.Singleton(
         FileAccessRule, config=files_config, guard=file_root_guard
     )
-    always_ask_rule = providers.Singleton(AlwaysAskRule, tool_names=approval_config.provided.always)
+    always_ask_rule = providers.Singleton(AlwaysAskRule, config=approval_config)
     policy = providers.Singleton(
         RuleBasedApprovalPolicy,
         rules=providers.Callable(

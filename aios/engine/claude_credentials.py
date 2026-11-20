@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Literal
 
 from aios.variables.variable_resolver import VariableResolver
@@ -10,26 +11,26 @@ class ClaudeCredentials:
 
     The value comes from the variable of that name in the console, else from the
     process environment, and is read for every turn: a new key applies to the next
-    one. The other credential is blanked, so a leftover one in the environment can
-    never be the one used.
+    one, and so does a change of `agent.auth`. The other credential is blanked, so
+    a leftover one in the environment can never be the one used.
     """
 
     def __init__(
-        self, auth: Literal["subscription", "api_key"], resolver: VariableResolver
+        self, auth: Callable[[], Literal["subscription", "api_key"]], resolver: VariableResolver
     ) -> None:
         self._auth = auth
         self._resolver = resolver
 
     @property
     def variable(self) -> str:
-        return VARIABLES[self._auth]
+        return VARIABLES[self._auth()]
 
     @staticmethod
     def variable_for(auth: Literal["subscription", "api_key"]) -> str:
         return VARIABLES[auth]
 
     def env(self) -> dict[str, str]:
-        return self.env_for(self._auth)
+        return self.env_for(self._auth())
 
     def env_for(
         self, auth: Literal["subscription", "api_key"], value: str | None = None
@@ -45,7 +46,7 @@ class ClaudeCredentials:
     def status(self) -> dict[str, str | None]:
         """For the console: which credential, and where it comes from. Never the value."""
         return {
-            "auth": self._auth,
+            "auth": self._auth(),
             "variable": self.variable,
             "source": self._resolver.source_of(self.variable),
         }

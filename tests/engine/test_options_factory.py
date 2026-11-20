@@ -39,16 +39,16 @@ async def _options(tmp_path, agent: str | None, auth: str = "subscription"):  # 
         CollectionDefinition(name="memories", entity=Memory), InMemoryDocumentStore()
     )
     factory = ClaudeOptionsFactory(
-        AgentConfig(model="opus"),
+        lambda: AgentConfig(model="opus"),
         tmp_path,
-        SystemPromptBuilder(w.agents, FakeClock(), "Europe/Zurich", memories),
+        SystemPromptBuilder(w.agents, FakeClock(), lambda: "Europe/Zurich", memories),
         AiosToolServer([]),
         ToolPermissionGate(RuleBasedApprovalPolicy([]), world.approval_service),
         w.agents,
         w.connectors,
         AgentDefinitionsBuilder(w.agents, w.connectors, ConnectorStatusBoard(FakeClock())),
         ClaudeCredentials(
-            auth,  # type: ignore[arg-type]
+            lambda: auth,  # type: ignore[arg-type]
             FixedResolver({"CLAUDE_CODE_OAUTH_TOKEN": "oauth", "ANTHROPIC_API_KEY": "key"}),  # type: ignore[arg-type]
         ),
     )

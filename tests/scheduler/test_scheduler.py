@@ -4,6 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from aios.common.clock import Clock
+from aios.config.scheduler_config import SchedulerConfig
 from aios.entities.conversations.channel_binding import ChannelBinding
 from aios.entities.schedules.schedule import Schedule
 from aios.entities.users.user import User
@@ -69,7 +70,12 @@ async def _loop(
     )
     await schedules.put(schedule)
     runner, clock = _RecordingRunner(), _FixedClock(now)
-    return SchedulerLoop(schedules, ScheduleTiming(), runner, clock, 30), schedules, runner, clock
+    return (
+        SchedulerLoop(schedules, ScheduleTiming(), runner, clock, SchedulerConfig),
+        schedules,
+        runner,
+        clock,
+    )
 
 
 async def _settle() -> None:
