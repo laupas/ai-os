@@ -8,6 +8,9 @@ from aios.variables.variable_field import VariableField
 
 LOCKED = "x-locked"
 """On a setting in the schema: agents cannot change it, only the console can."""
+OPTIONS = "x-options"
+"""On a value in the schema: the name of a list of choices the server offers for
+it, asked with `server.py options <name>`."""
 
 
 class CodeConnectorManifest(BaseModel):
@@ -48,6 +51,23 @@ class CodeConnectorManifest(BaseModel):
 
     def locked(self) -> set[str]:
         return {k for k, p in self._properties().items() if p.get(LOCKED) is True}
+
+    def option_lists(self) -> set[str]:
+        """The names given under `x-options` anywhere in the settings' schema."""
+        found: set[str] = set()
+
+        def walk(node: Any) -> None:
+            if isinstance(node, dict):
+                if isinstance(node.get(OPTIONS), str):
+                    found.add(node[OPTIONS])
+                for value in node.values():
+                    walk(value)
+            elif isinstance(node, list):
+                for value in node:
+                    walk(value)
+
+        walk(self.settings)
+        return found
 
     def launch_env(self) -> dict[str, str]:
         """`env`, and each declared variable under its own name unless `env` names

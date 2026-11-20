@@ -12,6 +12,7 @@ from aios.config.app_config import AppConfig
 from aios.connectors.code_connector_approval_rule import CodeConnectorApprovalRule
 from aios.connectors.code_connector_launcher import CodeConnectorLauncher
 from aios.connectors.code_connector_library import CodeConnectorLibrary
+from aios.connectors.code_connector_manifest import CodeConnectorManifest
 from aios.connectors.code_connectors import CodeConnectors
 from aios.connectors.connector_catalog import ConnectorCatalog
 from aios.entities.connectors.connector import Connector
@@ -183,3 +184,27 @@ def test_a_check_that_breaks_does_not_pass(tmp_path) -> None:
     result = _code(tmp_path).check(config)
     assert not result.ok and result.detail
 
+
+def test_options_that_break_are_an_error_not_a_crash(tmp_path) -> None:
+    script = tmp_path / "s.py"
+    script.write_text("import sys; sys.exit('no list ' + sys.argv[2])\n")
+    config = {"command": "python3", "args": [str(script)], "env": {}}
+    result = _code(tmp_path).options(config, "pairs")
+    assert result.options == [] and "no list pairs" in result.error
+
+    script.write_text('print(\'{"options": "BTC"}\')\n')
+    assert "no options" in _code(tmp_path).options(config, "pairs").error
+
+
+def test_the_lists_a_schema_offers() -> None:
+    manifest = CodeConnectorManifest(
+        name="x",
+        settings={
+            "type": "object",
+            "properties": {
+                "pair": {"type": "string", "x-options": "pairs"},
+                "map": {"type": "object", "additionalProperties": {"x-options": "coins"}},
+            },
+        },
+    )
+    assert manifest.option_lists() == {"pairs", "coins"}

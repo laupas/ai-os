@@ -185,7 +185,11 @@ The console draws the settings form from the schema. Beyond the JSON Schema basi
 label), it reads `x-group` (a heading the field is shown under), `x-order` (lower
 first, else the schema's order), `x-unit` (shown after the input) and `x-widget`
 (`textarea` for a long string, `slider` for a number with `minimum` and `maximum`).
-The server sees none of this; it is only layout.
+The server sees none of this; it is only layout. `x-options: <list>` on a value
+offers choices the server gives: the console asks, ai-os runs `server.py options
+<list>` with the settings and variables shown, and the server prints
+`{"options": [...]}`, each a value or `{"value": ..., "label": ...}`. Any other value
+can still be typed, so a list that cannot be fetched costs nothing.
 
 > A code connector is code that ai-os runs. Whoever can commit to the configuration
 > repository, or push to its remote, can run code on the machine; agents cannot

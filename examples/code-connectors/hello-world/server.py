@@ -1,12 +1,14 @@
 """Hello world, the example code connector.
 
-ai-os starts it in one of three ways:
+ai-os starts it in one of four ways:
 
 - `server.py`: an MCP session over stdio, for a turn;
 - `server.py preflight <tool> <arguments>`: before a human is asked to approve a
   call, it prints one JSON line, `{"deny": "why"}` or `{"ask": "question"}`;
 - `server.py check`: the console's Test button; it prints one JSON line,
-  `{"ok": true|false, "detail": "what works, or what does not"}`.
+  `{"ok": true|false, "detail": "what works, or what does not"}`;
+- `server.py options <list>`: the choices the console offers for a setting marked
+  `x-options: <list>`, one JSON line `{"options": [...]}`.
 
 What it gets from ai-os, all in the environment:
 
@@ -66,6 +68,22 @@ def check() -> dict:
     }
 
 
+def options(name: str) -> dict:
+    """The choices the console offers for a setting marked `x-options: <name>`. One
+    may look something up (a list from an API); it still runs without side effects.
+    An unknown name is an error, which the console shows as no choices."""
+    if name != "greetings":
+        raise SystemExit(f"no list {name}")
+    return {
+        "options": [
+            "Hello",
+            "Hi",
+            {"value": "Grüezi", "label": "Swiss German"},
+            {"value": "Bonjour", "label": "French"},
+        ]
+    }
+
+
 def server() -> MCPServer:
     mcp = MCPServer("hello-world")
 
@@ -104,5 +122,7 @@ if __name__ == "__main__":
         print(json.dumps(preflight(sys.argv[2], json.loads(sys.argv[3]))))
     elif sys.argv[1:2] == ["check"]:
         print(json.dumps(check()))
+    elif sys.argv[1:2] == ["options"]:
+        print(json.dumps(options(sys.argv[2])))
     else:
         server().run()

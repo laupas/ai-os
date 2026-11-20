@@ -45,3 +45,15 @@ def test_the_check_says_what_it_would_do() -> None:
     answer = _check()
     assert answer["ok"] and "'Hello'" in answer["detail"] and "no token" in answer["detail"]
     assert _check({"greeting": " "}) == {"ok": False, "detail": "the greeting is empty"}
+
+
+def test_the_greetings_are_offered_as_options() -> None:
+    result = subprocess.run(
+        [sys.executable, str(SERVER), "options", "greetings"],
+        capture_output=True,
+        text=True,
+        env={"AIOS_CONNECTOR_SETTINGS": "{}"},
+        check=True,
+    )
+    options = json.loads(result.stdout)["options"]
+    assert "Hello" in options and {"value": "Grüezi", "label": "Swiss German"} in options

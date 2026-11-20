@@ -1,9 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, KeyRound, Loader2, LogOut, Pencil, Play, Plug, PlugZap, Plus, XCircle } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ListView } from "@/components/list-view";
-import { prune, SettingsFields, type Values } from "@/components/schema-form";
+import { type Options, prune, SettingsFields, type Values } from "@/components/schema-form";
 import { VariableFieldInput } from "@/components/variable-field-input";
 import { ErrorBox, Loading, Page, PageHeader } from "@/components/page";
 import { HistoryButton } from "@/components/history-button";
@@ -650,6 +650,22 @@ function CodeFields({
 }) {
   // A new one has no row yet, so its settings' schema arrives with the first save.
   const part = c?.code;
+  // The connector's choices for a setting, asked with what is typed at that moment
+  // (a key typed but not saved may be what the list needs). Stable, so the form
+  // asks each list once.
+  const typed = useRef({ settings, variables });
+  useEffect(() => {
+    typed.current = { settings, variables };
+  }, [settings, variables]);
+  const id = c?.id;
+  const options = useCallback(
+    (list: string) =>
+      api<Options>("POST", `/api/connectors/${encodeURIComponent(id ?? "")}/options/${encodeURIComponent(list)}`, {
+        settings: prune(typed.current.settings),
+        variables: Object.fromEntries(Object.entries(typed.current.variables).filter(([, v]) => v.trim())),
+      }),
+    [id],
+  );
   return (
     <div className="space-y-4">
       {c ? (
@@ -695,7 +711,7 @@ function CodeFields({
             An empty field uses its default.{" "}
             {part.locked.length ? "A locked one is changed only here, by an administrator: agents cannot change it, nor add or delete this connector." : null}
           </Hint>
-          <SettingsFields schema={part.schema} values={settings} onChange={onSettings} locked={part.locked} />
+          <SettingsFields schema={part.schema} values={settings} onChange={onSettings} locked={part.locked} options={c ? options : undefined} />
         </div>
       ) : !c ? (
         <Hint>Its settings and variables can be set once it is added.</Hint>

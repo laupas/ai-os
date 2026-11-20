@@ -1,5 +1,5 @@
 import { Lock, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
-import { Fragment, type ReactNode } from "react";
+import { createContext, Fragment, type ReactNode, useContext, useEffect, useId, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -11,10 +11,58 @@ import { Switch } from "@/components/ui/switch";
 // Hints a schema may carry, all optional: `title` (the label, else the key),
 // `x-group` (a heading the field is shown under), `x-order` (lower first, else the
 // schema's order), `x-unit` (shown after the input), `x-widget` (`textarea` for a
-// long string, `slider` for a number with `minimum` and `maximum`).
+// long string, `slider` for a number with `minimum` and `maximum`), `x-options` (the
+// name of a list of choices the connector offers, asked through `options`; any
+// other value can still be typed).
 
 export type Schema = Record<string, any>;
 export type Values = Record<string, unknown>;
+export interface Option {
+  value: string;
+  label: string;
+}
+export interface Options {
+  options: Option[];
+  error: string;
+}
+
+const OptionsContext = createContext<((list: string) => Promise<Options>) | null>(null);
+
+/** The choices for `list`, asked once per form; a datalist for the inputs that
+ * offer them, and why there are none when the connector could not say. */
+function useOptionList(list: unknown): { id?: string; node: ReactNode } {
+  const load = useContext(OptionsContext);
+  const id = useId();
+  const [state, setState] = useState<Options | null>(null);
+  const name = typeof list === "string" ? list : undefined;
+  useEffect(() => {
+    if (!name || !load) return;
+    let live = true;
+    load(name).then(
+      (r) => live && setState(r),
+      (e: Error) => live && setState({ options: [], error: e.message }),
+    );
+    return () => {
+      live = false;
+    };
+  }, [name, load]);
+  if (!name || !load) return { node: null };
+  return {
+    id,
+    node: (
+      <>
+        <datalist id={id}>
+          {state?.options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </datalist>
+        {state?.error ? <p className="text-xs text-muted-foreground">No choices to offer: {state.error}</p> : null}
+      </>
+    ),
+  };
+}
 
 interface Resolved {
   schema: Schema;
@@ -91,8 +139,34 @@ const shown = (v: unknown) => (v === undefined || v === null ? "" : typeof v ===
 
 /** A code connector's settings: the fields of its schema, those `locked` marked as
  * out of reach of agents (they are still changed here). */
-export function SettingsFields({ schema, values, onChange, locked = [] }: { schema: Schema; values: Values; onChange: (v: Values) => void; locked?: string[] }) {
-  return <ObjectFields schema={schema} defs={schema.$defs ?? {}} values={values} onChange={onChange} locked={locked} />;
+export function SettingsFields({
+  schema,
+  values,
+  onChange,
+  locked = [],
+  options,
+}: {
+  schema: Schema;
+  values: Values;
+  onChange: (v: Values) => void;
+  locked?: string[];
+  /** Asks the connector for the choices of an `x-options` list. */
+  options?: (list: string) => Promise<Options>;
+}) {
+  // Each list asked once while the form is open, however many fields offer it.
+  const cached = useMemo(() => {
+    if (!options) return null;
+    const asked = new Map<string, Promise<Options>>();
+    return (list: string) => {
+      if (!asked.has(list)) asked.set(list, options(list));
+      return asked.get(list)!;
+    };
+  }, [options]);
+  return (
+    <OptionsContext.Provider value={cached}>
+      <ObjectFields schema={schema} defs={schema.$defs ?? {}} values={values} onChange={onChange} locked={locked} />
+    </OptionsContext.Provider>
+  );
 }
 
 function ObjectFields({
@@ -266,7 +340,7 @@ function Plain({ schema, nullable, defs, value, onChange }: { schema: Schema; nu
     if (widget === "textarea") {
       return <Textarea rows={4} placeholder={shown(fallback)} value={shown(value)} onChange={(e) => onChange(e.target.value || undefined)} />;
     }
-    return <Input placeholder={nullable && fallback == null ? "not set" : shown(fallback)} value={shown(value)} onChange={(e) => onChange(e.target.value || undefined)} />;
+    return <Text schema={schema} placeholder={nullable && fallback == null ? "not set" : shown(fallback)} value={shown(value)} onChange={onChange} />;
   }
   if (schema.type === "array") {
     const items = resolve(schema.items ?? {}, defs).schema;
@@ -299,6 +373,17 @@ function Plain({ schema, nullable, defs, value, onChange }: { schema: Schema; nu
   return <p className="text-xs text-muted-foreground">Edit this one on the JSON tab.</p>;
 }
 
+/** One line of text, with the connector's choices offered when the schema names a list. */
+function Text({ schema, placeholder, value, onChange }: { schema: Schema; placeholder: string; value: string; onChange: (v: unknown) => void }) {
+  const offered = useOptionList(schema["x-options"]);
+  return (
+    <div className="w-full space-y-1">
+      <Input list={offered.id} placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value || undefined)} />
+      {offered.node}
+    </div>
+  );
+}
+
 /** A list of strings, one per line. Empty means the default list. */
 function Lines({ value, fallback, onChange }: { value: string[] | undefined; fallback: unknown; onChange: (v: unknown) => void }) {
   const placeholder = Array.isArray(fallback) && fallback.length ? fallback.join("\n") : "one per line";
@@ -324,6 +409,7 @@ function DictRows({ schema, value, fallback, onChange }: { schema: Schema; value
   // Nothing set means the default map applies. Editing starts from it, or adding one
   // entry would silently replace all of it.
   const defaults = entries.length === 0 && isPlain(fallback) ? Object.entries(fallback) : [];
+  const offered = useOptionList(schema["x-options"]);
   return (
     <div className="space-y-2">
       {entries.length === 0 && isPlain(fallback) && Object.keys(fallback).length ? (
@@ -341,6 +427,7 @@ function DictRows({ schema, value, fallback, onChange }: { schema: Schema; value
           ) : (
             <Input
               className="flex-1"
+              list={offered.id}
               type={schema.type === "number" || schema.type === "integer" ? "number" : "text"}
               placeholder="value"
               value={shown(v)}
@@ -352,6 +439,7 @@ function DictRows({ schema, value, fallback, onChange }: { schema: Schema; value
           </Button>
         </div>
       ))}
+      {entries.length ? offered.node : null}
       {defaults.length ? (
         <Button size="sm" variant="outline" onClick={() => write(defaults)}>
           <Pencil /> Change

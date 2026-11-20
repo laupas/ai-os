@@ -40,6 +40,8 @@ asking. The connector's page asks for the `HELLO_TOKEN` variable, and shows
   account, never place an order).
 - Give the form a shape with `title`, `x-group`, `x-order`, `x-unit` and `x-widget`
   (see the manifest); ai-os only uses them for the console.
+- Offer choices with `x-options: <list>` and answer `server.py options <list>` with
+  `{"options": [...]}`, e.g. what an API offers. Like `check`, no side effects.
 - Put a tool that changes something real under `approval.always`, and refuse in
   `preflight` what your own rules refuse, so a human is never asked about it.
 - Imports between files of the connector work as plain `import x` (its folder is on

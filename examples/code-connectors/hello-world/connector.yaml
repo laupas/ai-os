@@ -32,6 +32,9 @@ check: true
 # the place for limits that must hold. The form takes hints too: `title` (the
 # label), `x-group` (a heading), `x-order` (lower first), `x-unit` (shown after the
 # input) and `x-widget` (`textarea`, or `slider` with `minimum` and `maximum`).
+# `x-options: <list>` offers choices the server gives: ai-os runs
+# `server.py options <list>`, which prints `{"options": [...]}`, each a value or
+# `{"value": ..., "label": ...}`. Any other value can still be typed.
 settings:
   type: object
   properties:
@@ -39,6 +42,7 @@ settings:
       type: string
       default: Hello
       x-group: Greeting
+      x-options: greetings
       description: Put before every name.
     max_shout_length:
       type: integer

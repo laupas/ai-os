@@ -10,6 +10,7 @@ from aios.connectors.code_connector_check import CodeConnectorCheck
 from aios.connectors.code_connector_launcher import BASE
 from aios.connectors.code_connector_library import CodeConnectorLibrary
 from aios.connectors.code_connector_manifest import CodeConnectorManifest
+from aios.connectors.code_connector_options import CodeConnectorOptions
 from aios.entities.agents.agent import Agent
 from aios.entities.connectors.connector import Connector
 from aios.storage.storage_name import StorageName
@@ -22,6 +23,7 @@ SETTINGS_KEY = "settings"
 LAUNCHER = "aios.connectors.code_connector_launcher"
 PREFLIGHT_TIMEOUT_SECONDS = 20
 CHECK_TIMEOUT_SECONDS = 30
+OPTIONS_TIMEOUT_SECONDS = 30
 
 
 class CodeConnectors:
@@ -131,6 +133,22 @@ class CodeConnectors:
             return CodeConnectorCheck(ok=False, detail=f"no answer in {CHECK_TIMEOUT_SECONDS} s")
         except (RuntimeError, ValueError) as exc:
             return CodeConnectorCheck(ok=False, detail=str(exc))
+
+    def options(self, config: dict[str, Any], name: str) -> CodeConnectorOptions:
+        """The choices the server offers for the list `name` (`server.py options
+        <name>`): `{"options": [...]}`, each a value or `{"value", "label"}`."""
+        try:
+            answer = self._ask(config, ["options", name], OPTIONS_TIMEOUT_SECONDS)
+            raw = answer.get("options")
+            if not isinstance(raw, list):
+                raise ValueError("the server answered no options")
+            return CodeConnectorOptions.model_validate(
+                {"options": [o if isinstance(o, dict) else {"value": str(o)} for o in raw]}
+            )
+        except subprocess.TimeoutExpired:
+            return CodeConnectorOptions(error=f"no answer in {OPTIONS_TIMEOUT_SECONDS} s")
+        except (RuntimeError, ValueError) as exc:
+            return CodeConnectorOptions(error=str(exc))
 
     @staticmethod
     def _ask(config: dict[str, Any], args: list[str], timeout: int) -> dict:

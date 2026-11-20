@@ -76,6 +76,7 @@ class ConnectorRoutes(WebRoutes):
         app.router.add_delete("/api/connectors/{name}", self._delete)
         app.router.add_post("/api/connectors/{name}/start", self._start)
         app.router.add_post("/api/connectors/{name}/check", self._check)
+        app.router.add_post("/api/connectors/{name}/options/{list}", self._options)
 
     async def _list(self, request: web.Request) -> web.Response:
         caller = WebAuth.caller(request, Permission.CHAT)
@@ -153,20 +154,41 @@ class ConnectorRoutes(WebRoutes):
         manifest = self._manifest(connector)
         if self._code is None or manifest is None or not manifest.check:
             raise web.HTTPNotFound(text=f"{connector.id} has no test")
+        launch = await self._typed_launch(request, connector, manifest)
+        result = await asyncio.to_thread(self._code.check, launch)
+        return web.json_response(result.model_dump())
+
+    async def _options(self, request: web.Request) -> web.Response:
+        """The choices a code connector offers for one of its settings, asked with
+        the settings and variable values typed but not saved yet."""
+        WebAuth.caller(request, Permission.ADMINISTER)
+        connector = self._existing(request)
+        manifest = self._manifest(connector)
+        name = request.match_info["list"]
+        if self._code is None or manifest is None or name not in manifest.option_lists():
+            raise web.HTTPNotFound(text=f"{connector.id} offers no list {name}")
+        launch = await self._typed_launch(request, connector, manifest)
+        result = await asyncio.to_thread(self._code.options, launch, name)
+        return web.json_response(result.model_dump())
+
+    async def _typed_launch(
+        self, request: web.Request, connector: Connector, manifest: CodeConnectorManifest
+    ) -> dict:
+        """How the connector would start with what the console has typed: its
+        settings, and values for its declared variables over the stored ones."""
         body = await RequestBody.parse(request, ConnectorCheckRequest)
         if body.settings is not None:
             config = {**connector.config, SETTINGS_KEY: body.settings}
             connector = connector.model_copy(update={"config": config})
-        launch = self._code.launch_config(connector)
+        launch = self._code.launch_config(connector) if self._code else None
         if launch is None:
-            raise web.HTTPNotFound(text=f"{connector.id} has no test")
+            raise web.HTTPNotFound(text=f"{connector.id} is not a code connector")
         if self._resolver is not None:
             launch = self._resolver.expand(launch)
         declared = {f.variable for f in manifest.variables}
         typed = {k: v.strip() for k, v in body.variables.items() if k in declared and v.strip()}
         launch["env"] = {**launch["env"], **typed}
-        result = await asyncio.to_thread(self._code.check, launch)
-        return web.json_response(result.model_dump())
+        return launch
 
     async def _without_secrets(
         self, connector: Connector, caller: WebCaller

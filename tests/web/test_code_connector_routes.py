@@ -88,3 +88,19 @@ async def test_the_test_button_runs_the_server_s_check_with_what_is_typed(tmp_pa
         ).json()
         assert answer == {"ok": False, "detail": "the greeting is empty"}
 
+
+async def test_a_setting_s_options_come_from_the_server(tmp_path) -> None:
+    async with Console(tmp_path) as c:
+        h = c.headers(ALICE, write=True)
+        body = {"name": "hello-world", "config": {"code": "hello-world"}}
+        await c.client.post("/api/connectors", json=body, headers=h)
+
+        r = await c.client.post("/api/connectors/hello-world/options/greetings", json={}, headers=h)
+        answer = await r.json()
+        assert r.status == 200 and answer["error"] == ""
+        assert {"value": "Hello", "label": ""} in answer["options"]
+        assert {"value": "Grüezi", "label": "Swiss German"} in answer["options"]
+
+        # Only a list the schema names; nothing else reaches the server's arguments.
+        r = await c.client.post("/api/connectors/hello-world/options/other", json={}, headers=h)
+        assert r.status == 404
