@@ -5,9 +5,15 @@ from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
 from aios.agents.skill_catalog import SkillCatalog
+from aios.approvals.file_root_guard import FileRootGuard
+from aios.channels.channel_catalog import ChannelCatalog
 from aios.channels.channel_directory import ChannelDirectory
+from aios.channels.channel_values import ChannelValues
+from aios.channels.slack.slack_channel_type import SlackChannelType
 from aios.channels.web.web_channel import WebChannel
+from aios.channels.web.web_channel_type import WebChannelType
 from aios.channels.web.web_event_hub import WebEventHub
+from aios.config.channel_config import ChannelConfig
 from aios.config.connector_override import ConnectorOverride
 from aios.connectors.code_connector_library import CodeConnectorLibrary
 from aios.connectors.code_connectors import CodeConnectors
@@ -28,28 +34,40 @@ from aios.entities.skills.skill import Skill
 from aios.entities.users.channel_account import ChannelAccount
 from aios.entities.variables.variable import Variable
 from aios.logs.log_reader import LogReader
+from aios.messaging.mail.mail_channel_type import MailChannelType
+from aios.messaging.signal.signal_channel_type import SignalChannelType
 from aios.scheduler.schedule_runner import ScheduleRunner
 from aios.scheduler.schedule_timing import ScheduleTiming
+from aios.storage.agent_access import AgentAccess
 from aios.storage.collection import Collection
+from aios.storage.collection_access_overrides import CollectionAccessOverrides
 from aios.storage.collection_definition import CollectionDefinition
+from aios.storage.collection_definition import CollectionDefinition as Definition
 from aios.variables.secret_box import SecretBox
 from aios.variables.secret_extractor import SecretExtractor
 from aios.variables.variable_catalog import VariableCatalog
 from aios.variables.variable_resolver import VariableResolver
+from aios.web.aios_yaml_file import AiosYamlFile
 from aios.web.restart_request import RestartRequest
 from aios.web.routes.agent_routes import AgentRoutes
 from aios.web.routes.approval_routes import ApprovalRoutes
+from aios.web.routes.channel_settings_routes import ChannelSettingsRoutes
+from aios.web.routes.claude_settings_routes import ClaudeSettingsRoutes
 from aios.web.routes.connector_auth_routes import ConnectorAuthRoutes
 from aios.web.routes.connector_routes import ConnectorRoutes
 from aios.web.routes.conversation_routes import ConversationRoutes
+from aios.web.routes.files_settings_routes import FilesSettingsRoutes
 from aios.web.routes.history_routes import HistoryRoutes
 from aios.web.routes.log_routes import LogRoutes
 from aios.web.routes.memory_routes import MemoryRoutes
 from aios.web.routes.schedule_routes import ScheduleRoutes
 from aios.web.routes.settings_routes import SettingsRoutes
+from aios.web.routes.settings_section_routes import SettingsSectionRoutes
 from aios.web.routes.skill_routes import SkillRoutes
 from aios.web.routes.variable_routes import VariableRoutes
 from aios.web.routes.voice_routes import MAX_AUDIO_BYTES, VoiceRoutes
+from aios.web.routes.voice_settings_routes import VoiceSettingsRoutes
+from aios.web.routes.web_auth_settings_routes import WebAuthSettingsRoutes
 from aios.web.web_auth import WebAuth
 from aios.web.web_identity import WebIdentity
 from aios.web.web_server import WebServer
@@ -57,8 +75,10 @@ from tests.agents.agent_world import AgentWorld
 from tests.config_repo.repo_world import RepoWorld
 from tests.connectors.fake_connector_probe import FakeConnectorProbe
 from tests.fakes.fake_channel import FakeChannel
+from tests.fakes.fake_channel_type import FakeChannelType
 from tests.fakes.fake_transcriber import FakeTranscriber
 from tests.fakes.world import World
+from tests.web.fake_claude_sign_in_check import FakeClaudeSignInCheck
 
 EXAMPLES = Path(__file__).parents[2] / "examples" / "code-connectors"
 ALICE = "alice@example.com"
@@ -94,6 +114,7 @@ class Console:
             self.world.log, self.world.clock, self.world.ids, [self.hub]
         )
         self.restart = RestartRequest()
+        self.sign_in_check = FakeClaudeSignInCheck({"sk-ant-good"})
 
     async def __aenter__(self) -> "Console":
         w = self.world
@@ -166,6 +187,31 @@ class Console:
         )
         aw.connectors._tokens = self.tokens
         authorizer = ConnectorAuthorizer(aw.connectors, self.tokens, OAuthClient(), w.clock)
+        self.mountinfo = self.tmp_path / "mountinfo"
+        self.vault = self.tmp_path / "vault"
+        self.vault.mkdir()
+        (self.tmp_path / "data").mkdir()
+        self.mountinfo.write_text(
+            f"1 0 0:1 / / rw - overlay overlay rw\n"
+            f"2 1 0:2 / {self.vault} rw - fakeowner x rw\n"
+            f"3 1 0:3 / {self.tmp_path / 'data'} rw - fakeowner x rw\n"
+        )
+        self.collection_overrides = CollectionAccessOverrides({})
+        self.collection_overrides.apply(
+            Definition(name="memories", entity=Memory, agent_access=AgentAccess.WRITE)
+        )
+        self.fake_type = FakeChannelType()
+        self.channel_catalog = ChannelCatalog(
+            [
+                SlackChannelType(self.transcriber),
+                WebChannelType(self.channel),
+                SignalChannelType(),
+                MailChannelType(),
+                self.fake_type,
+            ],
+            {"web": ChannelConfig()},
+            ChannelValues(self.variable_resolver),
+        )
         self.repo_world = RepoWorld(self.tmp_path / "repo")
         self.repo_world.repo.init()
         server = WebServer(
@@ -211,7 +257,31 @@ class Console:
                         "UTC",
                     ),
                 ),
-                SettingsRoutes(self.config_file, w.users, w.roles, w.ids, self.restart),
+                SettingsRoutes(
+                    AiosYamlFile(self.config_file), w.users, w.roles, w.ids, self.restart
+                ),
+                SettingsSectionRoutes(AiosYamlFile(self.config_file), self.collection_overrides),
+                VoiceSettingsRoutes(self.variables, self.variable_resolver),
+                WebAuthSettingsRoutes(AiosYamlFile(self.config_file)),
+                FilesSettingsRoutes(
+                    AiosYamlFile(self.config_file),
+                    FileRootGuard([self.tmp_path / "data"]),
+                    self.mountinfo,
+                ),
+                ChannelSettingsRoutes(
+                    AiosYamlFile(self.config_file),
+                    self.channel_catalog,
+                    ChannelValues(self.variable_resolver),
+                    self.variables,
+                    ["web"],
+                ),
+                ClaudeSettingsRoutes(
+                    AiosYamlFile(self.config_file),
+                    self.variables,
+                    self.variable_resolver,
+                    "subscription",
+                    self.sign_in_check,
+                ),
                 MemoryRoutes(self.memories, w.users, w.ids, w.clock),
                 self.voice,
                 ApprovalRoutes(w.approvals, w.approval_service),

@@ -2,14 +2,18 @@ from dependency_injector import containers, providers
 
 from aios.audit.audit_feed import AuditFeed
 from aios.audit.config_history import ConfigHistory
+from aios.web.aios_yaml_file import AiosYamlFile
 from aios.web.audit_middleware import AuditMiddleware
 from aios.web.restart_request import RestartRequest
 from aios.web.routes.agent_routes import AgentRoutes
 from aios.web.routes.approval_routes import ApprovalRoutes
 from aios.web.routes.audit_routes import AuditRoutes
+from aios.web.routes.channel_settings_routes import ChannelSettingsRoutes
+from aios.web.routes.claude_settings_routes import ClaudeSettingsRoutes
 from aios.web.routes.connector_auth_routes import ConnectorAuthRoutes
 from aios.web.routes.connector_routes import ConnectorRoutes
 from aios.web.routes.conversation_routes import ConversationRoutes
+from aios.web.routes.files_settings_routes import FilesSettingsRoutes
 from aios.web.routes.git_routes import GitRoutes
 from aios.web.routes.health_routes import HealthRoutes
 from aios.web.routes.history_routes import HistoryRoutes
@@ -18,9 +22,12 @@ from aios.web.routes.memory_routes import MemoryRoutes
 from aios.web.routes.repository_routes import RepositoryRoutes
 from aios.web.routes.schedule_routes import ScheduleRoutes
 from aios.web.routes.settings_routes import SettingsRoutes
+from aios.web.routes.settings_section_routes import SettingsSectionRoutes
 from aios.web.routes.skill_routes import SkillRoutes
 from aios.web.routes.variable_routes import VariableRoutes
 from aios.web.routes.voice_routes import VoiceRoutes
+from aios.web.routes.voice_settings_routes import VoiceSettingsRoutes
+from aios.web.routes.web_auth_settings_routes import WebAuthSettingsRoutes
 from aios.web.web_auth import WebAuth
 from aios.web.web_identity_factory import WebIdentityFactory
 from aios.web.web_server import WebServer
@@ -69,6 +76,11 @@ class WebContainer(containers.DeclarativeContainer):
     config_remote = providers.Dependency()
     audit_trail = providers.Dependency()
     claude_credentials = providers.Dependency(default=None)
+    claude_sign_in_check = providers.Dependency(default=None)
+    channel_catalog = providers.Dependency()
+    channel_values = providers.Dependency()
+    file_root_guard = providers.Dependency()
+    collection_overrides = providers.Dependency(default=None)
     code_connectors = providers.Dependency(default=None)
     repository_files = providers.Dependency()
     transcriber = providers.Dependency()
@@ -76,6 +88,7 @@ class WebContainer(containers.DeclarativeContainer):
     identity = providers.Singleton(WebIdentityFactory.create, app_config.provided.web)
     auth = providers.Singleton(WebAuth, identity=identity, users=users, authorizer=authorizer)
     restart = providers.Singleton(RestartRequest)
+    aios_yaml = providers.Singleton(AiosYamlFile, config_file=config_file, store=config_store)
     audit = providers.Singleton(AuditMiddleware, trail=audit_trail)
     audit_feed = providers.Singleton(
         AuditFeed,
@@ -165,12 +178,37 @@ class WebContainer(containers.DeclarativeContainer):
         ),
         providers.Singleton(
             SettingsRoutes,
-            config_file=config_file,
+            config=aios_yaml,
             users=users,
             roles=roles,
             ids=ids,
             restart=restart,
-            store=config_store,
+        ),
+        providers.Singleton(
+            SettingsSectionRoutes, config=aios_yaml, collections=collection_overrides
+        ),
+        providers.Singleton(
+            VoiceSettingsRoutes, variables=variable_catalog, resolver=variable_resolver
+        ),
+        providers.Singleton(WebAuthSettingsRoutes, config=aios_yaml),
+        providers.Singleton(FilesSettingsRoutes, config=aios_yaml, guard=file_root_guard),
+        providers.Singleton(
+            ChannelSettingsRoutes,
+            config=aios_yaml,
+            catalog=channel_catalog,
+            values=channel_values,
+            variables=variable_catalog,
+            running=providers.Callable(
+                lambda chat, send: [*chat.names(), *send.names()], channels, senders
+            ),
+        ),
+        providers.Singleton(
+            ClaudeSettingsRoutes,
+            config=aios_yaml,
+            variables=variable_catalog,
+            resolver=variable_resolver,
+            running_auth=app_config.provided.agent.auth,
+            sign_in_check=claude_sign_in_check,
         ),
     )
     server = providers.Singleton(

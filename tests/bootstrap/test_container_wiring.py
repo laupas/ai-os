@@ -12,6 +12,14 @@ def test_every_provider_resolves(tmp_path, monkeypatch) -> None:
 
     assert isinstance(container.application(), Application)
     assert isinstance(container.tools.server(), AiosToolServer)
-    assert container.messaging.directory().names() == ["signal", "mail"]
+    assert container.channels.senders().names() == ["signal", "mail"]
     assert [c.name for c in container.channels.directory().enabled()] == ["web"]
     assert container.engine.options_factory() is not None
+
+
+def test_the_console_gets_the_collections_whose_access_can_change(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("AIOS_DATA_DIR", str(tmp_path))
+    container = ApplicationContainer()
+    container.storage.registry()  # builds every collection, as the start does
+    defaults = container.storage.collection_overrides().defaults()
+    assert "memories" in defaults and "agents" not in defaults

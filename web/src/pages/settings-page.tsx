@@ -12,9 +12,14 @@ import { restartAiOs } from "@/lib/restart";
 import { go } from "@/lib/router";
 import { GitPanel } from "./git-page";
 import { RepositoryPanel } from "./repository-panel";
+import { ChannelsPanel } from "./settings-channels";
+import { ClaudePanel } from "./settings-claude";
+import { LoginPanel } from "./settings-login";
+import { FilesPanel } from "./settings-files";
+import { AgentsSettingsPanel, ApprovalsSettingsPanel, DataAccessPanel, GeneralPanel } from "./settings-sections";
 import { RolesPanel, UsersPanel } from "./settings-people";
 
-const TABS = ["config", "users", "roles", "repository", "git"];
+const TABS = ["claude", "channels", "general", "agents", "approvals", "login", "files", "access", "users", "roles", "repository", "git", "config"];
 import { api, type Settings } from "@/lib/api";
 import { useConfirm } from "@/lib/confirm";
 
@@ -44,14 +49,37 @@ export function SettingsPage({ tab }: { tab?: string }) {
           </Button>
         }
       />
-      <Tabs value={TABS.includes(tab ?? "") ? tab : "config"} onValueChange={(v) => go("settings", v)} className="space-y-4">
-        <TabsList className="w-full sm:w-fit">
-          <TabsTrigger value="config">aios.yaml</TabsTrigger>
+      <Tabs value={TABS.includes(tab ?? "") ? tab : "claude"} onValueChange={(v) => go("settings", v)} className="space-y-4">
+        <TabsList className="w-full justify-start overflow-x-auto sm:w-fit">
+          <TabsTrigger value="claude">Claude</TabsTrigger>
+          <TabsTrigger value="channels">Channels</TabsTrigger>
+          <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="agents">Agents</TabsTrigger>
+          <TabsTrigger value="approvals">Approvals</TabsTrigger>
+          <TabsTrigger value="login">Login</TabsTrigger>
+          <TabsTrigger value="files">Files</TabsTrigger>
+          <TabsTrigger value="access">Data access</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="roles">Roles</TabsTrigger>
           <TabsTrigger value="repository">Repository</TabsTrigger>
           <TabsTrigger value="git">Branches</TabsTrigger>
+          <TabsTrigger value="config">aios.yaml</TabsTrigger>
         </TabsList>
+        <TabsContent value="claude">
+          <ClaudePanel />
+        </TabsContent>
+        <TabsContent value="channels">
+          <ChannelsPanel />
+        </TabsContent>
+        <TabsContent value="general">
+          <GeneralPanel />
+        </TabsContent>
+        <TabsContent value="agents">
+          <AgentsSettingsPanel />
+        </TabsContent>
+        <TabsContent value="approvals">
+          <ApprovalsSettingsPanel />
+        </TabsContent>
         <TabsContent value="repository">
           <RepositoryPanel />
         </TabsContent>
@@ -60,6 +88,15 @@ export function SettingsPage({ tab }: { tab?: string }) {
         </TabsContent>
         <TabsContent value="config">
           <ConfigEditor key={data.config} text={data.config} schema={data.config_schema} inRepository={Boolean(data.in_repository)} />
+        </TabsContent>
+        <TabsContent value="login">
+          <LoginPanel />
+        </TabsContent>
+        <TabsContent value="files">
+          <FilesPanel />
+        </TabsContent>
+        <TabsContent value="access">
+          <DataAccessPanel />
         </TabsContent>
         <TabsContent value="users">
           <UsersPanel data={data} />

@@ -1,7 +1,6 @@
 import asyncio
 import json
 import re
-from pathlib import Path
 
 import yaml
 from aiohttp import web
@@ -10,12 +9,11 @@ from pydantic import ValidationError
 from aios.common.id_generator import IdGenerator
 from aios.config.app_config import AppConfig
 from aios.config.config_yaml_editor import ConfigYamlEditor
-from aios.config.settings import CONFIG_FILE_NAME
-from aios.config_repo.git_document_store import GitDocumentStore
 from aios.entities.users.permission import Permission
 from aios.entities.users.role import Role
 from aios.entities.users.user import User
 from aios.storage.collection import Collection
+from aios.web.aios_yaml_file import AiosYamlFile
 from aios.web.config_insert_request import ConfigInsertRequest
 from aios.web.request_body import RequestBody
 from aios.web.restart_request import RestartRequest
@@ -41,17 +39,15 @@ class SettingsRoutes(WebRoutes):
 
     def __init__(
         self,
-        config_file: Path,
+        config: AiosYamlFile,
         users: Collection[User],
         roles: Collection[Role],
         ids: IdGenerator,
         restart: RestartRequest,
-        store: GitDocumentStore | None = None,
     ) -> None:
-        self._config_file = Path(config_file)
-        self._store = store
+        self._config = config
         # What this process was started with: the reference for "restart needed".
-        self._started_with = self._current_text()
+        self._started_with = config.read()
         self._users = users
         self._roles = roles
         self._ids = ids
@@ -73,13 +69,13 @@ class SettingsRoutes(WebRoutes):
 
     async def _read(self, request: web.Request) -> web.Response:
         WebAuth.caller(request, Permission.ADMINISTER)
-        text = self._current_text()
+        text = self._config.read()
         return web.json_response(
             {
                 "config": text,
                 "config_schema": AppConfig.model_json_schema(),
                 "restart_needed": text != self._started_with,
-                "in_repository": self._in_repository(),
+                "in_repository": self._config.in_repository(),
                 "users": [u.model_dump(mode="json") for u in self._users.all()],
                 "roles": [r.model_dump(mode="json") for r in self._roles.all()],
                 "permissions": [p.value for p in Permission],
@@ -109,23 +105,12 @@ class SettingsRoutes(WebRoutes):
             raise web.HTTPBadRequest(text=f"aios.yaml does not parse: {exc}") from exc
 
     async def _write_config(self, text: str) -> web.Response:
-        if self._in_repository():
-            await self._store.write_file(CONFIG_FILE_NAME, text, f"{CONFIG_FILE_NAME}: update")  # type: ignore[union-attr]
-        else:
-            await asyncio.to_thread(self._config_file.write_text, text, "utf-8")
+        await self._config.write(text)
         return web.json_response({"ok": True, "restart_needed": text != self._started_with})
 
     async def _restart_needed(self, request: web.Request) -> web.Response:
         WebAuth.caller(request, Permission.ADMINISTER)
-        return web.json_response({"restart_needed": self._current_text() != self._started_with})
-
-    def _in_repository(self) -> bool:
-        return self._store is not None and self._store.repo.exists()
-
-    def _current_text(self) -> str:
-        if self._in_repository():
-            return self._store.read_file(CONFIG_FILE_NAME) or ""  # type: ignore[union-attr]
-        return self._config_file.read_text("utf-8") if self._config_file.exists() else ""
+        return web.json_response({"restart_needed": self._config.read() != self._started_with})
 
     async def _create_user(self, request: web.Request) -> web.Response:
         WebAuth.caller(request, Permission.ADMINISTER)

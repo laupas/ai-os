@@ -25,6 +25,7 @@ class ConnectorsContainer(containers.DeclarativeContainer):
     overrides = providers.Dependency(default={})
     state_root = providers.Dependency()
     timezone = providers.Dependency(default="UTC")
+    tools_file = providers.Dependency(default=None)
 
     code = providers.Singleton(
         CodeConnectors,
@@ -46,7 +47,7 @@ class ConnectorsContainer(containers.DeclarativeContainer):
     )
     approval_rule = providers.Singleton(CodeConnectorApprovalRule, catalog=catalog, code=code)
 
-    board = providers.Singleton(ConnectorStatusBoard, clock=clock)
+    board = providers.Singleton(ConnectorStatusBoard, clock=clock, tools_file=tools_file)
     authorizer = providers.Singleton(
         ConnectorAuthorizer,
         connectors=catalog,

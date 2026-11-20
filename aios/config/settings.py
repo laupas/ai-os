@@ -17,17 +17,11 @@ class Settings(BaseSettings):
     repo_dir: Path = Field(_REPO_DIR, alias="AIOS_REPO_DIR")
     log_level: str = Field("INFO", alias="AIOS_LOG_LEVEL")
 
-    slack_bot_token: str | None = Field(None, alias="SLACK_BOT_TOKEN")
-    slack_app_token: str | None = Field(None, alias="SLACK_APP_TOKEN")
+    # The channels' tokens and addresses (SLACK_BOT_TOKEN, SIGNAL_SENDER, …) are
+    # not read here: each channel type reads its own, as Variables or from here.
 
-    signal_api_url: str = Field("http://signal-api:8080", alias="SIGNAL_API_URL")
-    signal_sender: str | None = Field(None, alias="SIGNAL_SENDER")
-
-    resend_api_key: str | None = Field(None, alias="RESEND_API_KEY")
-    mail_from: str | None = Field(None, alias="AIOS_MAIL_FROM")
-
-    openai_api_key: str | None = Field(None, alias="OPENAI_API_KEY")
-    transcribe_language: str | None = Field(None, alias="AIOS_TRANSCRIBE_LANGUAGE")
+    # Voice notes (OPENAI_API_KEY, AIOS_TRANSCRIBE_LANGUAGE) are read by the
+    # transcriber itself, as Variables or from here.
 
     config_remote: str | None = Field(None, alias="AIOS_CONFIG_REMOTE")
     """The configuration repository to clone when the data dir has none: how a new

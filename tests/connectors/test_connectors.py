@@ -46,3 +46,28 @@ async def test_subagents_see_only_their_granted_tools(tmp_path) -> None:
     assert builder.build()["calendar"].tools is None
     board.record({"tools": ["mcp__gcal__a", "mcp__gcal__b"], "mcp_servers": [{"name": "gcal"}]})
     assert builder.build()["calendar"].tools == ["mcp__gcal__a", "mcp__gcal__b"]
+
+
+def test_tool_names_outlive_a_restart_but_the_status_does_not(tmp_path) -> None:
+    file = tmp_path / "connector-tools.json"
+    board = ConnectorStatusBoard(FakeClock(), file)
+    board.record(
+        {
+            "tools": ["mcp__gmail__send_email", "mcp__gmail__search"],
+            "mcp_servers": [{"name": "gmail", "status": "connected"}],
+        }
+    )
+    board.set("homey", "connected", ["get_devices"])
+    later = ConnectorStatusBoard(FakeClock(), file)
+    assert later.tools_of("gmail") == ["search", "send_email"]
+    assert later.tools_of("homey") == ["get_devices"]
+    assert later.get("gmail") is None
+
+
+def test_an_unreadable_tools_file_is_learnt_again(tmp_path) -> None:
+    file = tmp_path / "connector-tools.json"
+    file.write_text("{not json")
+    board = ConnectorStatusBoard(FakeClock(), file)
+    assert board.tools_of("gmail") is None
+    board.set("gmail", "connected", ["search"])
+    assert ConnectorStatusBoard(FakeClock(), file).tools_of("gmail") == ["search"]

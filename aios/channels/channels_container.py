@@ -1,43 +1,49 @@
 from dependency_injector import containers, providers
 
+from aios.channels.channel_capability import ChannelCapability
+from aios.channels.channel_catalog import ChannelCatalog
 from aios.channels.channel_directory import ChannelDirectory
-from aios.channels.slack.markdown_to_mrkdwn import MarkdownToMrkdwn
-from aios.channels.slack.message_chunker import MessageChunker
-from aios.channels.slack.slack_blocks import SlackBlocks
-from aios.channels.slack.slack_channel import SlackChannel
-from aios.channels.slack.slack_voice_notes import SlackVoiceNotes
+from aios.channels.channel_values import ChannelValues
+from aios.channels.slack.slack_channel_type import SlackChannelType
 from aios.channels.web.web_channel import WebChannel
+from aios.channels.web.web_channel_type import WebChannelType
 from aios.channels.web.web_event_hub import WebEventHub
+from aios.messaging.mail.mail_channel_type import MailChannelType
+from aios.messaging.sender_directory import SenderDirectory
+from aios.messaging.signal.signal_channel_type import SignalChannelType
 
 
 class ChannelsContainer(containers.DeclarativeContainer):
-    """A new channel is one provider here plus one entry in `directory`.
-    Channels are only created when enabled, so a disabled one needs no tokens."""
+    """Every channel ai-os can use, chatting or sending. A new channel is one
+    `ChannelType` plus one entry in `types`. Channels are only created when on, so
+    one that is off needs no tokens."""
 
-    settings = providers.Dependency()
-    enabled = providers.Dependency()
+    config = providers.Dependency()
+    resolver = providers.Dependency()
     transcriber = providers.Dependency()
     ids = providers.Dependency()
-
-    slack = providers.Singleton(
-        SlackChannel,
-        bot_token=settings.provided.slack_bot_token,
-        app_token=settings.provided.slack_app_token,
-        blocks=providers.Singleton(SlackBlocks),
-        converter=providers.Singleton(MarkdownToMrkdwn),
-        chunker=providers.Singleton(MessageChunker, size=3500),
-        voice_notes=providers.Singleton(
-            SlackVoiceNotes, bot_token=settings.provided.slack_bot_token, transcriber=transcriber
-        ),
-    )
 
     # Both are used by the web server: the hub observes every conversation, and the
     # server needs this very channel instance.
     web_hub = providers.Singleton(WebEventHub)
     web = providers.Singleton(WebChannel, ids=ids)
 
+    types = providers.List(
+        providers.Singleton(SlackChannelType, transcriber=transcriber),
+        providers.Singleton(WebChannelType, channel=web),
+        providers.Singleton(SignalChannelType),
+        providers.Singleton(MailChannelType),
+    )
+    values = providers.Singleton(ChannelValues, resolver=resolver)
+    catalog = providers.Singleton(ChannelCatalog, types=types, config=config, values=values)
+
     directory = providers.Singleton(
         ChannelDirectory,
-        factories=providers.Dict(slack=slack.provider, web=web.provider),
-        enabled=enabled,
+        factories=catalog.provided.channel_factories.call(),
+        enabled=catalog.provided.enabled.call(ChannelCapability.CHAT),
+    )
+    senders = providers.Singleton(
+        SenderDirectory,
+        factories=catalog.provided.sender_factories.call(),
+        enabled=catalog.provided.enabled.call(ChannelCapability.SEND),
     )

@@ -24,11 +24,22 @@ class ClaudeCredentials:
     def variable(self) -> str:
         return VARIABLES[self._auth]
 
+    @staticmethod
+    def variable_for(auth: Literal["subscription", "api_key"]) -> str:
+        return VARIABLES[auth]
+
     def env(self) -> dict[str, str]:
+        return self.env_for(self._auth)
+
+    def env_for(
+        self, auth: Literal["subscription", "api_key"], value: str | None = None
+    ) -> dict[str, str]:
+        """The environment for `auth` rather than the configured one, with `value`
+        in place of the stored credential when given: to try one before using it."""
         env = {name: "" for name in VARIABLES.values()}
-        value = self._resolver.value_of(self.variable)
+        value = value or self._resolver.value_of(VARIABLES[auth])
         if value:
-            env[self.variable] = value
+            env[VARIABLES[auth]] = value
         return env
 
     def status(self) -> dict[str, str | None]:

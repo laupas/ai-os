@@ -95,10 +95,12 @@ class StorageContainer(containers.DeclarativeContainer):
         state=document_store,
         runtime_fields={"schedules": ["last_fired_at"]},
     )
-    overrides = providers.Singleton(CollectionAccessOverrides, overrides=access_overrides)
+    collection_overrides = providers.Singleton(
+        CollectionAccessOverrides, overrides=access_overrides
+    )
 
     users_definition = providers.Singleton(
-        overrides.provided.apply.call(
+        collection_overrides.provided.apply.call(
             CollectionDefinition(
                 name="users",
                 entity=User,
@@ -108,7 +110,7 @@ class StorageContainer(containers.DeclarativeContainer):
         )
     )
     roles_definition = providers.Singleton(
-        overrides.provided.apply.call(
+        collection_overrides.provided.apply.call(
             CollectionDefinition(
                 name="roles",
                 entity=Role,
@@ -118,7 +120,7 @@ class StorageContainer(containers.DeclarativeContainer):
         )
     )
     conversations_definition = providers.Singleton(
-        overrides.provided.apply.call(
+        collection_overrides.provided.apply.call(
             CollectionDefinition(
                 name="conversations",
                 entity=Conversation,
@@ -128,13 +130,13 @@ class StorageContainer(containers.DeclarativeContainer):
         )
     )
     approvals_definition = providers.Singleton(
-        overrides.provided.apply.call(
+        collection_overrides.provided.apply.call(
             CollectionDefinition(name="approvals", entity=Approval, agent_access=AgentAccess.READ)
         )
     )
 
     memories_definition = providers.Singleton(
-        overrides.provided.apply.call(
+        collection_overrides.provided.apply.call(
             CollectionDefinition(
                 name="memories",
                 entity=Memory,
@@ -146,12 +148,12 @@ class StorageContainer(containers.DeclarativeContainer):
         )
     )
     schedules_definition = providers.Singleton(
-        overrides.provided.apply.call(
+        collection_overrides.provided.apply.call(
             CollectionDefinition(name="schedules", entity=Schedule, agent_access=AgentAccess.WRITE)
         )
     )
 
-    # Not through `overrides`: an agent that could write these could grant itself
+    # Not through `collection_overrides`: an agent that could write these could grant itself
     # anything, so `collection_access` in config.yaml cannot open them.
     agents_definition = providers.Singleton(
         CollectionDefinition, name="agents", entity=Agent, agent_access=AgentAccess.NONE

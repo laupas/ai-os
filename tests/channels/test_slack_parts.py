@@ -110,7 +110,7 @@ def test_voice_notes_recognises_audio() -> None:
     from aios.channels.slack.slack_voice_notes import SlackVoiceNotes
     from aios.transcription.whisper_transcriber import WhisperTranscriber
 
-    notes = SlackVoiceNotes("xoxb", WhisperTranscriber(None, None))
+    notes = SlackVoiceNotes("xoxb", WhisperTranscriber(None))
     message = _reader().read(
         _event(channel_type="im", text="", files=[{"name": "a.ogg", "mimetype": ""}])
     )

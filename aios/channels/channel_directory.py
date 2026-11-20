@@ -23,6 +23,9 @@ class ChannelDirectory(ApprovalPresenterResolver, ProgressReporterResolver):
         self._enabled = list(enabled)
         self._channels: dict[str, MessageChannel] = {}
 
+    def names(self) -> list[str]:
+        return list(self._enabled)
+
     def enabled(self) -> list[MessageChannel]:
         return [self.get(name) for name in self._enabled]
 

@@ -3,6 +3,7 @@ from dependency_injector import containers, providers
 from aios.approvals.always_ask_rule import AlwaysAskRule
 from aios.approvals.deny_list_rule import DenyListRule
 from aios.approvals.file_access_rule import FileAccessRule
+from aios.approvals.file_root_guard import FileRootGuard
 from aios.approvals.known_tools_rule import KnownToolsRule
 from aios.approvals.rule_based_approval_policy import RuleBasedApprovalPolicy
 
@@ -16,12 +17,16 @@ class ApprovalPolicyContainer(containers.DeclarativeContainer):
     builtin_tools = providers.Dependency()
     tool_prefixes = providers.Dependency()
     extra_rules = providers.Dependency(default=[])
+    protected_dirs = providers.Dependency(default=[])
 
     known_tools_rule = providers.Singleton(
         KnownToolsRule, builtin_tools=builtin_tools, tool_prefixes=tool_prefixes
     )
     deny_list_rule = providers.Singleton(DenyListRule, tool_names=approval_config.provided.deny)
-    file_access_rule = providers.Singleton(FileAccessRule, config=files_config)
+    file_root_guard = providers.Singleton(FileRootGuard, protected=protected_dirs)
+    file_access_rule = providers.Singleton(
+        FileAccessRule, config=files_config, guard=file_root_guard
+    )
     always_ask_rule = providers.Singleton(AlwaysAskRule, tool_names=approval_config.provided.always)
     policy = providers.Singleton(
         RuleBasedApprovalPolicy,

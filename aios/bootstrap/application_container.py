@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from dependency_injector import containers, providers
 
 from aios.agents.agents_container import AgentsContainer
@@ -14,7 +16,6 @@ from aios.conversations.conversations_container import ConversationsContainer
 from aios.conversations.gateway_container import GatewayContainer
 from aios.engine.engine_container import EngineContainer
 from aios.logs.log_reader import LogReader
-from aios.messaging.messaging_container import MessagingContainer
 from aios.scheduler.scheduler_container import SchedulerContainer
 from aios.storage.storage_container import StorageContainer
 from aios.tools.tools_container import ToolsContainer
@@ -45,11 +46,17 @@ class ApplicationContainer(containers.DeclarativeContainer):
         owner=app_config.provided.owner,
         ids=common.ids,
     )
-    transcription = providers.Container(TranscriptionContainer, settings=config.settings)
+    variables = providers.Container(
+        VariablesContainer,
+        variables=storage.variables,
+        settings=config.settings,
+        clock=common.clock,
+    )
+    transcription = providers.Container(TranscriptionContainer, resolver=variables.resolver)
     channels = providers.Container(
         ChannelsContainer,
-        settings=config.settings,
-        enabled=app_config.provided.channels,
+        config=app_config.provided.channels,
+        resolver=variables.resolver,
         transcriber=transcription.transcriber,
         ids=common.ids,
     )
@@ -65,11 +72,6 @@ class ApplicationContainer(containers.DeclarativeContainer):
         conversations=storage.conversations,
         observers=providers.List(channels.web_hub),
     )
-    messaging = providers.Container(
-        MessagingContainer,
-        settings=config.settings,
-        enabled=app_config.provided.senders,
-    )
     conversations = providers.Container(
         ConversationsContainer,
         conversations=storage.conversations,
@@ -79,17 +81,11 @@ class ApplicationContainer(containers.DeclarativeContainer):
         observers=providers.List(channels.web_hub),
     )
     log_reader = providers.Singleton(LogReader, log_file=config.settings.provided.log_file.call())
-    variables = providers.Container(
-        VariablesContainer,
-        variables=storage.variables,
-        settings=config.settings,
-        clock=common.clock,
-    )
     tools = providers.Container(
         ToolsContainer,
         users=storage.users,
         authorizer=users.authorizer,
-        senders=messaging.directory,
+        senders=channels.senders,
         recorder=conversations.recorder,
         approvals=approvals.service,
         registry=storage.registry,
@@ -117,6 +113,9 @@ class ApplicationContainer(containers.DeclarativeContainer):
         overrides=app_config.provided.connectors,
         state_root=providers.Callable(lambda s: s.data_dir / "connector-state", config.settings),
         timezone=app_config.provided.timezone,
+        tools_file=providers.Callable(
+            lambda s: s.data_dir / "connector-tools.json", config.settings
+        ),
     )
     agents = providers.Container(
         AgentsContainer,
@@ -128,6 +127,12 @@ class ApplicationContainer(containers.DeclarativeContainer):
         ApprovalPolicyContainer,
         approval_config=app_config.provided.approval,
         files_config=app_config.provided.files,
+        # ai-os's own data and code, the decrypted variables, and the Claude CLI's
+        # sign-ins: never reachable by the file tools, whatever aios.yaml says.
+        protected_dirs=providers.Callable(
+            lambda s: [s.data_dir, s.repo_dir, s.variable_files_dir(), Path.home() / ".claude"],
+            config.settings,
+        ),
         builtin_tools=app_config.provided.agent.builtin_tools,
         tool_prefixes=connectors.catalog.provided.tool_prefixes,
         extra_rules=providers.Callable(
@@ -205,7 +210,11 @@ class ApplicationContainer(containers.DeclarativeContainer):
         web_channel=channels.web,
         web_hub=channels.web_hub,
         deleter=conversations.deleter,
-        senders=messaging.directory,
+        senders=channels.senders,
+        channel_catalog=channels.catalog,
+        channel_values=channels.values,
+        file_root_guard=approval_policy.file_root_guard,
+        collection_overrides=storage.collection_overrides,
         resolver=conversations.resolver,
         recorder=conversations.recorder,
         approval_service=approvals.service,
@@ -233,6 +242,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         config_remote=config_repo.remote,
         audit_trail=storage.audit_trail,
         claude_credentials=engine.credentials,
+        claude_sign_in_check=engine.sign_in_check,
         code_connectors=connectors.code,
         repository_files=config_repo.files,
         transcriber=transcription.transcriber,

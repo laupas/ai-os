@@ -2,6 +2,7 @@ from dependency_injector import containers, providers
 
 from aios.engine.agent_definitions_builder import AgentDefinitionsBuilder
 from aios.engine.claude_agent_engine import ClaudeAgentEngine
+from aios.engine.claude_cli_sign_in_check import ClaudeCliSignInCheck
 from aios.engine.claude_connector_probe import ClaudeConnectorProbe
 from aios.engine.claude_credentials import ClaudeCredentials
 from aios.engine.claude_options_factory import ClaudeOptionsFactory
@@ -62,6 +63,9 @@ class EngineContainer(containers.DeclarativeContainer):
         board=board,
         repo_dir=repo_dir,
         credentials=credentials,
+    )
+    sign_in_check = providers.Singleton(
+        ClaudeCliSignInCheck, credentials=credentials, repo_dir=repo_dir
     )
     engine = providers.Singleton(
         ClaudeAgentEngine,

@@ -1,9 +1,13 @@
+import logging
 import os
 
 from aios.approvals.approval_rule import ApprovalRule
+from aios.approvals.file_root_guard import FileRootGuard
 from aios.approvals.policy_decision import PolicyDecision
 from aios.approvals.tool_call import ToolCall
 from aios.config.files_config import FilesConfig
+
+log = logging.getLogger(__name__)
 
 _READ_TOOLS = {"Read": "file_path", "Grep": "path", "Glob": "path"}
 _WRITE_TOOLS = {"Edit": "file_path", "Write": "file_path", "MultiEdit": "file_path"}
@@ -14,12 +18,20 @@ class FileAccessRule(ApprovalRule):
 
     Paths are resolved (symlinks, `..`) before they are compared, and a search
     without an explicit path is refused, since it would start in the app's own
-    directory. Everything else, such as /proc or the data dir, is out of reach.
+    directory. Everything else, such as /proc or the data dir, is out of reach, and
+    a configured folder that would reach them (`/`, `/data`, …) is left out.
     """
 
-    def __init__(self, config: FilesConfig) -> None:
-        self._read_roots = [self._real(r) for r in config.read_roots + config.write_roots]
-        self._write_roots = [self._real(r) for r in config.write_roots]
+    def __init__(self, config: FilesConfig, guard: FileRootGuard | None = None) -> None:
+        guard = guard or FileRootGuard()
+        for root in config.read_roots + config.write_roots:
+            problem = guard.problem(root)
+            if problem:
+                log.warning("files: left out %s", problem)
+        self._read_roots = [
+            self._real(r) for r in guard.allowed(config.read_roots + config.write_roots)
+        ]
+        self._write_roots = [self._real(r) for r in guard.allowed(config.write_roots)]
 
     def evaluate(self, call: ToolCall) -> PolicyDecision | None:
         if call.tool_name in _WRITE_TOOLS:

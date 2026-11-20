@@ -164,6 +164,58 @@ export interface RoleDoc {
   permissions: Permission[];
 }
 
+export type ClaudeAuth = "subscription" | "api_key";
+
+/** How ai-os signs in to Claude. `auth` is what aios.yaml says, `running_auth` what
+ * this process started with; the credentials say where each comes from, never the value. */
+export interface ClaudeSettings {
+  auth: ClaudeAuth;
+  running_auth: ClaudeAuth;
+  credentials: Record<ClaudeAuth, { variable: string; source: "variable" | "environment" | null }>;
+}
+
+/** What a one-line call to Claude with one credential showed. */
+export interface SignInCheck {
+  ok: boolean;
+  error: string | null;
+  model: string | null;
+  seconds: number;
+}
+
+/** The aios.yaml sections the console's forms edit: each one's schema and what is set. */
+export interface SettingsSections {
+  sections: Record<string, { schema: Record<string, any>; value: unknown }>;
+  /** The collections whose agent access can be changed, with their default. */
+  collections?: Record<string, string>;
+}
+
+/** A channel as Settings shows it: what it can do, whether it is on (in aios.yaml)
+ * and running (since the start), and its values; a secret one's never. */
+export interface ChannelSetting {
+  name: string;
+  title: string;
+  description: string;
+  capabilities: ("chat" | "send")[];
+  enabled: boolean;
+  running: boolean;
+  checkable: boolean;
+  fields: VariableFieldRow[];
+}
+
+/** A value something needs (a channel's token, a code connector's key): a Variable,
+ * else the environment, else its default. A secret one's value is never sent. */
+export interface VariableFieldRow {
+  variable: string;
+  label: string;
+  hint: string;
+  secret: boolean;
+  required: boolean;
+  default?: string | null;
+  placeholder: string;
+  source: "variable" | "environment" | "default" | null;
+  value: string | null;
+}
+
 export interface Settings {
   config: string;
   /** aios.yaml's model as JSON schema, for the reference beside the editor. */

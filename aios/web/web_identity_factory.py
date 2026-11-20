@@ -20,10 +20,12 @@ class WebIdentityFactory:
             if config.access_team_domain and config.access_aud:
                 return JwtHeaderIdentity.cloudflare(config.access_team_domain, config.access_aud)
             return FixedIdentity(config.dev_email)
-        return WebIdentityFactory._from(auth)
+        return WebIdentityFactory.from_auth(auth)
 
     @staticmethod
-    def _from(auth: WebAuthConfig) -> WebIdentity:
+    def from_auth(auth: WebAuthConfig) -> WebIdentity:
+        """Also how the console tries a new `web.auth` on its own request before
+        saving it."""
         if auth.mode == "cloudflare":
             return JwtHeaderIdentity.cloudflare(auth.team_domain or "", auth.audience or "")
         if auth.mode == "jwt":

@@ -65,7 +65,7 @@ class HealthRoutes(WebRoutes):
                 "name": caller.user.name,
                 "email": caller.account.address,
                 "permissions": sorted(caller.permissions),
-                "chat": "web" in self._config.channels,
+                "chat": "web" in self._channels.names(),
             }
         )
 
@@ -79,7 +79,7 @@ class HealthRoutes(WebRoutes):
                 "version": version("aios"),
                 "started_at": self._started_at.isoformat(),
                 "uptime_seconds": int((now - self._started_at).total_seconds()),
-                "channels": self._config.channels,
+                "channels": self._channels.names(),
                 "senders": self._senders.names(),
                 "mcp_servers": sorted(self._connectors.enabled_names()),
                 "scheduler": self._config.scheduler.enabled,
