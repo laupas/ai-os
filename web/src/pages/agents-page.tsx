@@ -119,7 +119,7 @@ function AgentForm({ data, name }: { data: AgentsData; name: string }) {
     ...data.connectors.map((c) => ({ ...c, missing: false })),
     ...Object.keys(a?.connectors ?? {})
       .filter((c) => !known.has(c))
-      .map((c) => ({ name: c, enabled: false, tools: null as string[] | null, missing: true, settings: undefined, fixed: undefined })),
+      .map((c) => ({ name: c, enabled: false, tools: null as string[] | null, missing: true, settings: undefined, locked: undefined })),
   ];
   const [form, setForm] = useState(() => ({
     name: "",
@@ -311,7 +311,7 @@ function AgentForm({ data, name }: { data: AgentsData; name: string }) {
                           />
                         )
                       ) : null}
-                      {c.settings ? <ConnectorSettings name={c.name} settings={c.settings} fixed={c.fixed ?? []} /> : null}
+                      {c.settings ? <ConnectorSettings name={c.name} settings={c.settings} locked={c.locked ?? []} /> : null}
                     </div>
                   ) : null}
                 </div>
@@ -345,8 +345,8 @@ function AgentForm({ data, name }: { data: AgentsData; name: string }) {
 }
 
 /** A code connector's settings where an agent uses it: read here, changed on the
- * connector, and those aios.yaml fixes not even there. */
-function ConnectorSettings({ name, settings, fixed }: { name: string; settings: Record<string, unknown>; fixed: string[] }) {
+ * connector, the locked ones never by an agent. */
+function ConnectorSettings({ name, settings, locked }: { name: string; settings: Record<string, unknown>; locked: string[] }) {
   return (
     <div className="rounded-md border bg-muted/30 p-2 text-xs">
       <div className="mb-1 text-muted-foreground">
@@ -361,7 +361,7 @@ function ConnectorSettings({ name, settings, fixed }: { name: string; settings: 
             <dt className="text-muted-foreground">{k.replace(/_/g, " ")}</dt>
             <dd className="font-mono">
               {typeof v === "object" ? JSON.stringify(v) : String(v)}
-              {fixed.includes(k) ? <span className="ml-2 font-sans text-muted-foreground">(aios.yaml)</span> : null}
+              {locked.includes(k) ? <span className="ml-2 font-sans text-muted-foreground">(locked)</span> : null}
             </dd>
           </Fragment>
         ))}

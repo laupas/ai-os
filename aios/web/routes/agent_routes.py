@@ -35,12 +35,12 @@ class AgentRoutes(WebRoutes):
         self._builtin_tools = builtin_tools
 
     def _settings_of(self, connector: Connector) -> dict:
-        """A code connector's settings as they apply, and which of them aios.yaml
-        fixes: shown on the agent, changed on the connector."""
+        """A code connector's settings as they apply, and which of them are locked
+        against agents: shown on the agent, changed on the connector."""
         code = self._connectors.code
         if code is None or not code.is_code(connector):
             return {}
-        return {"settings": code.settings(connector), "fixed": sorted(code.fixed(connector))}
+        return {"settings": code.settings(connector), "locked": sorted(code.locked(connector))}
 
     def register(self, app: web.Application) -> None:
         app.router.add_get("/api/agents", self._list)

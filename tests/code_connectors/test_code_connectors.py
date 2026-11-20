@@ -9,7 +9,6 @@ from mcp.client.stdio import StdioServerParameters, stdio_client
 from aios.approvals.policy_verdict import PolicyVerdict
 from aios.approvals.tool_call import ToolCall
 from aios.config.app_config import AppConfig
-from aios.config.connector_override import ConnectorOverride
 from aios.connectors.code_connector_approval_rule import CodeConnectorApprovalRule
 from aios.connectors.code_connector_launcher import CodeConnectorLauncher
 from aios.connectors.code_connector_library import CodeConnectorLibrary
@@ -27,10 +26,9 @@ from aios.variables.variable_resolver import VariableResolver
 EXAMPLES = Path(__file__).parents[2] / "examples" / "code-connectors"
 
 
-def _code(tmp_path: Path, fixed: dict | None = None) -> CodeConnectors:
-    overrides = {"hello-world": ConnectorOverride(settings=fixed)} if fixed else {}
+def _code(tmp_path: Path) -> CodeConnectors:
     return CodeConnectors(
-        CodeConnectorLibrary([EXAMPLES, tmp_path / "code"]), overrides, tmp_path / "state", "UTC"
+        CodeConnectorLibrary([EXAMPLES, tmp_path / "code"]), tmp_path / "state", "UTC"
     )
 
 
@@ -62,14 +60,15 @@ def test_the_library_finds_connectors_and_skips_broken_ones(tmp_path) -> None:
     assert names == ["hello-world", "mine"]
 
 
-def test_settings_are_defaults_then_the_connector_then_aios_yaml(tmp_path) -> None:
-    code = _code(tmp_path, fixed={"max_shout_length": 3})
+def test_settings_are_defaults_then_the_connector_and_the_manifest_locks_some(
+    tmp_path,
+) -> None:
+    code = _code(tmp_path)
     connector = Connector(
-        id="hello-world",
-        config={"code": "hello-world", "settings": {"max_shout_length": 50, "greeting": "Hi"}},
+        id="hello-world", config={"code": "hello-world", "settings": {"greeting": "Hi"}}
     )
-    assert code.settings(connector) == {"greeting": "Hi", "max_shout_length": 3}
-    assert code.fixed(connector) == {"max_shout_length": 3}
+    assert code.settings(connector) == {"greeting": "Hi", "max_shout_length": 20}
+    assert code.locked(connector) == {"max_shout_length"}
 
 
 def test_a_declared_variable_reaches_the_server_with_its_default(tmp_path) -> None:
@@ -88,7 +87,7 @@ def test_a_declared_variable_reaches_the_server_with_its_default(tmp_path) -> No
         tmp_path / "files",
     )
     code = CodeConnectors(
-        CodeConnectorLibrary([tmp_path / "code"]), {}, tmp_path / "s", "UTC", resolver
+        CodeConnectorLibrary([tmp_path / "code"]), tmp_path / "s", "UTC", resolver
     )
     env = code.launch_config(Connector(id="mine", config={"code": "mine"}))["env"]  # type: ignore[index]
     assert env["MINE_KEY"] == "${MINE_KEY}" and env["MINE_REGION"] == "eu"
@@ -158,9 +157,10 @@ async def test_a_call_is_asked_in_the_connectors_words_or_refused_by_it(tmp_path
     assert rule.evaluate(_call("hello", "hi").model_copy(update={"tool_name": "Read"})) is None
 
 
-async def test_what_aios_yaml_fixes_holds_in_the_preflight(tmp_path) -> None:
-    code = _code(tmp_path, fixed={"max_shout_length": 1})
-    rule = CodeConnectorApprovalRule(await _catalog(code, {"code": "hello-world"}), code)
+async def test_the_connector_s_settings_hold_in_the_preflight(tmp_path) -> None:
+    code = _code(tmp_path)
+    config = {"code": "hello-world", "settings": {"max_shout_length": 1}}
+    rule = CodeConnectorApprovalRule(await _catalog(code, config), code)
     assert rule.evaluate(_call("shout", "hi")).verdict is PolicyVerdict.DENY  # type: ignore[union-attr]
 
 

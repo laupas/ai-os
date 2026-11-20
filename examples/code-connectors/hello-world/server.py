@@ -8,8 +8,7 @@ ai-os starts it in one of two ways:
 
 What it gets from ai-os, all in the environment:
 
-- AIOS_CONNECTOR_SETTINGS: the settings as JSON (defaults, then the connector's,
-  then what aios.yaml fixes);
+- AIOS_CONNECTOR_SETTINGS: the settings as JSON (defaults, then the connector's);
 - AIOS_CONNECTOR_STATE: a folder of its own that outlives restarts;
 - AIOS_TIMEZONE: the user's timezone;
 - the variables its manifest declares, here HELLO_TOKEN, and whatever it lists

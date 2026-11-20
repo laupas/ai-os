@@ -22,7 +22,6 @@ class ConnectorsContainer(containers.DeclarativeContainer):
     clock = providers.Dependency()
     box = providers.Dependency()
     code_roots = providers.Dependency(default=[])
-    overrides = providers.Dependency(default={})
     state_root = providers.Dependency()
     timezone = providers.Dependency(default="UTC")
     tools_file = providers.Dependency(default=None)
@@ -30,7 +29,6 @@ class ConnectorsContainer(containers.DeclarativeContainer):
     code = providers.Singleton(
         CodeConnectors,
         library=providers.Singleton(CodeConnectorLibrary, roots=code_roots),
-        overrides=overrides,
         state_root=state_root,
         timezone=timezone,
         resolver=expander,

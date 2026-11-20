@@ -11,6 +11,8 @@ from aios.channels.channels_container import ChannelsContainer
 from aios.common.common_container import CommonContainer
 from aios.config.config_container import ConfigContainer
 from aios.config_repo.config_repo_container import ConfigRepoContainer
+from aios.connectors.code_connector_library import CodeConnectorLibrary
+from aios.connectors.connector_settings_migration import ConnectorSettingsMigration
 from aios.connectors.connectors_container import ConnectorsContainer
 from aios.conversations.conversations_container import ConversationsContainer
 from aios.conversations.gateway_container import GatewayContainer
@@ -81,6 +83,11 @@ class ApplicationContainer(containers.DeclarativeContainer):
         observers=providers.List(channels.web_hub),
     )
     log_reader = providers.Singleton(LogReader, log_file=config.settings.provided.log_file.call())
+    # Code connectors belong to the installation: they are in its configuration
+    # repository, never in ai-os itself.
+    code_roots = providers.List(
+        providers.Callable(lambda s: s.config_dir() / "code", config.settings),
+    )
     tools = providers.Container(
         ToolsContainer,
         users=storage.users,
@@ -96,6 +103,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         skills=storage.skills,
         connectors=storage.connectors,
         secret_extractor=variables.extractor,
+        code_library=providers.Singleton(CodeConnectorLibrary, roots=code_roots),
     )
     connectors = providers.Container(
         ConnectorsContainer,
@@ -105,12 +113,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         builtin_tools=tools.server.provided.tool_names.call(),
         clock=common.clock,
         box=variables.box,
-        # Code connectors belong to the installation: they are in its configuration
-        # repository, never in ai-os itself.
-        code_roots=providers.List(
-            providers.Callable(lambda s: s.config_dir() / "code", config.settings),
-        ),
-        overrides=app_config.provided.connectors,
+        code_roots=code_roots,
         state_root=providers.Callable(lambda s: s.data_dir / "connector-state", config.settings),
         timezone=app_config.provided.timezone,
         tools_file=providers.Callable(
@@ -278,6 +281,9 @@ class ApplicationContainer(containers.DeclarativeContainer):
             config_repo.remote_from_env,
             config_repo.skills_link,
             connectors.migration,
+            providers.Singleton(
+                ConnectorSettingsMigration, config=web.aios_yaml, connectors=storage.connectors
+            ),
         ),
         approvals=approvals.service,
         channels=channels.directory,

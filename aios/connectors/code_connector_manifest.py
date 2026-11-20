@@ -6,6 +6,9 @@ from pydantic import BaseModel, ConfigDict
 from aios.connectors.code_connector_approval import CodeConnectorApproval
 from aios.variables.variable_field import VariableField
 
+LOCKED = "x-locked"
+"""On a setting in the schema: agents cannot change it, only the console can."""
+
 
 class CodeConnectorManifest(BaseModel):
     """`connector.yaml` beside a code connector's `server.py`: what it is, what it
@@ -25,7 +28,8 @@ class CodeConnectorManifest(BaseModel):
     from ai-os's environment reaches it."""
     settings: dict[str, Any] = {"type": "object", "properties": {}}
     """A JSON schema of the settings, with their defaults. The server reads the
-    values as JSON from `AIOS_CONNECTOR_SETTINGS`."""
+    values as JSON from `AIOS_CONNECTOR_SETTINGS`. A setting with `x-locked: true`
+    is changed only in the console, never by an agent."""
     approval: CodeConnectorApproval = CodeConnectorApproval()
     folder: Path | None = None
     """Where it was found; set when it is loaded, never written in the file."""
@@ -37,6 +41,9 @@ class CodeConnectorManifest(BaseModel):
 
     def defaults(self) -> dict[str, Any]:
         return {k: p["default"] for k, p in self._properties().items() if "default" in p}
+
+    def locked(self) -> set[str]:
+        return {k for k, p in self._properties().items() if p.get(LOCKED) is True}
 
     def launch_env(self) -> dict[str, str]:
         """`env`, and each declared variable under its own name unless `env` names

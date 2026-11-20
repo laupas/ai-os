@@ -257,9 +257,9 @@ export interface AgentsData {
     name: string;
     enabled: boolean;
     tools: string[] | null;
-    /** A code connector's settings as they apply, and which aios.yaml fixes. */
+    /** A code connector's settings as they apply, and which are locked against agents. */
     settings?: Record<string, unknown>;
-    fixed?: string[];
+    locked?: string[];
   }[];
   builtin_tools: string[];
   orchestrator: string;
@@ -323,15 +323,15 @@ export interface ProbeResult {
   seconds: number;
 }
 
-/** A code connector, as the console sees it: its settings, what aios.yaml fixes,
- * and the variables it declares. */
+/** A code connector, as the console sees it: its settings, those locked against
+ * agents, and the variables it declares. */
 export interface CodeConnectorPart {
   name: string;
   found: boolean;
   description: string;
   schema: Record<string, any>;
   settings: Record<string, unknown>;
-  fixed: Record<string, unknown>;
+  locked: string[];
   effective: Record<string, unknown>;
   variables: VariableFieldRow[];
 }

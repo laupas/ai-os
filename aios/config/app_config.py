@@ -31,8 +31,9 @@ class AppConfig(BaseModel):
     files: FilesConfig = FilesConfig()
     web: WebConfig = WebConfig()
     connectors: dict[str, ConnectorOverride] = {}
-    """What is fixed for a connector, by its name; the console shows it and does
-    not let it be changed. E.g. `trading: {settings: {max_chf_per_day: 300}}`."""
+    """The older place for a code connector's fixed settings, by its name. Moved
+    onto the connector at the next start and taken out of here; a manifest's
+    `x-locked` keeps a setting from agents now."""
     mcp_servers: dict[str, dict[str, Any]] = {}
     """External MCP servers, in Claude Code's `.mcp.json` shape. Copied into the
     connectors on the first start and not read again; manage them in the console."""

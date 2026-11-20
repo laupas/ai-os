@@ -168,9 +168,11 @@ plus `AIOS_CONNECTOR_SETTINGS` (JSON), `AIOS_CONNECTOR_STATE` (a folder of its o
 the data dir) and `AIOS_TIMEZONE`: nothing else from ai-os's environment reaches it.
 
 Settings are the manifest's defaults, then what is set on the connector in the
-console, then what `aios.yaml` fixes under `connectors.<name>.settings`. A fixed
-value is shown and cannot be changed in the console, and no agent can change
-`aios.yaml`: that is the place for limits that must hold. For a tool under
+console. A setting with `x-locked: true` in the schema is out of reach of agents:
+the `config_*` tools refuse to change it, or to add, delete or repoint a connector
+that has one, even with an administrator's approval. That is the place for limits
+that must hold. (`aios.yaml` used to fix them under `connectors:`; such values are
+moved onto the connector at the next start.) For a tool under
 `approval.preflight` too, ai-os first runs `server.py preflight <tool> <arguments>`,
 which prints one JSON line: `{"deny": "why"}` refuses the call without asking anyone,
 `{"ask": "question"}` is the question put to the human.

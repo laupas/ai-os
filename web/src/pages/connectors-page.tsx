@@ -692,10 +692,10 @@ function CodeFields({
         <div className="space-y-3 rounded-md border p-3">
           <div className="text-sm font-medium">Settings</div>
           <Hint className="block">
-            An empty field uses its default. What aios.yaml fixes under <code>{`connectors.${c?.id}.settings`}</code> is shown and cannot be changed
-            here, by you or by an agent.
+            An empty field uses its default.{" "}
+            {part.locked.length ? "A locked one is changed only here, by an administrator: agents cannot change it, nor add or delete this connector." : null}
           </Hint>
-          <SettingsFields schema={part.schema} values={settings} onChange={onSettings} fixed={part.fixed} />
+          <SettingsFields schema={part.schema} values={settings} onChange={onSettings} locked={part.locked} />
         </div>
       ) : !c ? (
         <Hint>Its settings and variables can be set once it is added.</Hint>

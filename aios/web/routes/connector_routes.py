@@ -5,7 +5,7 @@ from aiohttp import web
 from aios.agents.agent_catalog import AgentCatalog
 from aios.agents.catalog_error import CatalogError
 from aios.connectors.code_connector_manifest import CodeConnectorManifest
-from aios.connectors.code_connectors import CODE_KEY, SETTINGS_KEY, CodeConnectors
+from aios.connectors.code_connectors import CODE_KEY, CodeConnectors
 from aios.connectors.connector_authorizer import ConnectorAuthorizer
 from aios.connectors.connector_catalog import ConnectorCatalog
 from aios.connectors.connector_probe import ConnectorProbe
@@ -122,7 +122,7 @@ class ConnectorRoutes(WebRoutes):
         existing = self._existing(request)
         body = await RequestBody.parse(request, ConnectorRequest)
         connector, moved = await self._without_secrets(
-            self._unfixed(self._connector(existing.id, body, existing)), caller
+            self._connector(existing.id, body, existing), caller
         )
         await self._save_variables(connector, body.variables, caller)
         connector = await self._connectors.put(connector)
@@ -192,16 +192,6 @@ class ConnectorRoutes(WebRoutes):
                 added.append(agent.id)
         return added
 
-    def _unfixed(self, connector: Connector) -> Connector:
-        """Settings aios.yaml fixes are not stored on the connector: they would be
-        shadowed now and silently apply the day the line in aios.yaml is removed."""
-        if self._code is None or not CodeConnectors.is_code(connector):
-            return connector
-        fixed = self._code.fixed(connector)
-        settings = connector.config.get(SETTINGS_KEY) or {}
-        kept = {k: v for k, v in settings.items() if k not in fixed}
-        return connector.model_copy(update={"config": {**connector.config, SETTINGS_KEY: kept}})
-
     async def _save_variables(
         self, connector: Connector, given: dict[str, str], caller: WebCaller
     ) -> None:
@@ -233,7 +223,7 @@ class ConnectorRoutes(WebRoutes):
 
     def _code_part(self, connector: Connector) -> dict | None:
         """For a code connector: what it is, its settings' schema, what is set on
-        it, what aios.yaml fixes, what applies, and its variables."""
+        it, which are locked against agents, what applies, and its variables."""
         if self._code is None or not CodeConnectors.is_code(connector):
             return None
         manifest = self._manifest(connector)
@@ -242,8 +232,8 @@ class ConnectorRoutes(WebRoutes):
             "found": manifest is not None,
             "description": manifest.description if manifest else "",
             "schema": manifest.settings if manifest else {},
-            "settings": connector.config.get(SETTINGS_KEY) or {},
-            "fixed": self._code.fixed(connector),
+            "settings": self._code.stored(connector),
+            "locked": sorted(self._code.locked(connector)),
             "effective": self._code.settings(connector),
             "variables": [self._fields.row(f) for f in manifest.variables]
             if manifest and self._fields

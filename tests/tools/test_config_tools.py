@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 
@@ -6,6 +7,7 @@ from aios.agents.agent_catalog import AgentCatalog
 from aios.agents.skill_catalog import SkillCatalog
 from aios.approvals.policy_verdict import PolicyVerdict
 from aios.approvals.tool_call import ToolCall
+from aios.connectors.code_connector_library import CodeConnectorLibrary
 from aios.entities.connectors.connector import Connector
 from aios.entities.skills.skill import Skill
 from aios.entities.users.permission import Permission
@@ -19,6 +21,7 @@ from aios.tools.tool_error import ToolError
 from tests.agents.agent_world import AgentWorld
 
 CONFIGURATOR = AgentCatalog.CONFIGURATOR
+EXAMPLES = Path(__file__).parents[2] / "examples" / "code-connectors"
 
 
 def _editor(w: AgentWorld) -> ConfigEditor:
@@ -101,3 +104,29 @@ def test_the_configurator_is_fixed(tmp_path) -> None:
 
 def test_connector_entity_needs_no_more_than_id_and_config() -> None:
     assert Connector.model_validate({"id": "x", "config": {}}).enabled
+
+
+async def test_an_agent_cannot_touch_a_locked_setting(tmp_path) -> None:
+    w = AgentWorld(tmp_path)
+    skills: Collection[Skill] = Collection(
+        CollectionDefinition(name="skills", entity=Skill), InMemoryDocumentStore()
+    )
+    editor = ConfigEditor(
+        w.agents, SkillCatalog(skills), w.connector_store, code=CodeConnectorLibrary([EXAMPLES])
+    )
+    hello = {"code": "hello-world", "settings": {"max_shout_length": 5}}
+    with pytest.raises(ToolError, match="in the console"):
+        await editor.save("connectors", {"id": "hello", "config": hello})
+    await w.connector_store.put(Connector(id="hello", config=hello))
+
+    await editor.save(
+        "connectors",
+        {"id": "hello", "config": {**hello, "settings": {"max_shout_length": 5, "greeting": "Hi"}}},
+    )
+    with pytest.raises(ToolError, match="locked.*max_shout_length"):
+        await editor.save("connectors", {"id": "hello", "config": {"code": "hello-world"}})
+    with pytest.raises(ToolError, match="in the console"):
+        await editor.save("connectors", {"id": "hello", "config": {"command": "npx"}})
+    with pytest.raises(ToolError, match="locked settings"):
+        await editor.delete("connectors", "hello")
+    assert w.connector_store.get("hello").config["settings"]["max_shout_length"] == 5  # type: ignore[union-attr]

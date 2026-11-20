@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 from aios.agents.repo_agent_reader import RepoAgentReader
-from aios.config.connector_override import ConnectorOverride
 from aios.connectors.code_connector_launcher import BASE
 from aios.connectors.code_connector_library import CodeConnectorLibrary
 from aios.connectors.code_connector_manifest import CodeConnectorManifest
@@ -18,7 +17,7 @@ from aios.variables.variable_resolver import VariableResolver
 CODE_KEY = "code"
 """In a connector's config: the name of the code connector it runs."""
 SETTINGS_KEY = "settings"
-"""In a connector's config: its settings, under what aios.yaml fixes."""
+"""In a connector's config: its settings, over the manifest's defaults."""
 LAUNCHER = "aios.connectors.code_connector_launcher"
 PREFLIGHT_TIMEOUT_SECONDS = 20
 
@@ -27,22 +26,20 @@ class CodeConnectors:
     """Runs connectors written as code: a Python MCP server in its own process,
     started with only the environment its manifest declares.
 
-    Settings are the manifest's defaults, then what is set on the connector, then
-    what aios.yaml fixes under `connectors.<name>.settings`. Declared variables reach
-    the server under their own names, a field's default standing in for one that is
-    set nowhere.
+    Settings are the manifest's defaults, then what is set on the connector. Those
+    the manifest locks are changed only in the console (`ConfigEditor` refuses an
+    agent's change). Declared variables reach the server under their own names, a
+    field's default standing in for one that is set nowhere.
     """
 
     def __init__(
         self,
         library: CodeConnectorLibrary,
-        overrides: dict[str, ConnectorOverride],
         state_root: Path,
         timezone: str,
         resolver: VariableResolver | None = None,
     ) -> None:
         self._library = library
-        self._overrides = overrides
         self._resolver = resolver
         self._state_root = Path(state_root)
         self._timezone = timezone
@@ -65,16 +62,18 @@ class CodeConnectors:
         name = connector.config.get(CODE_KEY)
         return self._library.get(name) if isinstance(name, str) else None
 
-    def fixed(self, connector: Connector) -> dict[str, Any]:
-        """The settings aios.yaml fixes for this connector."""
-        override = self._overrides.get(connector.id)
-        return dict(override.settings) if override else {}
+    def locked(self, connector: Connector) -> set[str]:
+        manifest = self.manifest_of(connector)
+        return manifest.locked() if manifest else set()
+
+    @staticmethod
+    def stored(connector: Connector) -> dict[str, Any]:
+        return dict(connector.config.get(SETTINGS_KEY) or {})
 
     def settings(self, connector: Connector) -> dict[str, Any]:
         manifest = self.manifest_of(connector)
-        stored = connector.config.get(SETTINGS_KEY) or {}
         defaults = manifest.defaults() if manifest else {}
-        return {**defaults, **stored, **self.fixed(connector)}
+        return {**defaults, **self.stored(connector)}
 
     def launch_config(self, connector: Connector) -> dict[str, Any] | None:
         """The stdio server config for Claude Code, `${VAR}` still to be filled in;

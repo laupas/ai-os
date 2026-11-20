@@ -4,8 +4,8 @@ from pydantic import BaseModel, ConfigDict
 
 
 class ConnectorOverride(BaseModel):
-    """What aios.yaml fixes for one connector. The console shows these values and
-    does not let them be changed, and no agent can change this file."""
+    """What aios.yaml used to fix for one connector; `ConnectorSettingsMigration`
+    moves it onto the connector."""
 
     model_config = ConfigDict(use_attribute_docstrings=True)
 

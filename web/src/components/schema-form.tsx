@@ -1,4 +1,4 @@
-import { Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Lock, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { Fragment, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
@@ -84,10 +84,10 @@ function Doc({ text }: { text?: string }) {
 const label = (key: string) => key.replace(/_/g, " ");
 const shown = (v: unknown) => (v === undefined || v === null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
 
-/** A code connector's settings: the fields of its schema, with those aios.yaml
- * fixes shown with their value and not editable. */
-export function SettingsFields({ schema, values, onChange, fixed = {} }: { schema: Schema; values: Values; onChange: (v: Values) => void; fixed?: Values }) {
-  return <ObjectFields schema={schema} defs={schema.$defs ?? {}} values={values} onChange={onChange} fixed={fixed} />;
+/** A code connector's settings: the fields of its schema, those `locked` marked as
+ * out of reach of agents (they are still changed here). */
+export function SettingsFields({ schema, values, onChange, locked = [] }: { schema: Schema; values: Values; onChange: (v: Values) => void; locked?: string[] }) {
+  return <ObjectFields schema={schema} defs={schema.$defs ?? {}} values={values} onChange={onChange} locked={locked} />;
 }
 
 function ObjectFields({
@@ -95,40 +95,28 @@ function ObjectFields({
   defs,
   values,
   onChange,
-  fixed = {},
+  locked = [],
 }: {
   schema: Schema;
   defs: Schema;
   values: Values;
   onChange: (v: Values) => void;
-  fixed?: Values;
+  locked?: string[];
 }) {
   return (
     <div className="space-y-4">
-      {Object.keys(schema.properties ?? {}).map((k) =>
-        k in fixed ? (
-          <FixedField key={k} name={k} schema={schema.properties[k]} value={fixed[k]} />
-        ) : (
-          <Field key={k} name={k} schema={schema.properties[k]} defs={defs} values={values} onChange={onChange} required={schema.required?.includes(k)} />
-        ),
-      )}
-    </div>
-  );
-}
-
-function FixedField({ name, schema, value }: { name: string; schema: Schema; value: unknown }) {
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-medium">{label(name)}</span>
-        <span className="rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">set in aios.yaml</span>
-      </div>
-      {schema.description ? (
-        <p className="text-xs text-muted-foreground">
-          <Doc text={schema.description} />
-        </p>
-      ) : null}
-      <code className="block rounded-md border bg-muted/40 px-3 py-2 text-xs">{shown(value)}</code>
+      {Object.keys(schema.properties ?? {}).map((k) => (
+        <Field
+          key={k}
+          name={k}
+          schema={schema.properties[k]}
+          defs={defs}
+          values={values}
+          onChange={onChange}
+          required={schema.required?.includes(k)}
+          locked={locked.includes(k)}
+        />
+      ))}
     </div>
   );
 }
@@ -141,6 +129,7 @@ function Field({
   values,
   onChange,
   required,
+  locked,
 }: {
   name: string;
   schema: Schema;
@@ -148,6 +137,7 @@ function Field({
   values: Values;
   onChange: (v: Values) => void;
   required?: boolean;
+  locked?: boolean;
 }) {
   const { schema, nullable } = resolve(raw, defs);
   const value = values[name];
@@ -160,6 +150,11 @@ function Field({
           {label(name)}
           {required ? <span className="text-destructive"> *</span> : null}
         </span>
+        {locked ? (
+          <span className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground" title="Only changed here, by an administrator; agents cannot">
+            <Lock className="size-3" /> locked for agents
+          </span>
+        ) : null}
         {isSet && !required ? (
           <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => update(undefined)} title="Back to the default" aria-label={`Reset ${name}`}>
             <RotateCcw className="size-3.5" />

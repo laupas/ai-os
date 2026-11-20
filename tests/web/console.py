@@ -14,7 +14,6 @@ from aios.channels.web.web_channel import WebChannel
 from aios.channels.web.web_channel_type import WebChannelType
 from aios.channels.web.web_event_hub import WebEventHub
 from aios.config.channel_config import ChannelConfig
-from aios.config.connector_override import ConnectorOverride
 from aios.connectors.code_connector_library import CodeConnectorLibrary
 from aios.connectors.code_connectors import CodeConnectors
 from aios.connectors.connector_authorizer import ConnectorAuthorizer
@@ -252,7 +251,6 @@ class Console:
                     secrets=SecretExtractor(self.variables, self.variable_resolver),
                     code=CodeConnectors(
                         CodeConnectorLibrary([EXAMPLES]),
-                        {"hello-world": ConnectorOverride(settings={"max_shout_length": 3})},
                         self.tmp_path / "connector-state",
                         "UTC",
                         self.variable_resolver,

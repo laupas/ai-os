@@ -1,9 +1,7 @@
 from tests.web.console import ALICE, Console
 
 
-async def test_a_code_connector_is_added_with_its_agents_and_keeps_fixed_settings_off_it(
-    tmp_path,
-) -> None:
+async def test_a_code_connector_is_added_with_its_agents_and_shows_its_locks(tmp_path) -> None:
     async with Console(tmp_path) as c:
         h = c.headers(ALICE, write=True)
         listing = await (await c.client.get("/api/connectors", headers=h)).json()
@@ -17,25 +15,25 @@ async def test_a_code_connector_is_added_with_its_agents_and_keeps_fixed_setting
         )
         row = await r.json()
         assert r.status == 201 and row["added_agents"] == ["hello-greeter"]
-        assert row["code"]["fixed"] == {"max_shout_length": 3}
-        assert row["code"]["effective"] == {"greeting": "Hello", "max_shout_length": 3}
+        assert row["code"]["locked"] == ["max_shout_length"]
+        assert row["code"]["effective"] == {"greeting": "Hello", "max_shout_length": 20}
         assert row["missing_variables"] == []  # HELLO_TOKEN is not required
         (field,) = row["code"]["variables"]
         assert field["variable"] == "HELLO_TOKEN" and field["source"] is None
 
+        # The console is administrators only: a locked setting is changed here.
         r = await c.client.put(
             "/api/connectors/hello-world",
             json={
                 "config": {
                     "code": "hello-world",
-                    "settings": {"max_shout_length": 99, "greeting": "Hi"},
+                    "settings": {"max_shout_length": 5, "greeting": "Hi"},
                 }
             },
             headers=h,
         )
         row = await r.json()
-        assert row["code"]["settings"] == {"greeting": "Hi"}  # the fixed one is not stored
-        assert row["code"]["effective"]["max_shout_length"] == 3
+        assert row["code"]["settings"] == {"max_shout_length": 5, "greeting": "Hi"}
 
         r = await c.client.post(
             "/api/connectors", json={"name": "x", "config": {"code": "nowhere"}}, headers=h
