@@ -35,6 +35,9 @@ asking. The connector's page asks for the `HELLO_TOKEN` variable, and shows
   get nothing else.
 - Mark a setting `x-locked: true` when it is a limit that must hold: agents cannot
   change it, nor add or delete a connector that has one.
+- Set `check: true` and answer `server.py check` with `{"ok": …, "detail": …}`:
+  the console's Test button. Keep it cheap and free of side effects (read an
+  account, never place an order).
 - Put a tool that changes something real under `approval.always`, and refuse in
   `preflight` what your own rules refuse, so a human is never asked about it.
 - Imports between files of the connector work as plain `import x` (its folder is on

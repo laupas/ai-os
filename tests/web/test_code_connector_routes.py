@@ -64,3 +64,27 @@ async def test_a_declared_variable_is_saved_as_a_secret_variable(tmp_path) -> No
             headers=h,
         )
         assert r.status == 400
+
+
+async def test_the_test_button_runs_the_server_s_check_with_what_is_typed(tmp_path) -> None:
+    async with Console(tmp_path) as c:
+        h = c.headers(ALICE, write=True)
+        body = {"name": "hello-world", "config": {"code": "hello-world"}}
+        row = await (await c.client.post("/api/connectors", json=body, headers=h)).json()
+        assert row["code"]["checkable"]
+
+        url = "/api/connectors/hello-world/check"
+        r = await c.client.post(url, json={}, headers=h)
+        answer = await r.json()
+        assert r.status == 200 and answer["ok"] and "no token" in answer["detail"]
+
+        typed = {"settings": {"greeting": "Hi"}, "variables": {"HELLO_TOKEN": "t"}}
+        answer = await (await c.client.post(url, json=typed, headers=h)).json()
+        assert answer["ok"] and "'Hi'" in answer["detail"] and "token is set" in answer["detail"]
+        assert c.variables.get("HELLO_TOKEN") is None  # a test saves nothing
+
+        answer = await (
+            await c.client.post(url, json={"settings": {"greeting": ""}}, headers=h)
+        ).json()
+        assert answer == {"ok": False, "detail": "the greeting is empty"}
+

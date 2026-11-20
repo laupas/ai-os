@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from aios.agents.repo_agent_reader import RepoAgentReader
+from aios.connectors.code_connector_check import CodeConnectorCheck
 from aios.connectors.code_connector_launcher import BASE
 from aios.connectors.code_connector_library import CodeConnectorLibrary
 from aios.connectors.code_connector_manifest import CodeConnectorManifest
@@ -20,6 +21,7 @@ SETTINGS_KEY = "settings"
 """In a connector's config: its settings, over the manifest's defaults."""
 LAUNCHER = "aios.connectors.code_connector_launcher"
 PREFLIGHT_TIMEOUT_SECONDS = 20
+CHECK_TIMEOUT_SECONDS = 30
 
 
 class CodeConnectors:
@@ -112,17 +114,40 @@ class CodeConnectors:
     def preflight(self, config: dict[str, Any], tool: str, arguments: dict[str, Any]) -> dict:
         """Asks the server about a call before a human is: `{"deny": reason}` or
         `{"ask": question}`. `config` is the launch config with variables filled in."""
+        answer = self._ask(
+            config, ["preflight", tool, json.dumps(arguments)], PREFLIGHT_TIMEOUT_SECONDS
+        )
+        if not ({"ask", "deny"} & answer.keys()):
+            raise RuntimeError("preflight answered neither ask nor deny")
+        return answer
+
+    def check(self, config: dict[str, Any]) -> CodeConnectorCheck:
+        """Asks the server whether it works as configured (`server.py check`). A
+        server that fails, or answers something else, did not pass."""
+        try:
+            answer = self._ask(config, ["check"], CHECK_TIMEOUT_SECONDS)
+            return CodeConnectorCheck.model_validate(answer)
+        except subprocess.TimeoutExpired:
+            return CodeConnectorCheck(ok=False, detail=f"no answer in {CHECK_TIMEOUT_SECONDS} s")
+        except (RuntimeError, ValueError) as exc:
+            return CodeConnectorCheck(ok=False, detail=str(exc))
+
+    @staticmethod
+    def _ask(config: dict[str, Any], args: list[str], timeout: int) -> dict:
+        """Runs the server once with `args`, as a turn would start it, and reads the
+        JSON object on the last line it prints."""
         result = subprocess.run(
-            [config["command"], *config["args"], "preflight", tool, json.dumps(arguments)],
+            [config["command"], *config["args"], *args],
             capture_output=True,
             text=True,
-            timeout=PREFLIGHT_TIMEOUT_SECONDS,
+            timeout=timeout,
             env={**{k: v for k, v in os.environ.items() if k in BASE}, **config["env"]},
             check=False,
         )
         if result.returncode != 0:
             raise RuntimeError(result.stderr.strip()[-500:] or f"exit {result.returncode}")
-        answer = json.loads(result.stdout.strip().splitlines()[-1])
-        if not isinstance(answer, dict) or not ({"ask", "deny"} & answer.keys()):
-            raise RuntimeError("preflight answered neither ask nor deny")
+        lines = result.stdout.strip().splitlines()
+        answer = json.loads(lines[-1]) if lines else None
+        if not isinstance(answer, dict):
+            raise RuntimeError("the server printed no JSON object")
         return answer

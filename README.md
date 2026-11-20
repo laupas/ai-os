@@ -175,7 +175,10 @@ that must hold. (`aios.yaml` used to fix them under `connectors:`; such values a
 moved onto the connector at the next start.) For a tool under
 `approval.preflight` too, ai-os first runs `server.py preflight <tool> <arguments>`,
 which prints one JSON line: `{"deny": "why"}` refuses the call without asking anyone,
-`{"ask": "question"}` is the question put to the human.
+`{"ask": "question"}` is the question put to the human. With `check: true` in the
+manifest, the connector's page has a Test button: ai-os runs `server.py check` with
+the settings and variables shown there, saved or not, and shows the one JSON line it
+prints, `{"ok": true|false, "detail": "..."}`.
 
 > A code connector is code that ai-os runs. Whoever can commit to the configuration
 > repository, or push to its remote, can run code on the machine; agents cannot

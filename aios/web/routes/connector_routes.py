@@ -1,3 +1,4 @@
+import asyncio
 import re
 
 from aiohttp import web
@@ -5,7 +6,7 @@ from aiohttp import web
 from aios.agents.agent_catalog import AgentCatalog
 from aios.agents.catalog_error import CatalogError
 from aios.connectors.code_connector_manifest import CodeConnectorManifest
-from aios.connectors.code_connectors import CODE_KEY, CodeConnectors
+from aios.connectors.code_connectors import CODE_KEY, SETTINGS_KEY, CodeConnectors
 from aios.connectors.connector_authorizer import ConnectorAuthorizer
 from aios.connectors.connector_catalog import ConnectorCatalog
 from aios.connectors.connector_probe import ConnectorProbe
@@ -20,6 +21,7 @@ from aios.variables.secret_extractor import SecretExtractor
 from aios.variables.variable_catalog import VariableCatalog
 from aios.variables.variable_field_state import VariableFieldState
 from aios.variables.variable_resolver import VariableResolver
+from aios.web.connector_check_request import ConnectorCheckRequest
 from aios.web.connector_request import ConnectorRequest
 from aios.web.request_body import RequestBody
 from aios.web.web_auth import WebAuth
@@ -73,6 +75,7 @@ class ConnectorRoutes(WebRoutes):
         app.router.add_put("/api/connectors/{name}", self._save)
         app.router.add_delete("/api/connectors/{name}", self._delete)
         app.router.add_post("/api/connectors/{name}/start", self._start)
+        app.router.add_post("/api/connectors/{name}/check", self._check)
 
     async def _list(self, request: web.Request) -> web.Response:
         caller = WebAuth.caller(request, Permission.CHAT)
@@ -140,6 +143,29 @@ class ConnectorRoutes(WebRoutes):
         if self._probe is None:
             raise web.HTTPServiceUnavailable(text="starting a connector is not available here")
         result = await self._probe.probe(connector.id, caller.user)
+        return web.json_response(result.model_dump())
+
+    async def _check(self, request: web.Request) -> web.Response:
+        """A code connector's own check, with the settings and variable values typed
+        but not saved yet; nothing is stored."""
+        WebAuth.caller(request, Permission.ADMINISTER)
+        connector = self._existing(request)
+        manifest = self._manifest(connector)
+        if self._code is None or manifest is None or not manifest.check:
+            raise web.HTTPNotFound(text=f"{connector.id} has no test")
+        body = await RequestBody.parse(request, ConnectorCheckRequest)
+        if body.settings is not None:
+            config = {**connector.config, SETTINGS_KEY: body.settings}
+            connector = connector.model_copy(update={"config": config})
+        launch = self._code.launch_config(connector)
+        if launch is None:
+            raise web.HTTPNotFound(text=f"{connector.id} has no test")
+        if self._resolver is not None:
+            launch = self._resolver.expand(launch)
+        declared = {f.variable for f in manifest.variables}
+        typed = {k: v.strip() for k, v in body.variables.items() if k in declared and v.strip()}
+        launch["env"] = {**launch["env"], **typed}
+        result = await asyncio.to_thread(self._code.check, launch)
         return web.json_response(result.model_dump())
 
     async def _without_secrets(
@@ -234,6 +260,7 @@ class ConnectorRoutes(WebRoutes):
             "schema": manifest.settings if manifest else {},
             "settings": self._code.stored(connector),
             "locked": sorted(self._code.locked(connector)),
+            "checkable": bool(manifest and manifest.check),
             "effective": self._code.settings(connector),
             "variables": [self._fields.row(f) for f in manifest.variables]
             if manifest and self._fields

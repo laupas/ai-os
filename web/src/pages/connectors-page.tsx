@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { KeyRound, Loader2, LogOut, Pencil, Play, Plug, Plus } from "lucide-react";
+import { CheckCircle2, KeyRound, Loader2, LogOut, Pencil, Play, Plug, PlugZap, Plus, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ListView } from "@/components/list-view";
@@ -18,7 +18,7 @@ import { api, type CodeConnectorOffer, type Connector, type ProbeResult, type Si
 import { useConfirm } from "@/lib/confirm";
 import { href } from "@/lib/router";
 import { can, useMe } from "@/lib/use-me";
-import { when } from "@/lib/utils";
+import { cn, when } from "@/lib/utils";
 
 type Config = Record<string, unknown>;
 
@@ -699,6 +699,45 @@ function CodeFields({
         </div>
       ) : !c ? (
         <Hint>Its settings and variables can be set once it is added.</Hint>
+      ) : null}
+      {c && part?.checkable ? <CodeCheck id={c.id} settings={settings} variables={variables} /> : null}
+    </div>
+  );
+}
+
+/** The code connector's own test, with what is typed here, saved or not. */
+function CodeCheck({ id, settings, variables }: { id: string; settings: Values; variables: Record<string, string> }) {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; detail: string } | null>(null);
+  const typed = Object.fromEntries(Object.entries(variables).filter(([, v]) => v.trim()));
+  const run = async () => {
+    setBusy(true);
+    setResult(null);
+    try {
+      setResult(
+        await api<{ ok: boolean; detail: string }>("POST", `/api/connectors/${encodeURIComponent(id)}/check`, {
+          settings: prune(settings),
+          variables: typed,
+        }),
+      );
+    } catch (e) {
+      setResult({ ok: false, detail: (e as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="space-y-2">
+      <Button type="button" variant="outline" onClick={run} disabled={busy} title="Runs the connector's own check with the values shown here; saves nothing">
+        {busy ? <Loader2 className="animate-spin" /> : <PlugZap />} Test
+      </Button>
+      {result ? (
+        <div role="status" className={cn("flex items-start gap-2 rounded-lg p-3 text-sm", result.ok ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive")}>
+          {result.ok ? <CheckCircle2 className="mt-0.5 size-4 shrink-0" /> : <XCircle className="mt-0.5 size-4 shrink-0" />}
+          <span>
+            {result.ok ? "Works" : "Does not work"}: {result.detail}
+          </span>
+        </div>
       ) : null}
     </div>
   );

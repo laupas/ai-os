@@ -174,3 +174,12 @@ def test_a_code_connector_brings_its_agents(tmp_path) -> None:
     (agent,) = CodeConnectors.agents_of(manifest)  # type: ignore[arg-type]
     assert agent.id == "hello-greeter"
     assert agent.connectors == {"hello-world": ["hello", "shout", "status"]}
+
+
+def test_a_check_that_breaks_does_not_pass(tmp_path) -> None:
+    script = tmp_path / "s.py"
+    script.write_text("import sys; print('not json'); sys.exit(0)\n")
+    config = {"command": "python3", "args": [str(script)], "env": {}}
+    result = _code(tmp_path).check(config)
+    assert not result.ok and result.detail
+

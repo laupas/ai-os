@@ -31,3 +31,17 @@ def test_a_long_text_is_refused_before_anyone_is_asked() -> None:
 
 def test_the_limit_is_a_setting() -> None:
     assert "deny" in _preflight("hello", {"max_shout_length": 3})
+
+
+def _check(settings: dict | None = None) -> dict:
+    env = {"AIOS_CONNECTOR_SETTINGS": json.dumps(settings or {})}
+    result = subprocess.run(
+        [sys.executable, str(SERVER), "check"], capture_output=True, text=True, env=env, check=True
+    )
+    return json.loads(result.stdout)
+
+
+def test_the_check_says_what_it_would_do() -> None:
+    answer = _check()
+    assert answer["ok"] and "'Hello'" in answer["detail"] and "no token" in answer["detail"]
+    assert _check({"greeting": " "}) == {"ok": False, "detail": "the greeting is empty"}

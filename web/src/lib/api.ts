@@ -332,6 +332,8 @@ export interface CodeConnectorPart {
   schema: Record<string, any>;
   settings: Record<string, unknown>;
   locked: string[];
+  /** Its server answers `check`: the Test button. */
+  checkable: boolean;
   effective: Record<string, unknown>;
   variables: VariableFieldRow[];
 }

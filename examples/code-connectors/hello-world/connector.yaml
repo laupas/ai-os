@@ -21,6 +21,11 @@ approval:
   always: [shout]
   preflight: [shout]
 
+# The console shows a Test button: ai-os runs `server.py check` with the settings
+# and variables (saved, or typed but not saved yet) and shows what it prints, one
+# JSON line `{"ok": true|false, "detail": "..."}`.
+check: true
+
 # The settings, as a JSON schema with defaults. The console draws a form from it,
 # and the server reads them from AIOS_CONNECTOR_SETTINGS. `x-locked: true` keeps a
 # setting from agents: only an administrator changes it, in the console. That is

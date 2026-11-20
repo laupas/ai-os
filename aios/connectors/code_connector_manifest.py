@@ -31,6 +31,10 @@ class CodeConnectorManifest(BaseModel):
     values as JSON from `AIOS_CONNECTOR_SETTINGS`. A setting with `x-locked: true`
     is changed only in the console, never by an agent."""
     approval: CodeConnectorApproval = CodeConnectorApproval()
+    check: bool = False
+    """The server answers `server.py check` with one JSON line, `{"ok": true|false,
+    "detail": "..."}`: whether it works with its settings and variables, e.g. that
+    a key is accepted. The console offers it as a Test button."""
     folder: Path | None = None
     """Where it was found; set when it is loaded, never written in the file."""
 
