@@ -83,11 +83,15 @@ class TeamsChannel(
         try:
             log.info("teams connecting in socket mode")
             await self._bot.run(on_activity)
-            log.error("teams stopped receiving")
         except asyncio.CancelledError:
             raise
         except Exception:
             log.exception("teams could not connect; the other channels go on without it")
+        else:
+            task = asyncio.current_task()
+            if task is not None and task.cancelling():
+                raise asyncio.CancelledError  # ai-os is ending: idling would keep it alive
+            log.error("teams stopped receiving; the other channels go on without it")
         await asyncio.Event().wait()
 
     async def send(self, binding: ChannelBinding, text: str) -> None:

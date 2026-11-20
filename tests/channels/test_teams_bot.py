@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 from microsoft_teams.api import MessageActivity
 
@@ -48,3 +50,32 @@ async def test_a_wrong_bot_id_is_explained_in_words(monkeypatch) -> None:
     monkeypatch.setattr(bot._app.token_provider, "get_app_token", refused)
     with pytest.raises(RuntimeError, match="not the Teams app's App ID"):
         await bot.check()
+
+
+async def test_a_cancelled_run_stops_the_sockets_and_passes_the_cancel_on(monkeypatch) -> None:
+    """The SDK's start() swallows a cancel and leaves its sockets open; ai-os must end."""
+    bot = TeamsBot(app_id="00000000-0000-0000-0000-000000000000", password="x", tenant_id="t")
+    started, stopped = asyncio.Event(), []
+
+    async def start() -> None:
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            return  # as the SDK does
+
+    async def stop() -> None:
+        stopped.append(True)
+
+    async def ready() -> None:
+        return None
+
+    monkeypatch.setattr(bot._app, "start", start)
+    monkeypatch.setattr(bot._app, "stop", stop)
+    monkeypatch.setattr(bot, "_initialize", ready)
+    task = asyncio.create_task(bot.run(lambda activity: ready()))
+    await asyncio.wait_for(started.wait(), 1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(task, 1)
+    assert stopped == [True]

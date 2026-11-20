@@ -18,6 +18,7 @@ log = logging.getLogger(__name__)
 
 CARD = "application/vnd.microsoft.card.adaptive"
 CHECK_GEO = "emea"
+STOP_SECONDS = 10
 # Microsoft Entra's error codes for a refused bot sign-in, as the people setting it
 # up meet them.
 SIGN_IN_ERRORS = {
@@ -59,7 +60,18 @@ class TeamsBot:
             )
 
         await self._initialize()
-        await self._app.start()
+        try:
+            await self._app.start()
+        finally:
+            # Cancelled, the SDK's start() returns quietly and leaves its sockets open,
+            # which keeps the process from ending and so from restarting.
+            try:
+                await asyncio.wait_for(self._app.stop(), STOP_SECONDS)
+            except Exception:
+                log.warning("teams did not stop cleanly", exc_info=True)
+        task = asyncio.current_task()
+        if task is not None and task.cancelling():
+            raise asyncio.CancelledError
 
     async def send_text(self, service_url: str, conversation_id: str, text: str) -> str:
         message = MessageActivityInput(text=text, text_format="markdown")

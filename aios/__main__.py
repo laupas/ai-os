@@ -1,9 +1,18 @@
 import asyncio
 
 from aios.bootstrap.application_container import ApplicationContainer
+from aios.bootstrap.shutdown_watchdog import ShutdownWatchdog
 from aios.common.logging_setup import LoggingSetup
 from aios.config.settings import Settings
 from aios.config_repo.config_repo_bootstrap import ConfigRepoBootstrap
+
+
+async def run(container: ApplicationContainer) -> None:
+    try:
+        await container.application().run()
+    finally:
+        # Armed before asyncio's own cleanup, which can hang too.
+        ShutdownWatchdog().arm()
 
 
 def main() -> None:
@@ -13,7 +22,7 @@ def main() -> None:
     ConfigRepoBootstrap(settings).run()
     container = ApplicationContainer()
     try:
-        asyncio.run(container.application().run())
+        asyncio.run(run(container))
     except KeyboardInterrupt:
         pass
 

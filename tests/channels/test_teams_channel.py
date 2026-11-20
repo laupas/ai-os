@@ -196,3 +196,20 @@ async def test_a_failing_connection_does_not_end_the_channel() -> None:
     await asyncio.sleep(0.05)
     assert not task.done()  # ending would stop every other channel
     task.cancel()
+
+
+async def test_the_channel_ends_when_ai_os_ends_even_if_the_bot_swallows_the_cancel() -> None:
+    class SwallowingBot(FakeBot):
+        async def run(self, on_activity: Any) -> None:
+            self.running.set()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                return
+
+    bot = SwallowingBot()
+    task = asyncio.create_task(_channel(bot).start(FakeInbound(), FakeAnswers()))
+    await asyncio.wait_for(bot.running.wait(), 1)
+    task.cancel()
+    await asyncio.wait({task}, timeout=1)
+    assert task.cancelled()  # idling here kept ai-os from ending, and so from restarting
