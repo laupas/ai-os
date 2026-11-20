@@ -15,3 +15,5 @@ class ConnectorRequest(BaseModel):
     sign_in: SignInMode | None = None
     """None keeps what the connector has (shared for a new one)."""
     shared_fallback: bool | None = None
+    variables: dict[str, str] = {}
+    """Values typed for a code connector's declared variables; empty keeps one."""

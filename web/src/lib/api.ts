@@ -323,7 +323,8 @@ export interface ProbeResult {
   seconds: number;
 }
 
-/** A code connector, as the console sees it: its settings and what aios.yaml fixes. */
+/** A code connector, as the console sees it: its settings, what aios.yaml fixes,
+ * and the variables it declares. */
 export interface CodeConnectorPart {
   name: string;
   found: boolean;
@@ -332,6 +333,7 @@ export interface CodeConnectorPart {
   settings: Record<string, unknown>;
   fixed: Record<string, unknown>;
   effective: Record<string, unknown>;
+  variables: VariableFieldRow[];
 }
 
 /** A code connector that can be added, and the agents it brings. */

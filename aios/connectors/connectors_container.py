@@ -33,6 +33,7 @@ class ConnectorsContainer(containers.DeclarativeContainer):
         overrides=overrides,
         state_root=state_root,
         timezone=timezone,
+        resolver=expander,
     )
 
     token_store = providers.Singleton(ConnectorTokens, tokens=tokens, box=box)

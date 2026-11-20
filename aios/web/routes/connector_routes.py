@@ -3,6 +3,7 @@ import re
 from aiohttp import web
 
 from aios.agents.agent_catalog import AgentCatalog
+from aios.agents.catalog_error import CatalogError
 from aios.connectors.code_connector_manifest import CodeConnectorManifest
 from aios.connectors.code_connectors import CODE_KEY, SETTINGS_KEY, CodeConnectors
 from aios.connectors.connector_authorizer import ConnectorAuthorizer
@@ -16,6 +17,8 @@ from aios.entities.connectors.sign_in_mode import SignInMode
 from aios.entities.users.permission import Permission
 from aios.storage.collection import Collection
 from aios.variables.secret_extractor import SecretExtractor
+from aios.variables.variable_catalog import VariableCatalog
+from aios.variables.variable_field_state import VariableFieldState
 from aios.variables.variable_resolver import VariableResolver
 from aios.web.connector_request import ConnectorRequest
 from aios.web.request_body import RequestBody
@@ -33,7 +36,8 @@ class ConnectorRoutes(WebRoutes):
     somebody else's sign-in.
 
     A change applies to the next turn. The built-in `aios` server is listed but
-    cannot be changed. Which agent may use a connector is set on the agent.
+    cannot be changed. Which agent may use a connector is set on the agent. A code
+    connector's declared variables are saved as Variables with it.
     """
 
     def __init__(
@@ -48,7 +52,10 @@ class ConnectorRoutes(WebRoutes):
         probe: ConnectorProbe | None = None,
         secrets: SecretExtractor | None = None,
         code: CodeConnectors | None = None,
+        variables: VariableCatalog | None = None,
     ) -> None:
+        self._variables = variables
+        self._fields = VariableFieldState(resolver) if resolver else None
         self._code = code
         self._secrets = secrets
         self._probe = probe
@@ -104,6 +111,7 @@ class ConnectorRoutes(WebRoutes):
         manifest = self._manifest(connector)
         if CodeConnectors.is_code(connector) and manifest is None:
             raise web.HTTPBadRequest(text="there is no code connector of that name")
+        await self._save_variables(connector, body.variables, caller)
         connector = await self._connectors.put(connector)
         added = await self._add_agents(manifest) if manifest else []
         row = {**self._row(connector, caller), "moved_secrets": moved, "added_agents": added}
@@ -116,6 +124,7 @@ class ConnectorRoutes(WebRoutes):
         connector, moved = await self._without_secrets(
             self._unfixed(self._connector(existing.id, body, existing)), caller
         )
+        await self._save_variables(connector, body.variables, caller)
         connector = await self._connectors.put(connector)
         return web.json_response({**self._row(connector, caller), "moved_secrets": moved})
 
@@ -193,9 +202,38 @@ class ConnectorRoutes(WebRoutes):
         kept = {k: v for k, v in settings.items() if k not in fixed}
         return connector.model_copy(update={"config": {**connector.config, SETTINGS_KEY: kept}})
 
+    async def _save_variables(
+        self, connector: Connector, given: dict[str, str], caller: WebCaller
+    ) -> None:
+        """The values typed for a code connector's declared variables; an empty one
+        keeps what is stored."""
+        typed = {k: v.strip() for k, v in given.items() if v.strip()}
+        if not typed:
+            return
+        manifest = self._manifest(connector)
+        fields = {f.variable: f for f in manifest.variables} if manifest else {}
+        unknown = sorted(set(typed) - set(fields))
+        if unknown:
+            raise web.HTTPBadRequest(text=f"{connector.id} declares no {', '.join(unknown)}")
+        if self._variables is None:
+            raise web.HTTPServiceUnavailable(text="variables cannot be set here")
+        for name, value in typed.items():
+            field = fields[name]
+            try:
+                await self._variables.save(
+                    name,
+                    value,
+                    field.secret,
+                    False,
+                    f"{connector.id}: {field.label}",
+                    caller.user.name,
+                )
+            except CatalogError as exc:
+                raise web.HTTPBadRequest(text=str(exc)) from exc
+
     def _code_part(self, connector: Connector) -> dict | None:
         """For a code connector: what it is, its settings' schema, what is set on
-        it, what aios.yaml fixes, and what applies."""
+        it, what aios.yaml fixes, what applies, and its variables."""
         if self._code is None or not CodeConnectors.is_code(connector):
             return None
         manifest = self._manifest(connector)
@@ -207,6 +245,9 @@ class ConnectorRoutes(WebRoutes):
             "settings": connector.config.get(SETTINGS_KEY) or {},
             "fixed": self._code.fixed(connector),
             "effective": self._code.settings(connector),
+            "variables": [self._fields.row(f) for f in manifest.variables]
+            if manifest and self._fields
+            else [],
         }
 
     def _member_row(self, connector: Connector, caller: WebCaller) -> dict:
@@ -246,7 +287,13 @@ class ConnectorRoutes(WebRoutes):
         if self._resolver is None:
             return []
         manifest = self._manifest(connector)
-        return self._resolver.missing(manifest.env if manifest else connector.config)
+        if manifest is None:
+            return self._resolver.missing(connector.config)
+        # A declared variable is missing only when it is required and has no default.
+        declared = {f.variable for f in manifest.variables}
+        undeclared = self._resolver.missing(manifest.env)
+        required = self._fields.missing(manifest.variables) if self._fields else []
+        return sorted({*required, *(n for n in undeclared if n not in declared)})
 
     def _sign_in(self, connector: Connector, caller: WebCaller) -> dict | None:
         """Whether it can be signed in to, and how: the caller's own sign-in for a

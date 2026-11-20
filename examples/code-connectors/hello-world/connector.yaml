@@ -4,10 +4,15 @@ description: >-
   Hello world, the example code connector. Greets, counts how often, and shouts
   after asking: everything a code connector can do, in one small server.
 
-# Passed to the server, `${NAME}` filled in from the console's Variables (or ai-os's
-# environment). Nothing else from ai-os's environment reaches the server.
-env:
-  HELLO_TOKEN: ${HELLO_TOKEN}
+# The values it needs. The console asks for them on the connector and stores them
+# as Variables (a secret one encrypted), ai-os's environment as fallback. Each
+# reaches the server under its own name; nothing else from ai-os's environment does.
+# (`env:` can still pass more, with `${NAME}` filled in from the Variables.)
+variables:
+  - variable: HELLO_TOKEN
+    label: Hello token
+    hint: Any text; the server only says whether it is set.
+    required: false
 
 # A human approves `shout` every time. Before that, ai-os runs
 # `server.py preflight shout <arguments>`, and the server may refuse it outright

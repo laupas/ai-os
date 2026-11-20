@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ListView } from "@/components/list-view";
 import { prune, SettingsFields, type Values } from "@/components/schema-form";
+import { VariableFieldInput } from "@/components/variable-field-input";
 import { ErrorBox, Loading, Page, PageHeader } from "@/components/page";
 import { HistoryButton } from "@/components/history-button";
 import { Badge } from "@/components/ui/badge";
@@ -295,6 +296,8 @@ function ConnectorForm({ connector: c, library, onDone }: { connector: Connector
   const [kind, setKind] = useState(typeof original.code === "string" ? "code" : typeof original.url === "string" ? "url" : "command");
   const [codeName, setCodeName] = useState(String(original.code ?? library[0]?.name ?? ""));
   const [settings, setSettings] = useState<Values>((original.settings as Values) ?? {});
+  // Typed values for the code connector's declared variables; empty keeps one.
+  const [variables, setVariables] = useState<Record<string, string>>({});
   const offer = library.find((o) => o.name === codeName);
   const [command, setCommand] = useState(String(original.command ?? ""));
   const [args, setArgs] = useState(Array.isArray(original.args) ? original.args.join("\n") : "");
@@ -380,7 +383,15 @@ function ConnectorForm({ connector: c, library, onDone }: { connector: Connector
   const save = async () => {
     setBusy(true);
     try {
-      const body = { description: description.trim(), config: build(), enabled, sign_in: signInMode, shared_fallback: signInMode === "per_user" && fallback };
+      const typed = Object.fromEntries(Object.entries(variables).filter(([, v]) => v.trim()));
+      const body = {
+        description: description.trim(),
+        config: build(),
+        enabled,
+        sign_in: signInMode,
+        shared_fallback: signInMode === "per_user" && fallback,
+        variables: kind === "code" ? typed : {},
+      };
       type Saved = { moved_secrets?: string[]; added_agents?: string[] };
       const saved = c
         ? await api<Saved>("PUT", `/api/connectors/${encodeURIComponent(c.id)}`, body)
@@ -488,6 +499,8 @@ function ConnectorForm({ connector: c, library, onDone }: { connector: Connector
             offer={offer}
             settings={settings}
             onSettings={setSettings}
+            variables={variables}
+            onVariables={setVariables}
           />
         ) : kind === "command" ? (
           <>
@@ -622,6 +635,8 @@ function CodeFields({
   offer,
   settings,
   onSettings,
+  variables,
+  onVariables,
 }: {
   connector: Connector | null;
   library: CodeConnectorOffer[];
@@ -630,6 +645,8 @@ function CodeFields({
   offer: CodeConnectorOffer | undefined;
   settings: Values;
   onSettings: (v: Values) => void;
+  variables: Record<string, string>;
+  onVariables: (v: Record<string, string>) => void;
 }) {
   // A new one has no row yet, so its settings' schema arrives with the first save.
   const part = c?.code;
@@ -654,6 +671,23 @@ function CodeFields({
       {!c && offer?.agents.length ? (
         <Hint>Adding it also adds its agents, where there is none of that name yet: {offer.agents.join(", ")}.</Hint>
       ) : null}
+      {part?.variables.length ? (
+        <div className="space-y-3 rounded-md border p-3">
+          <div className="text-sm font-medium">Variables</div>
+          <Hint className="block">
+            Stored as Variables, a secret one encrypted; a value in the environment (.env) is used when none is set here. Applies to the next
+            turn.
+          </Hint>
+          {part.variables.map((f) => (
+            <VariableFieldInput
+              key={f.variable}
+              field={f}
+              value={variables[f.variable] ?? ""}
+              onChange={(v) => onVariables({ ...variables, [f.variable]: v })}
+            />
+          ))}
+        </div>
+      ) : null}
       {part?.found && Object.keys(part.schema.properties ?? {}).length ? (
         <div className="space-y-3 rounded-md border p-3">
           <div className="text-sm font-medium">Settings</div>
@@ -664,7 +698,7 @@ function CodeFields({
           <SettingsFields schema={part.schema} values={settings} onChange={onSettings} fixed={part.fixed} />
         </div>
       ) : !c ? (
-        <Hint>Its settings can be changed once it is added.</Hint>
+        <Hint>Its settings and variables can be set once it is added.</Hint>
       ) : null}
     </div>
   );

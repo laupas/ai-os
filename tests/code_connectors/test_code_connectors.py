@@ -17,9 +17,12 @@ from aios.connectors.code_connectors import CodeConnectors
 from aios.connectors.connector_catalog import ConnectorCatalog
 from aios.entities.connectors.connector import Connector
 from aios.entities.users.user import User
+from aios.entities.variables.variable import Variable
 from aios.storage.collection import Collection
 from aios.storage.collection_definition import CollectionDefinition
 from aios.storage.in_memory_document_store import InMemoryDocumentStore
+from aios.variables.secret_box import SecretBox
+from aios.variables.variable_resolver import VariableResolver
 
 EXAMPLES = Path(__file__).parents[2] / "examples" / "code-connectors"
 
@@ -67,6 +70,28 @@ def test_settings_are_defaults_then_the_connector_then_aios_yaml(tmp_path) -> No
     )
     assert code.settings(connector) == {"greeting": "Hi", "max_shout_length": 3}
     assert code.fixed(connector) == {"max_shout_length": 3}
+
+
+def test_a_declared_variable_reaches_the_server_with_its_default(tmp_path) -> None:
+    folder = tmp_path / "code" / "mine"
+    folder.mkdir(parents=True)
+    (folder / "connector.yaml").write_text(
+        "variables:\n"
+        "  - {variable: MINE_KEY, label: Key}\n"
+        "  - {variable: MINE_REGION, label: Region, secret: false, default: eu}\n"
+    )
+    resolver = VariableResolver(
+        Collection(
+            CollectionDefinition(name="variables", entity=Variable), InMemoryDocumentStore()
+        ),
+        SecretBox(None, tmp_path / "key"),
+        tmp_path / "files",
+    )
+    code = CodeConnectors(
+        CodeConnectorLibrary([tmp_path / "code"]), {}, tmp_path / "s", "UTC", resolver
+    )
+    env = code.launch_config(Connector(id="mine", config={"code": "mine"}))["env"]  # type: ignore[index]
+    assert env["MINE_KEY"] == "${MINE_KEY}" and env["MINE_REGION"] == "eu"
 
 
 async def test_a_code_connector_starts_with_only_what_it_declares(tmp_path, monkeypatch) -> None:

@@ -13,6 +13,7 @@ from aios.connectors.code_connector_manifest import CodeConnectorManifest
 from aios.entities.agents.agent import Agent
 from aios.entities.connectors.connector import Connector
 from aios.storage.storage_name import StorageName
+from aios.variables.variable_resolver import VariableResolver
 
 CODE_KEY = "code"
 """In a connector's config: the name of the code connector it runs."""
@@ -27,7 +28,9 @@ class CodeConnectors:
     started with only the environment its manifest declares.
 
     Settings are the manifest's defaults, then what is set on the connector, then
-    what aios.yaml fixes under `connectors.<name>.settings`.
+    what aios.yaml fixes under `connectors.<name>.settings`. Declared variables reach
+    the server under their own names, a field's default standing in for one that is
+    set nowhere.
     """
 
     def __init__(
@@ -36,9 +39,11 @@ class CodeConnectors:
         overrides: dict[str, ConnectorOverride],
         state_root: Path,
         timezone: str,
+        resolver: VariableResolver | None = None,
     ) -> None:
         self._library = library
         self._overrides = overrides
+        self._resolver = resolver
         self._state_root = Path(state_root)
         self._timezone = timezone
 
@@ -80,7 +85,7 @@ class CodeConnectors:
         state = self._state_root / StorageName.check(connector.id)
         state.mkdir(parents=True, exist_ok=True)
         env = {
-            **manifest.env,
+            **self._with_defaults(manifest),
             "AIOS_CONNECTOR_SETTINGS": json.dumps(self.settings(connector)),
             "AIOS_CONNECTOR_STATE": str(state),
             "AIOS_TIMEZONE": self._timezone,
@@ -90,6 +95,20 @@ class CodeConnectors:
             "args": ["-m", LAUNCHER, str(manifest.server_path)],
             "env": {**env, "AIOS_CONNECTOR_KEEP": ",".join(env)},
         }
+
+    def _with_defaults(self, manifest: CodeConnectorManifest) -> dict[str, str]:
+        env = manifest.launch_env()
+        if self._resolver is None:
+            return env
+        for field in manifest.variables:
+            unset = self._resolver.value_of(field.variable) is None
+            if (
+                field.default is not None
+                and unset
+                and env.get(field.variable) == f"${{{field.variable}}}"
+            ):
+                env[field.variable] = field.default
+        return env
 
     def preflight(self, config: dict[str, Any], tool: str, arguments: dict[str, Any]) -> dict:
         """Asks the server about a call before a human is: `{"deny": reason}` or

@@ -153,9 +153,10 @@ A **code connector** is an MCP server written in Python that belongs to your
 installation rather than to ai-os: a folder under `code/<name>/` in the
 configuration repository, holding
 
-- `connector.yaml`: what it is, the variables it needs (`env`, with `${VAR}` filled
-  in from Variables), its settings as a JSON schema with defaults (`settings`), and
-  which of its tools a human approves (`approval.always`);
+- `connector.yaml`: what it is, the values it needs (`variables`, asked for on the
+  connector and stored as Variables; `env` passes more, with `${VAR}` filled in), its
+  settings as a JSON schema with defaults (`settings`), and which of its tools a
+  human approves (`approval.always`);
 - `server.py`: the server, over stdio;
 - optionally `agents/*.md`, agents it brings (in the seed format), and `tests/`.
 

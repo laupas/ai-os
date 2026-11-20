@@ -255,7 +255,9 @@ class Console:
                         {"hello-world": ConnectorOverride(settings={"max_shout_length": 3})},
                         self.tmp_path / "connector-state",
                         "UTC",
+                        self.variable_resolver,
                     ),
+                    variables=self.variables,
                 ),
                 SettingsRoutes(
                     AiosYamlFile(self.config_file), w.users, w.roles, w.ids, self.restart

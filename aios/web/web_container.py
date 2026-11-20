@@ -163,6 +163,7 @@ class WebContainer(containers.DeclarativeContainer):
             probe=connector_probe,
             secrets=secret_extractor,
             code=code_connectors,
+            variables=variable_catalog,
         ),
         providers.Singleton(
             VariableRoutes,

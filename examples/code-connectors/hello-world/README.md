@@ -23,7 +23,8 @@ cd <data>/config && git add code/hello-world && git commit -m "Add hello-world"
 Then, in the console: Connectors → New → Code → `hello-world`, named `hello-world`
 (the agent's grants use that name). Ask "say hello to Ada", or "shout hi", which asks
 you first, and "shout" something longer than 20 characters, which is refused without
-asking. Fix a setting in `aios.yaml` and see it greyed out in the console:
+asking. The connector's page asks for the `HELLO_TOKEN` variable. Fix a setting in
+`aios.yaml` and see it greyed out in the console:
 
 ```yaml
 connectors:
@@ -37,7 +38,8 @@ connectors:
 - Copy this folder under a new name: the folder name is the connector's name.
 - Keep `server.py` a stdio MCP server; `mcp.server.mcpserver.MCPServer` is there.
 - Read settings from `AIOS_CONNECTOR_SETTINGS`, keep files in `AIOS_CONNECTOR_STATE`,
-  and declare every variable you need under `env`: you get nothing else.
+  and declare every value you need under `variables` (or pass it under `env`): you
+  get nothing else.
 - Put a tool that changes something real under `approval.always`, and refuse in
   `preflight` what your own rules refuse, so a human is never asked about it.
 - Imports between files of the connector work as plain `import x` (its folder is on
