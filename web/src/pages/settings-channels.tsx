@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpen, CheckCircle2, ExternalLink, Loader2, MessageSquare, PlugZap, Save, Send, XCircle } from "lucide-react";
+import { BookOpen, CheckCircle2, ExternalLink, LifeBuoy, Loader2, MessageSquare, PlugZap, Save, Send, XCircle } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ErrorBox, Loading } from "@/components/page";
@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { api, type ChannelSetting, type SetupStep } from "@/lib/api";
+import { api, type ChannelSetting, type SetupProblem, type SetupStep } from "@/lib/api";
 import { href } from "@/lib/router";
 import { cn } from "@/lib/utils";
 
@@ -107,7 +107,7 @@ function ChannelCard({ channel: c }: { channel: ChannelSetting }) {
       </CardHeader>
       {c.fields.length || c.checkable || dirty || c.setup.length ? (
         <CardContent className="space-y-4">
-          {c.setup.length ? <SetupGuide title={c.title} steps={c.setup} /> : null}
+          {c.setup.length ? <SetupGuide title={c.title} steps={c.setup} problems={c.problems} /> : null}
           {c.fields.map((f) => (
             <VariableFieldInput
               key={f.variable}
@@ -147,29 +147,53 @@ function ChannelCard({ channel: c }: { channel: ChannelSetting }) {
   );
 }
 
-/** The steps on the provider's side, folded away until asked for. */
-function SetupGuide({ title, steps }: { title: string; steps: SetupStep[] }) {
+/** The steps on the provider's side and the usual problems, folded away until asked for. */
+function SetupGuide({ title, steps, problems }: { title: string; steps: SetupStep[]; problems: SetupProblem[] }) {
   return (
     <details className="group rounded-lg border bg-muted/30 text-sm">
       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 font-medium">
         <BookOpen className="size-4" /> How to set up {title}
       </summary>
-      <ol className="list-decimal space-y-2 px-3 pb-3 pl-8 text-muted-foreground">
-        {steps.map((step) => (
-          <li key={step.text}>
-            {step.text}
-            {step.link ? (
-              <>
-                {" "}
-                <a className="inline-flex items-center gap-1 text-foreground underline" href={step.link} target="_blank" rel="noopener noreferrer">
-                  {new URL(step.link).host}
-                  <ExternalLink className="size-3" />
-                </a>
-              </>
-            ) : null}
-          </li>
-        ))}
-      </ol>
+      <div className="space-y-4 px-3 pb-3">
+        <ol className="list-decimal space-y-3 pl-5 text-muted-foreground">
+          {steps.map((step) => (
+            <li key={step.text}>
+              <span className="text-foreground">{step.text}</span>
+              {step.link ? (
+                <>
+                  {" "}
+                  <a className="inline-flex items-center gap-1 text-foreground underline" href={step.link} target="_blank" rel="noopener noreferrer">
+                    {new URL(step.link).host}
+                    <ExternalLink className="size-3" />
+                  </a>
+                </>
+              ) : null}
+              {step.details.length ? (
+                <ul className="mt-1 list-disc space-y-1 pl-5">
+                  {step.details.map((detail) => (
+                    <li key={detail}>{detail}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </li>
+          ))}
+        </ol>
+        {problems.length ? (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 font-medium">
+              <LifeBuoy className="size-4" /> Common problems
+            </div>
+            <dl className="space-y-2">
+              {problems.map((problem) => (
+                <div key={problem.symptom} className="rounded-md border bg-background p-2">
+                  <dt className="font-medium">{problem.symptom}</dt>
+                  <dd className="text-muted-foreground">{problem.fix}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ) : null}
+      </div>
     </details>
   );
 }

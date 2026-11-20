@@ -1,3 +1,4 @@
+import pytest
 from microsoft_teams.api import MessageActivity
 
 from aios.channels.teams.teams_activity_reader import TeamsActivityReader
@@ -36,3 +37,14 @@ def test_a_card_is_sent_as_an_adaptive_card_attachment() -> None:
 def test_the_bot_is_made_in_socket_mode_without_connecting() -> None:
     bot = TeamsBot(app_id="00000000-0000-0000-0000-000000000000", password="x", tenant_id="t")
     assert bot._app.socket_mode is not None
+
+
+async def test_a_wrong_bot_id_is_explained_in_words(monkeypatch) -> None:
+    bot = TeamsBot(app_id="00000000-0000-0000-0000-000000000000", password="x", tenant_id="t")
+
+    async def refused(*args: object, **kwargs: object) -> None:
+        raise ValueError("unauthorized_client")
+
+    monkeypatch.setattr(bot._app.token_provider, "get_app_token", refused)
+    with pytest.raises(RuntimeError, match="not the Teams app's App ID"):
+        await bot.check()

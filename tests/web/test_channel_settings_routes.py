@@ -30,7 +30,7 @@ async def test_every_channel_is_listed_with_what_it_needs_and_no_secret(
         assert slack["checkable"] and not channels["web"]["checkable"]
         for name in ["slack", "web", "signal", "mail"]:  # each says how to set it up
             channel = channels[name]
-            assert channel["setup"], name
+            assert channel["setup"] and channel["problems"], name
             assert all(
                 (step["link"] or "https://").startswith("https://") for step in channel["setup"]
             )

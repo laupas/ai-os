@@ -202,12 +202,20 @@ export interface ChannelSetting {
   fields: VariableFieldRow[];
   /** How to set it up on the provider's side. */
   setup: SetupStep[];
+  /** What commonly goes wrong while setting it up, and the fix. */
+  problems: SetupProblem[];
 }
 
-/** One setup step of a channel, with the provider's page for it. */
+/** One setup step of a channel, with the provider's page for it and what to watch out for. */
 export interface SetupStep {
   text: string;
   link: string | null;
+  details: string[];
+}
+
+export interface SetupProblem {
+  symptom: string;
+  fix: string;
 }
 
 /** A value something needs (a channel's token, a code connector's key): a Variable,

@@ -3,6 +3,7 @@ import aiohttp
 from aios.channels.channel_capability import ChannelCapability
 from aios.channels.channel_check_result import ChannelCheckResult
 from aios.channels.channel_type import ChannelType
+from aios.channels.setup_problem import SetupProblem
 from aios.channels.setup_step import SetupStep
 from aios.messaging.mail.mail_over_resend_sender import MailOverResendSender
 from aios.messaging.message_sender import MessageSender
@@ -54,16 +55,55 @@ class MailChannelType(ChannelType):
     def setup(self) -> list[SetupStep]:
         return [
             SetupStep(
-                text="Create a Resend account, add your domain and verify it with the DNS records "
-                "Resend shows.",
+                text=(
+                    "Create a Resend account and add the domain to send from; add the DNS "
+                    "records Resend shows at your DNS provider, and wait until the domain is "
+                    "Verified."
+                ),
                 link="https://resend.com/domains",
+                details=[
+                    "Mail is for sending only: agents send mail to people's addresses.",
+                ],
             ),
             SetupStep(
                 text="Create an API key; sending access is enough.",
                 link="https://resend.com/api-keys",
+                details=[
+                    "It is shown once: paste it into the key below.",
+                ],
             ),
             SetupStep(
-                text="For each person: their mail address as a mail account under Users.",
+                text=(
+                    "Enter the key and a From address at the verified domain, and Test. Then "
+                    "switch the channel on, save, and restart ai-os."
+                ),
+                details=[
+                    "The From address may carry a name: ai-os <ai-os@example.com>.",
+                ],
+            ),
+            SetupStep(
+                text=(
+                    "For each person: their mail address as a mail account under Settings → Users."
+                ),
+                details=[
+                    "Agents can then mail them, subject to approvals.",
+                ],
+            ),
+        ]
+
+    @property
+    def problems(self) -> list[SetupProblem]:
+        return [
+            SetupProblem(
+                symptom='Test: "key accepted, but … is not a verified domain".',
+                fix=(
+                    "Verify the From address's domain in Resend (the DNS records), or use an "
+                    "address at a domain that is verified."
+                ),
+            ),
+            SetupProblem(
+                symptom='Test: "Resend refused the key".',
+                fix="Create a new API key in Resend and enter it again.",
             ),
         ]
 

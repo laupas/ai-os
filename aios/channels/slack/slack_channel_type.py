@@ -6,6 +6,7 @@ from aios.channels.channel_check_result import ChannelCheckResult
 from aios.channels.channel_type import ChannelType
 from aios.channels.message_channel import MessageChannel
 from aios.channels.message_chunker import MessageChunker
+from aios.channels.setup_problem import SetupProblem
 from aios.channels.setup_step import SetupStep
 from aios.channels.slack.markdown_to_mrkdwn import MarkdownToMrkdwn
 from aios.channels.slack.slack_blocks import SlackBlocks
@@ -65,26 +66,124 @@ class SlackChannelType(ChannelType):
     def setup(self) -> list[SetupStep]:
         return [
             SetupStep(
-                text="Create a Slack app (From scratch) in your workspace.",
+                text=(
+                    "Create a Slack app: Create New App → From scratch, with a name such as "
+                    "ai-os, in your workspace."
+                ),
                 link="https://api.slack.com/apps",
+                details=[
+                    "Use one app per ai-os installation: two programs connected with the "
+                    "same app split the messages between them.",
+                ],
             ),
             SetupStep(
-                text="Socket Mode: turn it on. Basic Information → App-Level Tokens: add one with "
-                "the connections:write scope; that is the app-level token.",
+                text=(
+                    "Socket Mode: Settings → Socket Mode → on. Then Basic Information → "
+                    "App-Level Tokens → Generate, with the scope connections:write."
+                ),
+                details=[
+                    "The token starts with xapp-; it is the App-level token below.",
+                    "With Socket Mode ai-os dials out to Slack, so no public address is needed.",
+                ],
             ),
             SetupStep(
-                text="OAuth & Permissions → bot scopes chat:write, im:history, channels:history, "
-                "groups:history, mpim:history (optionally chat:write.customize and "
-                "users:read). Install the app; the Bot User OAuth Token is the bot token.",
+                text=(
+                    "Permissions: OAuth & Permissions → Bot Token Scopes: chat:write, "
+                    "im:history, channels:history, groups:history, mpim:history. Then Install"
+                    " to Workspace."
+                ),
+                details=[
+                    "The Bot User OAuth Token (xoxb-) is the Bot token below.",
+                    "Optional: chat:write.customize and users:read, so words a person typed "
+                    "on another channel show with their name and picture rather than a "
+                    "label.",
+                    "After adding a scope, install the app again (Reinstall to Workspace), "
+                    "or the token keeps the old scopes.",
+                ],
             ),
             SetupStep(
-                text="Event Subscriptions → bot events message.im, message.channels, "
-                "message.groups, message.mpim. Interactivity: on. App Home → Messages tab: "
-                "allow users to message the app.",
+                text=(
+                    "Events and buttons: Event Subscriptions → on, bot events message.im, "
+                    "message.channels, message.groups, message.mpim. Interactivity & "
+                    "Shortcuts → on."
+                ),
+                details=[
+                    "Without Interactivity the Stop and approval buttons do nothing.",
+                    'App Home → Show Tabs → Messages Tab on, with "Allow users to send Slash'
+                    ' commands and messages from the messages tab", or people cannot write '
+                    "to the app.",
+                ],
             ),
             SetupStep(
-                text="For each person: their Slack member id (profile → ⋮ → Copy member ID) as a "
-                "slack account under Users.",
+                text=(
+                    "Enter both tokens below and Test, then switch the channel on, save, and "
+                    "restart ai-os."
+                ),
+                details=[
+                    "Green means the bot token signs in and the app-level token may open a "
+                    "connection.",
+                ],
+            ),
+            SetupStep(
+                text=(
+                    "For each person: their Slack member id as a slack account under Settings"
+                    " → Users."
+                ),
+                details=[
+                    "In Slack: their profile → ⋮ (more) → Copy member ID. It looks like "
+                    "U0123ABCDEF.",
+                ],
+            ),
+            SetupStep(
+                text=(
+                    "Using it: every message to the app in a direct message starts its own "
+                    "thread and conversation. In a channel, invite the app (/invite @ai-os) "
+                    "and mention it; replies in the thread need no mention."
+                ),
+                details=[
+                    "Slack conversations also show in this console.",
+                ],
+            ),
+        ]
+
+    @property
+    def problems(self) -> list[SetupProblem]:
+        return [
+            SetupProblem(
+                symptom='Test: "bot token: invalid_auth" or "not_authed".',
+                fix=(
+                    "The bot token is wrong or was revoked: copy the Bot User OAuth Token "
+                    "(xoxb-) again from OAuth & Permissions."
+                ),
+            ),
+            SetupProblem(
+                symptom='Test: "app-level token: …".',
+                fix=(
+                    "Use an app-level token (xapp-) with the scope connections:write, and "
+                    "check that Socket Mode is on."
+                ),
+            ),
+            SetupProblem(
+                symptom='Slack: "Sending messages to this app has been turned off".',
+                fix="App Home → Show Tabs → Messages Tab on, with messages allowed.",
+            ),
+            SetupProblem(
+                symptom="The app stays silent in a channel.",
+                fix=(
+                    "Invite it to the channel and mention it; check the bot events "
+                    "message.channels (and message.groups for private channels)."
+                ),
+            ),
+            SetupProblem(
+                symptom="Stop and approval buttons do nothing.",
+                fix="Interactivity & Shortcuts → on.",
+            ),
+            SetupProblem(
+                symptom='The app answers "Sorry, you are not allowed to use ai-os".',
+                fix=(
+                    "Add the person's member id as a slack account under Settings → Users; "
+                    "they need the chat permission."
+                ),
             ),
         ]
 

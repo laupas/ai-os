@@ -18,6 +18,18 @@ log = logging.getLogger(__name__)
 
 CARD = "application/vnd.microsoft.card.adaptive"
 CHECK_GEO = "emea"
+# Microsoft Entra's error codes for a refused bot sign-in, as the people setting it
+# up meet them.
+SIGN_IN_ERRORS = {
+    "unauthorized_client": (
+        "Microsoft does not know this bot id in this tenant. Use the bot's id from "
+        "Developer Portal → Tools → Bot management, not the Teams app's App ID"
+    ),
+    "invalid_client": (
+        "the client secret is wrong or has expired. Add a new one to the bot and enter it again"
+    ),
+    "invalid_request": "Microsoft refused the sign-in. Check the tenant id",
+}
 
 
 class TeamsBot:
@@ -87,7 +99,10 @@ class TeamsBot:
     async def check(self) -> str:
         """Signs in and asks Teams for a socket, without opening it. Raises when the
         bot cannot sign in or Socket Mode is not on for it."""
-        token = await self._app.token_provider.get_app_token()
+        try:
+            token = await self._app.token_provider.get_app_token()
+        except Exception as exc:
+            raise RuntimeError(SIGN_IN_ERRORS.get(str(exc), f"sign-in failed: {exc}")) from exc
         if token is None:
             raise RuntimeError("the bot could not sign in; check the app id, secret and tenant")
 
