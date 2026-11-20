@@ -14,7 +14,7 @@ channel (web, Slack) ──► Gateway ──► Engine (Claude Agent SDK) ─�
                                                         data_*       ─► policy ─► approval ─► storage
 ```
 
-- **Channels** are where people talk to ai-os: the web console, Slack, the terminal.
+- **Channels** are where people talk to ai-os: the web console, Slack, Microsoft Teams, the terminal.
 - **Senders** deliver messages elsewhere: Signal, mail (through Resend).
 - **Agents** do the work: an orchestrator answers every turn and delegates to the
   others. Each agent may use only the tools, skills and connectors it was granted,
@@ -74,7 +74,7 @@ Anthropic's terms for the kind of use you have in mind.
 
 | Where | What |
 |---|---|
-| environment | secrets and paths: `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN`, `AIOS_SECRETS_KEY`, `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `RESEND_API_KEY`, `AIOS_MAIL_FROM`, `SIGNAL_API_URL`, `SIGNAL_SENDER`, `OPENAI_API_KEY` (voice notes), `AIOS_DATA_DIR`, `AIOS_VARIABLE_FILES_DIR` (best a tmpfs), `AIOS_LOG_LEVEL`; see `.env.example` |
+| environment | secrets and paths: `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN`, `AIOS_SECRETS_KEY`, `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `TEAMS_APP_ID`, `TEAMS_APP_PASSWORD`, `TEAMS_TENANT_ID`, `RESEND_API_KEY`, `AIOS_MAIL_FROM`, `SIGNAL_API_URL`, `SIGNAL_SENDER`, `OPENAI_API_KEY` (voice notes), `AIOS_DATA_DIR`, `AIOS_VARIABLE_FILES_DIR` (best a tmpfs), `AIOS_LOG_LEVEL`; see `.env.example` |
 | `<data>/config` | the configuration repository (git): `aios.yaml`, agents, skills, connectors, schedules, roles |
 | `<data>/users` | who is who, with their accounts on each channel |
 | `<data>/variables` | values and secrets for connectors, set in the console; secrets encrypted |
@@ -322,6 +322,27 @@ Socket Mode, bot scopes `chat:write`, `im:history`, `channels:history`,
 events `message.im`, `message.channels`, `message.groups`, `message.mpim`;
 interactivity on. A Slack user can talk to ai-os once their Slack id is a `slack`
 account of a user with the `chat` permission.
+
+## Teams app
+
+The `teams` channel uses the Teams SDK's **Socket Mode** (a Microsoft preview): ai-os
+dials out to Teams, like Slack's Socket Mode, so no public address is needed. Only
+outbound HTTPS to `login.microsoftonline.com`, `*.botapi.skype.com` and
+`*.service.signalr.net`. Everything is set up on the web, in the
+[Teams Developer Portal](https://dev.teams.microsoft.com):
+
+1. **Tools → Bot management → New bot.** Copy its id, and add a client secret.
+2. **Configure → Delivery method → Socket mode → Save.** Only new bots can use it.
+3. **Apps → New app → App features → Bot:** pick the bot, scopes personal, team and
+   group chat; then **Preview in Teams** (or publish it to your organisation).
+4. In the ai-os console, **Settings → Channels → Microsoft Teams:** the bot id, the
+   secret and your tenant id; **Check** confirms the bot signs in and has a socket.
+   Turn the channel on and restart.
+
+A Teams user can talk to ai-os once their Microsoft Entra object id is a `teams`
+account of a user with the `chat` permission. In a team, mention the bot to start a
+thread; a personal or group chat is one conversation until someone writes `/new`.
+Scheduled runs reach a user in their personal chat with the bot.
 
 ## Development
 

@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from aios.channels.channel_capability import ChannelCapability
 from aios.channels.channel_check_result import ChannelCheckResult
 from aios.channels.message_channel import MessageChannel
+from aios.channels.setup_step import SetupStep
 from aios.messaging.message_sender import MessageSender
 from aios.variables.variable_field import VariableField
 
@@ -35,6 +36,11 @@ class ChannelType(ABC):
 
     @property
     def fields(self) -> list[VariableField]:
+        return []
+
+    @property
+    def setup(self) -> list[SetupStep]:
+        """How to set the channel up on the provider's side, for the console."""
         return []
 
     def create_channel(self, values: dict[str, str | None]) -> MessageChannel:

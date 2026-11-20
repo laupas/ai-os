@@ -200,6 +200,14 @@ export interface ChannelSetting {
   running: boolean;
   checkable: boolean;
   fields: VariableFieldRow[];
+  /** How to set it up on the provider's side. */
+  setup: SetupStep[];
+}
+
+/** One setup step of a channel, with the provider's page for it. */
+export interface SetupStep {
+  text: string;
+  link: string | null;
 }
 
 /** A value something needs (a channel's token, a code connector's key): a Variable,

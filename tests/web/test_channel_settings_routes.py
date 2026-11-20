@@ -28,6 +28,12 @@ async def test_every_channel_is_listed_with_what_it_needs_and_no_secret(
         url = signal["fields"][0]
         assert url["value"] == "http://signal-api:8080" and url["source"] == "default"
         assert slack["checkable"] and not channels["web"]["checkable"]
+        for name in ["slack", "web", "signal", "mail"]:  # each says how to set it up
+            channel = channels[name]
+            assert channel["setup"], name
+            assert all(
+                (step["link"] or "https://").startswith("https://") for step in channel["setup"]
+            )
 
 
 async def test_values_become_variables_and_on_rewrites_the_older_lists(tmp_path) -> None:

@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Loader2, MessageSquare, PlugZap, Save, Send, XCircle } from "lucide-react";
+import { BookOpen, CheckCircle2, ExternalLink, Loader2, MessageSquare, PlugZap, Save, Send, XCircle } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ErrorBox, Loading } from "@/components/page";
@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { api, type ChannelSetting } from "@/lib/api";
+import { api, type ChannelSetting, type SetupStep } from "@/lib/api";
 import { href } from "@/lib/router";
 import { cn } from "@/lib/utils";
 
@@ -105,8 +105,9 @@ function ChannelCard({ channel: c }: { channel: ChannelSetting }) {
           <Switch checked={enabled} onCheckedChange={setEnabled} aria-label={`${c.title} on`} />
         </label>
       </CardHeader>
-      {c.fields.length || c.checkable || dirty ? (
+      {c.fields.length || c.checkable || dirty || c.setup.length ? (
         <CardContent className="space-y-4">
+          {c.setup.length ? <SetupGuide title={c.title} steps={c.setup} /> : null}
           {c.fields.map((f) => (
             <VariableFieldInput
               key={f.variable}
@@ -143,5 +144,32 @@ function ChannelCard({ channel: c }: { channel: ChannelSetting }) {
         </CardContent>
       ) : null}
     </Card>
+  );
+}
+
+/** The steps on the provider's side, folded away until asked for. */
+function SetupGuide({ title, steps }: { title: string; steps: SetupStep[] }) {
+  return (
+    <details className="group rounded-lg border bg-muted/30 text-sm">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 font-medium">
+        <BookOpen className="size-4" /> How to set up {title}
+      </summary>
+      <ol className="list-decimal space-y-2 px-3 pb-3 pl-8 text-muted-foreground">
+        {steps.map((step) => (
+          <li key={step.text}>
+            {step.text}
+            {step.link ? (
+              <>
+                {" "}
+                <a className="inline-flex items-center gap-1 text-foreground underline" href={step.link} target="_blank" rel="noopener noreferrer">
+                  {new URL(step.link).host}
+                  <ExternalLink className="size-3" />
+                </a>
+              </>
+            ) : null}
+          </li>
+        ))}
+      </ol>
+    </details>
   );
 }

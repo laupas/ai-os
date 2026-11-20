@@ -3,6 +3,7 @@ import aiohttp
 from aios.channels.channel_capability import ChannelCapability
 from aios.channels.channel_check_result import ChannelCheckResult
 from aios.channels.channel_type import ChannelType
+from aios.channels.setup_step import SetupStep
 from aios.messaging.mail.mail_over_resend_sender import MailOverResendSender
 from aios.messaging.message_sender import MessageSender
 from aios.variables.variable_field import VariableField
@@ -46,6 +47,23 @@ class MailChannelType(ChannelType):
                 hint="An address at a domain verified in Resend.",
                 secret=False,
                 placeholder="ai-os <ai-os@example.com>",
+            ),
+        ]
+
+    @property
+    def setup(self) -> list[SetupStep]:
+        return [
+            SetupStep(
+                text="Create a Resend account, add your domain and verify it with the DNS records "
+                "Resend shows.",
+                link="https://resend.com/domains",
+            ),
+            SetupStep(
+                text="Create an API key; sending access is enough.",
+                link="https://resend.com/api-keys",
+            ),
+            SetupStep(
+                text="For each person: their mail address as a mail account under Users.",
             ),
         ]
 

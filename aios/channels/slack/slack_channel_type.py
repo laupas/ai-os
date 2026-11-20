@@ -5,8 +5,9 @@ from aios.channels.channel_capability import ChannelCapability
 from aios.channels.channel_check_result import ChannelCheckResult
 from aios.channels.channel_type import ChannelType
 from aios.channels.message_channel import MessageChannel
+from aios.channels.message_chunker import MessageChunker
+from aios.channels.setup_step import SetupStep
 from aios.channels.slack.markdown_to_mrkdwn import MarkdownToMrkdwn
-from aios.channels.slack.message_chunker import MessageChunker
 from aios.channels.slack.slack_blocks import SlackBlocks
 from aios.channels.slack.slack_channel import SlackChannel
 from aios.channels.slack.slack_voice_notes import SlackVoiceNotes
@@ -57,6 +58,33 @@ class SlackChannelType(ChannelType):
                 label="App-level token",
                 hint="Basic Information → App-Level Tokens, with the connections:write scope.",
                 placeholder="xapp-…",
+            ),
+        ]
+
+    @property
+    def setup(self) -> list[SetupStep]:
+        return [
+            SetupStep(
+                text="Create a Slack app (From scratch) in your workspace.",
+                link="https://api.slack.com/apps",
+            ),
+            SetupStep(
+                text="Socket Mode: turn it on. Basic Information → App-Level Tokens: add one with "
+                "the connections:write scope; that is the app-level token.",
+            ),
+            SetupStep(
+                text="OAuth & Permissions → bot scopes chat:write, im:history, channels:history, "
+                "groups:history, mpim:history (optionally chat:write.customize and "
+                "users:read). Install the app; the Bot User OAuth Token is the bot token.",
+            ),
+            SetupStep(
+                text="Event Subscriptions → bot events message.im, message.channels, "
+                "message.groups, message.mpim. Interactivity: on. App Home → Messages tab: "
+                "allow users to message the app.",
+            ),
+            SetupStep(
+                text="For each person: their Slack member id (profile → ⋮ → Copy member ID) as a "
+                "slack account under Users.",
             ),
         ]
 

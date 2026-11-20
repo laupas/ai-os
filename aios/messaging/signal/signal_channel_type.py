@@ -5,6 +5,7 @@ import aiohttp
 from aios.channels.channel_capability import ChannelCapability
 from aios.channels.channel_check_result import ChannelCheckResult
 from aios.channels.channel_type import ChannelType
+from aios.channels.setup_step import SetupStep
 from aios.messaging.message_sender import MessageSender
 from aios.messaging.signal.signal_sender import SignalSender
 from aios.variables.variable_field import VariableField
@@ -50,6 +51,23 @@ class SignalChannelType(ChannelType):
                 label="Sending number",
                 hint="The number registered in signal-cli-rest-api, with country code.",
                 placeholder="+41…",
+            ),
+        ]
+
+    @property
+    def setup(self) -> list[SetupStep]:
+        return [
+            SetupStep(
+                text="Run signal-cli-rest-api next to ai-os (a Docker container).",
+                link="https://github.com/bbernhard/signal-cli-rest-api",
+            ),
+            SetupStep(
+                text="Register a number there, or link it to an existing Signal account as a "
+                "device (scan the QR code from /v1/qrcodelink?device_name=ai-os).",
+            ),
+            SetupStep(
+                text="For each person: their phone number with country code as a signal account "
+                "under Users.",
             ),
         ]
 

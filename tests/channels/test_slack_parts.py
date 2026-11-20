@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
+from aios.channels.message_chunker import MessageChunker
 from aios.channels.slack.markdown_to_mrkdwn import MarkdownToMrkdwn
-from aios.channels.slack.message_chunker import MessageChunker
 from aios.channels.slack.slack_blocks import SlackBlocks
 from aios.channels.slack.slack_event_reader import SlackEventReader
 from aios.entities.approvals.approval import Approval

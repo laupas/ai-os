@@ -11,8 +11,8 @@ from aios.approvals.approval_answer_handler import ApprovalAnswerHandler
 from aios.approvals.approval_presenter import ApprovalPresenter
 from aios.channels.authored_sender import AuthoredSender
 from aios.channels.message_channel import MessageChannel
+from aios.channels.message_chunker import MessageChunker
 from aios.channels.slack.markdown_to_mrkdwn import MarkdownToMrkdwn
-from aios.channels.slack.message_chunker import MessageChunker
 from aios.channels.slack.slack_blocks import APPROVAL_ACTION_PREFIX, STOP_ACTION, SlackBlocks
 from aios.channels.slack.slack_event_reader import SlackEventReader
 from aios.channels.slack.slack_status_tracker import SlackStatusTracker

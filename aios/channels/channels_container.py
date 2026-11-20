@@ -5,6 +5,7 @@ from aios.channels.channel_catalog import ChannelCatalog
 from aios.channels.channel_directory import ChannelDirectory
 from aios.channels.channel_values import ChannelValues
 from aios.channels.slack.slack_channel_type import SlackChannelType
+from aios.channels.teams.teams_channel_type import TeamsChannelType
 from aios.channels.web.web_channel import WebChannel
 from aios.channels.web.web_channel_type import WebChannelType
 from aios.channels.web.web_event_hub import WebEventHub
@@ -33,6 +34,7 @@ class ChannelsContainer(containers.DeclarativeContainer):
         providers.Singleton(WebChannelType, channel=web),
         providers.Singleton(SignalChannelType),
         providers.Singleton(MailChannelType),
+        providers.Singleton(TeamsChannelType, transcriber=transcriber),
     )
     values = providers.Singleton(ChannelValues, resolver=resolver)
     catalog = providers.Singleton(ChannelCatalog, types=types, config=config, values=values)

@@ -1,6 +1,7 @@
 from aios.channels.channel_capability import ChannelCapability
 from aios.channels.channel_type import ChannelType
 from aios.channels.message_channel import MessageChannel
+from aios.channels.setup_step import SetupStep
 from aios.channels.web.web_channel import WebChannel
 
 
@@ -29,6 +30,19 @@ class WebChannelType(ChannelType):
     @property
     def capabilities(self) -> set[ChannelCapability]:
         return {ChannelCapability.CHAT}
+
+    @property
+    def setup(self) -> list[SetupStep]:
+        return [
+            SetupStep(
+                text="Put a login in front of the console, e.g. a Cloudflare Access application, "
+                "and set it under Settings → Login.",
+                link="https://one.dash.cloudflare.com",
+            ),
+            SetupStep(
+                text="For each person: the address they sign in with as a web account under Users.",
+            ),
+        ]
 
     def create_channel(self, values: dict[str, str | None]) -> MessageChannel:
         # The very instance the web server talks to.

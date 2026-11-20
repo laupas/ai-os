@@ -133,6 +133,7 @@ class ChannelSettingsRoutes(WebRoutes):
                     "running": t.name in self._running,
                     "checkable": type(t).check is not ChannelType.check,
                     "fields": [self._values.row(f) for f in t.fields],
+                    "setup": [s.model_dump() for s in t.setup],
                 }
                 for t in self._catalog.all()
             ]

@@ -20,7 +20,7 @@ class AppConfig(BaseModel):
     model_config = ConfigDict(use_attribute_docstrings=True)
 
     channels: dict[str, ChannelConfig] = {"web": ChannelConfig()}
-    """The channels ai-os uses, by name: `slack`, `web`, `signal`, `mail`. What each
+    """The channels ai-os uses, by name: `slack`, `teams`, `web`, `signal`, `mail`. What each
     can do (chat, send) is its own; its tokens and numbers are Variables."""
     timezone: str = "Europe/Zurich"
     """For schedules and dates in prompts: an IANA name such as `Europe/Zurich`."""
