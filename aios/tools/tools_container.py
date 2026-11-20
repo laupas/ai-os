@@ -11,6 +11,7 @@ from aios.tools.config_editor import ConfigEditor
 from aios.tools.config_get_tool import ConfigGetTool
 from aios.tools.config_list_tool import ConfigListTool
 from aios.tools.config_put_tool import ConfigPutTool
+from aios.tools.conversation_search_tool import ConversationSearchTool
 from aios.tools.data_access_approval_rule import DataAccessApprovalRule
 from aios.tools.data_delete_tool import DataDeleteTool
 from aios.tools.data_get_tool import DataGetTool
@@ -30,6 +31,7 @@ class ToolsContainer(containers.DeclarativeContainer):
     authorizer = providers.Dependency()
     senders = providers.Dependency()
     recorder = providers.Dependency()
+    conversations = providers.Dependency()
     approvals = providers.Dependency()
     registry = providers.Dependency()
     ids = providers.Dependency()
@@ -67,6 +69,9 @@ class ToolsContainer(containers.DeclarativeContainer):
     config_put = providers.Singleton(ConfigPutTool, editor=config_editor)
     config_delete = providers.Singleton(ConfigDeleteTool, editor=config_editor)
     read_logs = providers.Singleton(ReadLogsTool, reader=log_reader, clock=clock)
+    conversation_search = providers.Singleton(
+        ConversationSearchTool, conversations=conversations, recorder=recorder, clock=clock
+    )
 
     server = providers.Singleton(
         AiosToolServer,
@@ -83,6 +88,7 @@ class ToolsContainer(containers.DeclarativeContainer):
             config_put,
             config_delete,
             read_logs,
+            conversation_search,
         ),
     )
 

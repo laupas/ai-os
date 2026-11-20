@@ -94,6 +94,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         authorizer=users.authorizer,
         senders=channels.senders,
         recorder=conversations.recorder,
+        conversations=storage.conversations,
         approvals=approvals.service,
         registry=storage.registry,
         ids=common.ids,
