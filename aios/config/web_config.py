@@ -4,16 +4,18 @@ from aios.config.web_auth_config import WebAuthConfig
 
 
 class WebConfig(BaseModel):
-    """The web console. Off unless `enabled`.
+    """The web console, on unless `enabled: false`.
 
-    It sits behind a login proxy, and who is asking is checked here again (see
-    `auth`): anything on the network may reach the port directly, past the proxy.
-    Without `auth` (or the older `access_*` / `dev_email`) every request is refused.
+    Who is asking is decided by `auth`: the console's own login page, or a login
+    proxy whose word is checked here again, since anything on the network may reach
+    the port directly. Without `auth` (or the older `access_*` / `dev_email`) the
+    console uses `pick`, so a fresh ai-os can be signed in to at once: keep it off
+    any network you do not trust until a real login is set.
     """
 
     model_config = ConfigDict(use_attribute_docstrings=True)
 
-    enabled: bool = False
+    enabled: bool = True
     port: int = 8080
     auth: WebAuthConfig | None = None
     access_team_domain: str | None = None
@@ -26,3 +28,15 @@ class WebConfig(BaseModel):
     dev_email: str | None = None
     """Only for running locally: treat every request as this address. Never set it
     on a deployed instance."""
+
+    def effective_auth(self) -> WebAuthConfig:
+        """`auth`, or what the older keys mean, or `pick` when nothing is set."""
+        if self.auth is not None:
+            return self.auth
+        if self.access_team_domain and self.access_aud:
+            return WebAuthConfig(
+                mode="cloudflare", team_domain=self.access_team_domain, audience=self.access_aud
+            )
+        if self.dev_email:
+            return WebAuthConfig(mode="dev", dev_email=self.dev_email)
+        return WebAuthConfig(mode="pick")

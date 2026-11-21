@@ -16,6 +16,8 @@ from aios.channels.web.web_event_hub import WebEventHub
 from aios.config.app_config_loader import AppConfigLoader
 from aios.config.channel_config import ChannelConfig
 from aios.config.live_app_config import LiveAppConfig
+from aios.config.web_auth_config import WebAuthConfig
+from aios.config.web_config import WebConfig
 from aios.connectors.code_connector_library import CodeConnectorLibrary
 from aios.connectors.code_connectors import CodeConnectors
 from aios.connectors.connector_authorizer import ConnectorAuthorizer
@@ -33,9 +35,11 @@ from aios.entities.memories.memory import Memory
 from aios.entities.schedules.schedule import Schedule
 from aios.entities.skills.skill import Skill
 from aios.entities.users.channel_account import ChannelAccount
+from aios.entities.users.web_password import WebPassword
 from aios.entities.variables.variable import Variable
 from aios.logs.log_reader import LogReader
 from aios.messaging.mail.mail_channel_type import MailChannelType
+from aios.messaging.sender_directory import SenderDirectory
 from aios.messaging.signal.signal_channel_type import SignalChannelType
 from aios.scheduler.schedule_runner import ScheduleRunner
 from aios.scheduler.schedule_timing import ScheduleTiming
@@ -49,6 +53,16 @@ from aios.variables.secret_extractor import SecretExtractor
 from aios.variables.variable_catalog import VariableCatalog
 from aios.variables.variable_resolver import VariableResolver
 from aios.web.aios_yaml_file import AiosYamlFile
+from aios.web.login.chat_code_login import ChatCodeLogin
+from aios.web.login.code_messenger import CodeMessenger
+from aios.web.login.console_users import ConsoleUsers
+from aios.web.login.login_throttle import LoginThrottle
+from aios.web.login.password_hasher import PasswordHasher
+from aios.web.login.password_login import PasswordLogin
+from aios.web.login.pick_login import PickLogin
+from aios.web.login.sign_in_codes import SignInCodes
+from aios.web.login.web_passwords import WebPasswords
+from aios.web.login.web_sessions import WebSessions
 from aios.web.restart_request import RestartRequest
 from aios.web.routes.agent_routes import AgentRoutes
 from aios.web.routes.approval_routes import ApprovalRoutes
@@ -60,7 +74,9 @@ from aios.web.routes.conversation_routes import ConversationRoutes
 from aios.web.routes.files_settings_routes import FilesSettingsRoutes
 from aios.web.routes.history_routes import HistoryRoutes
 from aios.web.routes.log_routes import LogRoutes
+from aios.web.routes.login_routes import LoginRoutes
 from aios.web.routes.memory_routes import MemoryRoutes
+from aios.web.routes.password_routes import PasswordRoutes
 from aios.web.routes.schedule_routes import ScheduleRoutes
 from aios.web.routes.settings_routes import SettingsRoutes
 from aios.web.routes.settings_section_routes import SettingsSectionRoutes
@@ -71,12 +87,14 @@ from aios.web.routes.voice_settings_routes import VoiceSettingsRoutes
 from aios.web.routes.web_auth_settings_routes import WebAuthSettingsRoutes
 from aios.web.web_auth import WebAuth
 from aios.web.web_identity import WebIdentity
+from aios.web.web_identity_factory import WebIdentityFactory
 from aios.web.web_server import WebServer
 from tests.agents.agent_world import AgentWorld
 from tests.config_repo.repo_world import RepoWorld
 from tests.connectors.fake_connector_probe import FakeConnectorProbe
 from tests.fakes.fake_channel import FakeChannel
 from tests.fakes.fake_channel_type import FakeChannelType
+from tests.fakes.fake_sender import FakeSender
 from tests.fakes.fake_transcriber import FakeTranscriber
 from tests.fakes.world import World
 from tests.web.fake_claude_sign_in_check import FakeClaudeSignInCheck
@@ -95,7 +113,10 @@ class HeaderIdentity(WebIdentity):
 
 class Console:
     """A web console over a `World`: Alice (owner) and Bob (member) both have
-    a web account. Use as `async with Console(tmp_path) as c:`."""
+    a web account. Use as `async with Console(tmp_path) as c:`.
+
+    With `auth` for the console's own login (pick, password), requests are told
+    apart by the session cookie instead of `X-Test-Email`."""
 
     def __init__(
         self,
@@ -103,14 +124,17 @@ class Console:
         engine: AgentEngine | None = None,
         transcriber: FakeTranscriber | None = None,
         max_audio_bytes: int = MAX_AUDIO_BYTES,
+        auth: WebAuthConfig | None = None,
     ) -> None:
         self.tmp_path = tmp_path
+        self.auth = auth
         self.transcriber = transcriber or FakeTranscriber()
         self.voice = VoiceRoutes(self.transcriber, max_audio_bytes)
         self.world = World(engine=engine)
         self.hub = WebEventHub()
         self.channel = WebChannel(self.world.ids)
         self.slack = FakeChannel("slack")
+        self.signal = FakeSender("signal")
         self.recorder = MessageRecorder(
             self.world.log, self.world.clock, self.world.ids, [self.hub]
         )
@@ -216,9 +240,36 @@ class Console:
         )
         self.repo_world = RepoWorld(self.tmp_path / "repo")
         self.repo_world.repo.init()
-        server = WebServer(
-            WebAuth(HeaderIdentity(), w.users, w.authorizer),
+        console_users = ConsoleUsers(w.users, w.authorizer)
+        self.passwords = WebPasswords(
+            Collection(CollectionDefinition(name="web-passwords", entity=WebPassword), w.store),
+            PasswordHasher(),
+            w.clock,
+        )
+        self.sessions = WebSessions(box.derive_key("web-session"), w.clock)
+        self.identities = WebIdentityFactory(
+            self.sessions,
+            console_users,
             [
+                PickLogin(console_users),
+                PasswordLogin(console_users, self.passwords, LoginThrottle(w.clock)),
+                ChatCodeLogin(
+                    console_users,
+                    SignInCodes(w.clock),
+                    CodeMessenger(
+                        channels, SenderDirectory({"signal": lambda: self.signal}, ["signal"])
+                    ),
+                    LoginThrottle(w.clock),
+                ),
+            ],
+        )
+        login = self.identities.login_for(self.auth)
+        identity = self.identities.create(WebConfig(auth=self.auth)) if login else HeaderIdentity()
+        server = WebServer(
+            WebAuth(identity, w.users, w.authorizer, login_page=login is not None),
+            [
+                LoginRoutes(login, self.sessions, 30),
+                PasswordRoutes(self.passwords, w.users, w.authorizer),
                 LogRoutes(LogReader(log_file), w.clock),
                 ConversationRoutes(
                     w.conversations,
@@ -270,7 +321,7 @@ class Console:
                 ),
                 SettingsSectionRoutes(AiosYamlFile(self.config_file), self.collection_overrides),
                 VoiceSettingsRoutes(self.variables, self.variable_resolver),
-                WebAuthSettingsRoutes(AiosYamlFile(self.config_file)),
+                WebAuthSettingsRoutes(AiosYamlFile(self.config_file), self.identities),
                 FilesSettingsRoutes(
                     AiosYamlFile(self.config_file),
                     FileRootGuard([self.tmp_path / "data"]),

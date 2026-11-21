@@ -253,6 +253,8 @@ class ApplicationContainer(containers.DeclarativeContainer):
         code_connectors=connectors.code,
         repository_files=config_repo.files,
         transcriber=transcription.transcriber,
+        web_passwords=storage.web_passwords,
+        secret_box=variables.box,
     )
 
     # aios.yaml applied while ai-os runs. In the configuration repository only a

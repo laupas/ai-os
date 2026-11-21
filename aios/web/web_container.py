@@ -4,6 +4,16 @@ from aios.audit.audit_feed import AuditFeed
 from aios.audit.config_history import ConfigHistory
 from aios.web.aios_yaml_file import AiosYamlFile
 from aios.web.audit_middleware import AuditMiddleware
+from aios.web.login.chat_code_login import ChatCodeLogin
+from aios.web.login.code_messenger import CodeMessenger
+from aios.web.login.console_users import ConsoleUsers
+from aios.web.login.login_throttle import LoginThrottle
+from aios.web.login.password_hasher import PasswordHasher
+from aios.web.login.password_login import PasswordLogin
+from aios.web.login.pick_login import PickLogin
+from aios.web.login.sign_in_codes import SignInCodes
+from aios.web.login.web_passwords import WebPasswords
+from aios.web.login.web_sessions import WebSessions
 from aios.web.restart_request import RestartRequest
 from aios.web.routes.agent_routes import AgentRoutes
 from aios.web.routes.approval_routes import ApprovalRoutes
@@ -18,7 +28,9 @@ from aios.web.routes.git_routes import GitRoutes
 from aios.web.routes.health_routes import HealthRoutes
 from aios.web.routes.history_routes import HistoryRoutes
 from aios.web.routes.log_routes import LogRoutes
+from aios.web.routes.login_routes import LoginRoutes
 from aios.web.routes.memory_routes import MemoryRoutes
+from aios.web.routes.password_routes import PasswordRoutes
 from aios.web.routes.repository_routes import RepositoryRoutes
 from aios.web.routes.schedule_routes import ScheduleRoutes
 from aios.web.routes.settings_routes import SettingsRoutes
@@ -86,9 +98,55 @@ class WebContainer(containers.DeclarativeContainer):
     code_connectors = providers.Dependency(default=None)
     repository_files = providers.Dependency()
     transcriber = providers.Dependency()
+    web_passwords = providers.Dependency()
+    secret_box = providers.Dependency()
 
-    identity = providers.Singleton(WebIdentityFactory.create, app_config.provided.web)
-    auth = providers.Singleton(WebAuth, identity=identity, users=users, authorizer=authorizer)
+    # The console's own login (`web.auth.mode` pick, password or code). A new way of
+    # signing in is a `WebLogin` plus an entry in `logins`.
+    console_users = providers.Singleton(ConsoleUsers, users=users, authorizer=authorizer)
+    passwords = providers.Singleton(
+        WebPasswords,
+        passwords=web_passwords,
+        hasher=providers.Singleton(PasswordHasher),
+        clock=clock,
+    )
+    sessions = providers.Singleton(
+        WebSessions, key=secret_box.provided.derive_key.call("web-session"), clock=clock
+    )
+    logins = providers.List(
+        providers.Singleton(PickLogin, users=console_users),
+        providers.Singleton(
+            PasswordLogin,
+            users=console_users,
+            passwords=passwords,
+            throttle=providers.Singleton(LoginThrottle, clock=clock),
+        ),
+        providers.Singleton(
+            ChatCodeLogin,
+            users=console_users,
+            codes=providers.Singleton(SignInCodes, clock=clock),
+            messenger=providers.Singleton(CodeMessenger, channels=channels, senders=senders),
+            throttle=providers.Singleton(LoginThrottle, clock=clock),
+        ),
+    )
+    identities = providers.Singleton(
+        WebIdentityFactory, sessions=sessions, users=console_users, logins=logins
+    )
+    login = providers.Singleton(
+        lambda factory, web: factory.login_for(web.effective_auth()),
+        identities,
+        app_config.provided.web,
+    )
+    identity = providers.Singleton(
+        lambda factory, web: factory.create(web), identities, app_config.provided.web
+    )
+    auth = providers.Singleton(
+        WebAuth,
+        identity=identity,
+        users=users,
+        authorizer=authorizer,
+        login_page=providers.Callable(lambda login: login is not None, login),
+    )
     restart = providers.Singleton(RestartRequest)
     aios_yaml = providers.Singleton(
         AiosYamlFile, config_file=config_file, store=config_store, live=live_config
@@ -115,6 +173,17 @@ class WebContainer(containers.DeclarativeContainer):
             clock=clock,
             connectors=connector_catalog,
             credentials=claude_credentials,
+        ),
+        providers.Singleton(
+            LoginRoutes,
+            login=login,
+            sessions=sessions,
+            days=providers.Callable(
+                lambda web: web.effective_auth().session_days, app_config.provided.web
+            ),
+        ),
+        providers.Singleton(
+            PasswordRoutes, passwords=passwords, users=users, authorizer=authorizer
         ),
         providers.Singleton(LogRoutes, log_reader=log_reader, clock=clock),
         providers.Singleton(AuditRoutes, feed=audit_feed),
@@ -198,7 +267,7 @@ class WebContainer(containers.DeclarativeContainer):
         providers.Singleton(
             VoiceSettingsRoutes, variables=variable_catalog, resolver=variable_resolver
         ),
-        providers.Singleton(WebAuthSettingsRoutes, config=aios_yaml),
+        providers.Singleton(WebAuthSettingsRoutes, config=aios_yaml, identities=identities),
         providers.Singleton(FilesSettingsRoutes, config=aios_yaml, guard=file_root_guard),
         providers.Singleton(
             ChannelSettingsRoutes,

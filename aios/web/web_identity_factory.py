@@ -4,28 +4,37 @@ from aios.config.web_auth_config import WebAuthConfig
 from aios.config.web_config import WebConfig
 from aios.web.fixed_identity import FixedIdentity
 from aios.web.jwt_header_identity import JwtHeaderIdentity
+from aios.web.login.console_users import ConsoleUsers
+from aios.web.login.session_identity import SessionIdentity
+from aios.web.login.web_login import WebLogin
+from aios.web.login.web_sessions import WebSessions
 from aios.web.trusted_header_identity import TrustedHeaderIdentity
 from aios.web.web_identity import WebIdentity
 
 
 class WebIdentityFactory:
-    """The identity `web.auth` asks for. The older `access_team_domain` and
-    `access_aud` still mean Cloudflare, and `dev_email` still means dev; with none
-    of them every request is refused."""
+    """The identity `web.auth` asks for (see `WebConfig.effective_auth`: nothing set
+    means `pick`). A mode in `logins` is the console's own login page, remembered
+    with a session cookie."""
 
-    @staticmethod
-    def create(config: WebConfig) -> WebIdentity:
-        auth = config.auth
-        if auth is None:
-            if config.access_team_domain and config.access_aud:
-                return JwtHeaderIdentity.cloudflare(config.access_team_domain, config.access_aud)
-            return FixedIdentity(config.dev_email)
-        return WebIdentityFactory.from_auth(auth)
+    def __init__(self, sessions: WebSessions, users: ConsoleUsers, logins: list[WebLogin]) -> None:
+        self._sessions = sessions
+        self._users = users
+        self._logins = {login.mode: login for login in logins}
 
-    @staticmethod
-    def from_auth(auth: WebAuthConfig) -> WebIdentity:
+    def create(self, config: WebConfig) -> WebIdentity:
+        return self.from_auth(config.effective_auth())
+
+    def login_for(self, auth: WebAuthConfig | None) -> WebLogin | None:
+        """The login page `auth` asks for; None for a proxy or dev."""
+        return self._logins.get(auth.mode) if auth is not None else None
+
+    def from_auth(self, auth: WebAuthConfig) -> WebIdentity:
         """Also how the console tries a new `web.auth` on its own request before
         saving it."""
+        login = self.login_for(auth)
+        if login is not None:
+            return SessionIdentity(self._sessions, login, self._users)
         if auth.mode == "cloudflare":
             return JwtHeaderIdentity.cloudflare(auth.team_domain or "", auth.audience or "")
         if auth.mode == "jwt":

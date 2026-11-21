@@ -18,6 +18,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { AccountBox } from "@/components/account-box";
 import { RestartBanner } from "@/components/restart-banner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { api, type Approval, type GitOverview, type Permission } from "@/lib/api";
@@ -142,8 +143,7 @@ export function AppShell({ current, hideMobileBar, children }: { current: string
         {me ? (
           <div className="border-t p-4 text-xs text-muted-foreground">
             <RunningBranch />
-            <div className="font-medium text-foreground">{me.name}</div>
-            <div className="truncate">{me.email}</div>
+            <AccountBox me={me} />
           </div>
         ) : null}
       </aside>
@@ -176,7 +176,11 @@ export function AppShell({ current, hideMobileBar, children }: { current: string
           <div className="flex-1 overflow-y-auto">
             <NavList current={current} onPick={() => setOpen(false)} />
           </div>
-          {me ? <div className="border-t p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] text-xs text-muted-foreground">{me.email}</div> : null}
+          {me ? (
+            <div className="border-t p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] text-xs text-muted-foreground">
+              <AccountBox me={me} />
+            </div>
+          ) : null}
         </SheetContent>
       </Sheet>
     </div>

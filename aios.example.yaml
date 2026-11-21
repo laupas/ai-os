@@ -7,7 +7,8 @@ channels: [web]          # web, slack
 senders: []              # signal, mail
 timezone: Europe/Zurich
 
-# Created once, while there are no users. Gets the owner role.
+# Created once, while there are no users. Gets the owner role. Without this, the
+# first user is "Owner" with a web account, to sign in with and rename.
 owner:
   name: Alex
   accounts:
@@ -15,15 +16,29 @@ owner:
     # - {channel: slack, address: U0123ABCDEF}
     # - {channel: signal, address: "+15551234567"}
 
-# The web console. It trusts a login proxy in front of it; pick one way below.
+# The web console (on by default): its own login page, or a login proxy in front of
+# it; pick one way below.
 web:
   enabled: true
   port: 8080
   # public_url: https://ai-os.example.com    # for OAuth redirects, if not the request's host
   auth:
-    # On your own machine only: every request is this user.
-    mode: dev
-    dev_email: alex@example.com
+    # No login (the default, also without `auth`): the console lists the users and
+    # you pick one. Only where everyone who can reach it is trusted.
+    mode: pick
+
+    # On your own machine only: every request is this user, without a login page.
+    # mode: dev
+    # dev_email: alex@example.com
+
+    # The console's own login: a name and a password, set per user under
+    # Settings → People. Set the owner's password before switching to it.
+    # mode: password
+    # session_days: 30
+
+    # The console's own login without passwords: a one-time code sent to the
+    # user's Slack, Teams, Signal or mail account.
+    # mode: code
 
     # Cloudflare Access (Zero Trust): the application's AUD tag and your team domain.
     # mode: cloudflare

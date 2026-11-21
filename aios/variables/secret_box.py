@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import hmac
 import logging
 import os
 from pathlib import Path
@@ -34,6 +35,11 @@ class SecretBox:
         except InvalidToken:
             log.error("a secret cannot be decrypted: was AIOS_SECRETS_KEY changed?")
             return None
+
+    def derive_key(self, purpose: str) -> bytes:
+        """A key for `purpose` (signing the console's sessions, say), derived from
+        this box's key, so it needs no file or setting of its own."""
+        return hmac.new(self._key(), purpose.encode(), hashlib.sha256).digest()
 
     def _box(self) -> Fernet:
         if self._fernet is None:

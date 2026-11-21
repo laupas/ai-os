@@ -42,10 +42,13 @@ mkdir -p data && cp aios.example.yaml data/config.yaml   # set the owner's addre
 docker compose -f docker-compose.example.yml up -d --build
 ```
 
-Open http://localhost:8080. The example config uses `web.auth.mode: dev`, which
-treats every request as the owner: fine on your own machine, **never** on a server
-others can reach. Before exposing it, put a login proxy in front (see
-[Web console and login](#web-console-and-login)).
+Open http://localhost:8080 and pick yourself on the login page. With no login set,
+the console uses `web.auth.mode: pick`: anyone who reaches it chooses who they are,
+which is fine on your own machine and **never** on a server others can reach.
+Before exposing it, switch to a password or chat-code login, or put a login proxy in
+front (Settings → Login; see [Web console and login](#web-console-and-login)). An
+empty ai-os without `owner` in its config starts with one user, "Owner", to sign in
+as and rename.
 
 To run without Docker:
 
@@ -55,8 +58,8 @@ mkdir -p /tmp/aios && cp aios.example.yaml /tmp/aios/config.yaml
 AIOS_DATA_DIR=/tmp/aios uv run python -m aios
 ```
 
-Then open http://localhost:8080; with `web.auth.mode: dev` every request is the
-`dev_email` user, so no login proxy is needed on your own machine. The web console
+Then open http://localhost:8080 and pick yourself on the login page (`pick`, the
+default); `web.auth.mode: dev` skips even that. The web console
 has to be built once for that (`cd web && npm ci && npm run build`, then
 copy `web/dist` to `aios/web/static`); the Docker image does it for you.
 
@@ -95,16 +98,27 @@ The console (port 8080) has chat, approvals, schedules, memories, agents, skills
 connectors, variables, logs, health and settings. It is a React app in `web/` (Vite,
 Tailwind, shadcn/ui), built by the Dockerfile.
 
-ai-os has no passwords of its own: it trusts a **login proxy** in front of it, and
-checks again who is asking, since anything on the same network may reach the port
-directly. Pick one in `web.auth`:
+The console either signs people in itself, or trusts a **login proxy** in front of
+it and checks again who is asking, since anything on the same network may reach the
+port directly. Pick one in `web.auth` (or under Settings → Login):
 
 | `mode` | For | Checks |
 |---|---|---|
+| `pick` (default) | a fresh install, or a home network where everyone is trusted | nothing: the login page lists the users and you pick one |
+| `password` | a small installation without a proxy (behind https) | a name (web address, name or alias) and a password set per user under Settings → People |
+| `code` | the same, without passwords | a one-time code ai-os sends to the user's Slack, Teams, Signal or mail account |
 | `cloudflare` | Cloudflare Access (Zero Trust) | Access's signed token (`team_domain`, `audience`) |
 | `jwt` | oauth2-proxy, Authentik, Pomerium, any proxy forwarding a signed token | signature against `jwks_url`, `issuer`, `audience` |
 | `header` | Authelia, Traefik forward-auth, any proxy setting a plain header | only from `trusted_proxies` and/or with a shared secret (`secret_env`) |
 | `dev` | your own machine | nothing: every request is `dev_email` |
+
+`pick`, `password` and `code` keep a browser signed in with a signed cookie for
+`session_days` (30). Passwords are hashed (scrypt) in `<data>/web-passwords`, never
+in git; a new password signs that user out everywhere, and five wrong attempts for
+one name block it for 15 minutes. Settings refuse to switch to `password` before the
+administrator saving it has a password, and to `code` before ai-os can reach them.
+A code is valid for 10 minutes, works once, and a new one is sent at most once a
+minute; the login page answers the same whether or not a name is known.
 
 A person gets in with a `web` account (the address the proxy reports) on a user with
 the `chat` permission; the controls need `administer`. Changes need an `X-Aios: 1`

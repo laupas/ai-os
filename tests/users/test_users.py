@@ -38,7 +38,9 @@ async def test_bootstrap_never_touches_existing_data() -> None:
     assert {u.name for u in world.users.all()} == {"Alice", "Bob"}
 
 
-async def test_bootstrap_without_owner_config_creates_no_user() -> None:
+async def test_bootstrap_without_owner_config_creates_an_owner_who_can_sign_in() -> None:
     world = World()
     await OwnerBootstrapper(world.users, world.roles, DefaultRoles(), None, IdGenerator()).run()
-    assert world.users.is_empty() and not world.roles.is_empty()
+    [created] = world.users.all()
+    assert created.name == "Owner" and created.role_ids == [DefaultRoles.OWNER]
+    assert created.account_for("web") is not None

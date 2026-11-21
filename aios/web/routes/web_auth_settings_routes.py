@@ -13,6 +13,7 @@ from aios.web.aios_yaml_file import AiosYamlFile
 from aios.web.request_body import RequestBody
 from aios.web.web_auth import WebAuth
 from aios.web.web_auth_request import WebAuthRequest
+from aios.web.web_caller import WebCaller
 from aios.web.web_identity_factory import WebIdentityFactory
 from aios.web.web_routes import WebRoutes
 
@@ -25,13 +26,16 @@ class WebAuthSettingsRoutes(WebRoutes):
 
     A wrong setting locks everyone out of the console that could undo it, so a new
     one is first tried on the request that saves it: it is saved only when it would
-    recognise this very administrator. `dev` is refused here (it lets anyone in),
-    and the console cannot be switched off or moved to another port from here.
-    Applies after a restart, like the rest of aios.yaml.
+    recognise this very administrator. For the console's own login that means this
+    administrator could sign in with it (has a password, for `password`). `dev` is
+    refused here (it lets anyone in as one address), and the console cannot be
+    switched off or moved to another port from here. Applies after a restart, like
+    the rest of aios.yaml.
     """
 
-    def __init__(self, config: AiosYamlFile) -> None:
+    def __init__(self, config: AiosYamlFile, identities: WebIdentityFactory) -> None:
         self._config = config
+        self._identities = identities
         self._editor = ConfigYamlEditor()
 
     def register(self, app: web.Application) -> None:
@@ -42,10 +46,12 @@ class WebAuthSettingsRoutes(WebRoutes):
     async def _read(self, request: web.Request) -> web.Response:
         caller = WebAuth.caller(request, Permission.ADMINISTER)
         current = self._web()
-        effective = self._effective(current)
+        effective = current.effective_auth()
         return web.json_response(
             {
-                "auth": effective.model_dump() if effective else None,
+                "auth": effective.model_dump(),
+                "configured": current.auth is not None
+                or bool(current.access_team_domain or current.dev_email),
                 "older_form": current.auth is None and bool(current.access_team_domain),
                 "public_url": current.public_url,
                 "port": current.port,
@@ -56,7 +62,7 @@ class WebAuthSettingsRoutes(WebRoutes):
     async def _check(self, request: web.Request) -> web.Response:
         caller = WebAuth.caller(request, Permission.ADMINISTER)
         body = await RequestBody.parse(request, WebAuthRequest)
-        return web.json_response(await self._try(request, body.auth, caller.account.address))
+        return web.json_response(await self._try(request, body.auth, caller))
 
     async def _save(self, request: web.Request) -> web.Response:
         caller = WebAuth.caller(request, Permission.ADMINISTER)
@@ -66,7 +72,7 @@ class WebAuthSettingsRoutes(WebRoutes):
                 text="dev lets anyone in as one address; set it in aios.yaml, and only on "
                 "your own machine"
             )
-        tried = await self._try(request, body.auth, caller.account.address)
+        tried = await self._try(request, body.auth, caller)
         if not tried["ok"]:
             raise web.HTTPConflict(text=f"not saved, you would be locked out: {tried['detail']}")
         current = self._values().get("web")
@@ -87,11 +93,19 @@ class WebAuthSettingsRoutes(WebRoutes):
         await self._config.write(text, f"aios.yaml: console login {body.auth.mode}")
         return web.json_response({"ok": True, "detail": tried["detail"]})
 
-    @staticmethod
-    async def _try(request: web.Request, auth: WebAuthConfig, you: str) -> dict[str, Any]:
-        """Whether `auth` recognises the sender of `request` as `you`."""
+    async def _try(
+        self, request: web.Request, auth: WebAuthConfig, caller: WebCaller
+    ) -> dict[str, Any]:
+        """Whether `auth` recognises the sender of `request` as `caller`."""
+        you = caller.account.address
+        login = self._identities.login_for(auth)
+        if login is not None:
+            reason = login.refusal(caller.user)
+            if reason:
+                return {"ok": False, "email": None, "detail": reason}
+            return {"ok": True, "email": you, "detail": f"you could sign in as {you}"}
         try:
-            identity = WebIdentityFactory.from_auth(auth)
+            identity = self._identities.from_auth(auth)
             email = await identity.email_of(request)
         except Exception as exc:  # noqa: BLE001 - a bad setting, reported rather than raised
             return {"ok": False, "email": None, "detail": str(exc)}
@@ -109,21 +123,6 @@ class WebAuthSettingsRoutes(WebRoutes):
                 "detail": f"this browser would be {email}, not you ({you})",
             }
         return {"ok": True, "email": email, "detail": f"you would be signed in as {email}"}
-
-    @staticmethod
-    def _effective(current: WebConfig) -> WebAuthConfig | None:
-        """`auth`, or what the older keys mean, as one form."""
-        if current.auth is not None:
-            return current.auth
-        if current.access_team_domain and current.access_aud:
-            return WebAuthConfig(
-                mode="cloudflare",
-                team_domain=current.access_team_domain,
-                audience=current.access_aud,
-            )
-        if current.dev_email:
-            return WebAuthConfig(mode="dev", dev_email=current.dev_email)
-        return None
 
     def _web(self) -> WebConfig:
         try:

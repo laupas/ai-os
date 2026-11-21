@@ -1,5 +1,6 @@
 # A starting point: `docker compose -f docker-compose.example.yml up -d --build`.
-# Put a login proxy in front before anyone else can reach port 8080 (see README).
+# The console starts without a login (pick a user): set one under Settings → Login,
+# or put a login proxy in front, before anyone else can reach port 8080 (see README).
 services:
   ai-os:
     build: .

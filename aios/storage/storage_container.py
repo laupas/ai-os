@@ -19,6 +19,7 @@ from aios.entities.skills.skill import Skill
 from aios.entities.users.permission import Permission
 from aios.entities.users.role import Role
 from aios.entities.users.user import User
+from aios.entities.users.web_password import WebPassword
 from aios.entities.variables.variable import Variable
 from aios.storage.agent_access import AgentAccess
 from aios.storage.collection import Collection
@@ -57,6 +58,8 @@ class StorageContainer(containers.DeclarativeContainer):
                 AuditPolicy(ignored_fields=frozenset({"updated_at", "updated_by"}))
             ),
             **{
+                # Field names only: who changed whose password, never the hash.
+                "web-passwords": providers.Object(AuditPolicy()),
                 "git-remotes": providers.Object(
                     AuditPolicy(ignored_fields=frozenset({"updated_at", "updated_by"}))
                 ),
@@ -174,6 +177,12 @@ class StorageContainer(containers.DeclarativeContainer):
     variables_definition = providers.Singleton(
         CollectionDefinition, name="variables", entity=Variable, agent_access=AgentAccess.NONE
     )
+    web_passwords_definition = providers.Singleton(
+        CollectionDefinition,
+        name="web-passwords",
+        entity=WebPassword,
+        agent_access=AgentAccess.NONE,
+    )
     connectors_definition = providers.Singleton(
         CollectionDefinition, name="connectors", entity=Connector, agent_access=AgentAccess.NONE
     )
@@ -195,6 +204,9 @@ class StorageContainer(containers.DeclarativeContainer):
     )
     connector_tokens = providers.Singleton(
         Collection, definition=connector_tokens_definition, store=settings_store
+    )
+    web_passwords = providers.Singleton(
+        Collection, definition=web_passwords_definition, store=settings_store
     )
     conversations = providers.Singleton(
         Collection, definition=conversations_definition, store=document_store
@@ -218,5 +230,6 @@ class StorageContainer(containers.DeclarativeContainer):
             connector_tokens,
             variables,
             git_remotes,
+            web_passwords,
         ),
     )

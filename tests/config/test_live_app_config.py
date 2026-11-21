@@ -42,7 +42,7 @@ def test_only_startup_sections_need_a_restart() -> None:
     assert not live.restart_needed("channels: [web]\ntimezone: UTC\nagent: {model: opus}\n")
     assert not live.restart_needed("channels: [web]\nfiles: {read_roots: [/vault]}\n")
     assert live.restart_needed("channels: [web, slack]\n")
-    assert live.restart_needed("channels: [web]\nweb: {enabled: true}\n")
+    assert live.restart_needed("channels: [web]\nweb: {enabled: false}\n")
     assert live.restart_needed("channels: [web]\ncollection_access: {users: read}\n")
     assert live.restart_needed("not: [yaml")
 

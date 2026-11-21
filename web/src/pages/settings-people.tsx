@@ -1,5 +1,5 @@
-import { useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, Shield, Trash2, User as UserIcon, X } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { KeyRound, Pencil, Plus, Shield, Trash2, User as UserIcon, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ListView } from "@/components/list-view";
@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { CheckRow } from "@/components/ui/checkbox";
 import { Hint, Input, Label, NativeSelect, Textarea } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { api, type ChannelAccount, type RoleDoc, type Settings, type User } from "@/lib/api";
+import { api, type ChannelAccount, type PasswordState, type RoleDoc, type Settings, type User } from "@/lib/api";
 import { useConfirm } from "@/lib/confirm";
 import { useMe } from "@/lib/use-me";
 
@@ -17,7 +17,7 @@ const CHANNELS = ["slack", "teams", "web", "signal", "mail"];
 const ADDRESS_HINT: Record<string, string> = {
   slack: "Slack member id, e.g. U0123ABCDEF",
   teams: "Microsoft Entra object id (Entra admin center → Users → the user), e.g. 1b2c3d4e-…",
-  web: "the address used to sign in to Cloudflare Access",
+  web: "the address they sign in to the console with (login proxy, or name for the console's own login)",
   signal: "phone number with country code, e.g. +15551234567",
   mail: "mail address",
 };
@@ -210,6 +210,7 @@ function UserForm({ user: u, roles, onDone }: { user: User | null; roles: RoleDo
           Notes
           <Textarea rows={3} className="font-sans" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Who they are, for the agents: relationship, language, …" />
         </Label>
+        {u ? <PasswordSection user={u} isMe={isMe} /> : null}
       </div>
       <div className="flex gap-2 border-t p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
         <Button type="submit" disabled={busy || !name.trim()} className="flex-1 sm:flex-none">
@@ -226,6 +227,64 @@ function UserForm({ user: u, roles, onDone }: { user: User | null; roles: RoleDo
         ) : null}
       </div>
     </form>
+  );
+}
+
+/** The user's password for the console's own login (`web.auth.mode: password`). Never shown, only set or removed. */
+function PasswordSection({ user, isMe }: { user: User; isMe: boolean }) {
+  const queryClient = useQueryClient();
+  const confirm = useConfirm();
+  const { data } = useQuery({ queryKey: ["passwords"], queryFn: () => api<PasswordState>("GET", "/api/passwords") });
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const has = isMe ? data?.mine : data?.users?.includes(user.id);
+  const path = `/api/passwords/${encodeURIComponent(user.id)}`;
+  const run = async (action: () => Promise<unknown>, done: string) => {
+    setBusy(true);
+    try {
+      await action();
+      toast.success(done);
+      setPassword("");
+      void queryClient.invalidateQueries({ queryKey: ["passwords"] });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const remove = async () => {
+    if (!(await confirm({ title: `Remove ${user.name}'s password?`, body: "With the password login, they can no longer sign in to the console.", action: "Remove", destructive: true })))
+      return;
+    await run(() => api("DELETE", path), "Password removed.");
+  };
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <KeyRound className="size-4" /> Console password
+        <Badge variant={has ? "secondary" : "outline"}>{has ? "set" : "none"}</Badge>
+      </div>
+      {isMe && has ? (
+        <Hint>Change your own under your name at the bottom of the menu: that asks for the current one.</Hint>
+      ) : (
+        <div className="flex gap-2">
+          <Input type="password" autoComplete="new-password" className="min-w-0 flex-1" placeholder={has ? "new password" : "at least 8 characters"} value={password} onChange={(e) => setPassword(e.target.value)} />
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy || password.length < 8}
+            onClick={() => void run(() => api("PUT", isMe ? "/api/me/password" : path, { password }), "Password set. Their other browsers are signed out.")}
+          >
+            Set
+          </Button>
+          {has && !isMe ? (
+            <Button type="button" variant="ghost" className="text-destructive" disabled={busy} onClick={() => void remove()}>
+              Remove
+            </Button>
+          ) : null}
+        </div>
+      )}
+      <Hint>For signing in when the console uses its own name-and-password login (Settings → Login). Needs a web account above.</Hint>
+    </div>
   );
 }
 

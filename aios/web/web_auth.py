@@ -20,6 +20,9 @@ CSRF_HEADER = "X-Aios"
 # A server sending the browser back after an OAuth sign-in cannot add the header;
 # its single-use state is the check there instead.
 NO_CSRF_PATHS = frozenset({"/api/oauth/callback"})
+# With the console's own login, what a browser needs before signing in.
+LOGIN_PATHS = frozenset({"/", "/api/login", "/api/logout"})
+LOGIN_PREFIXES = ("/static/",)
 
 
 class WebAuth:
@@ -29,26 +32,32 @@ class WebAuth:
     `chat` permission. Anything that changes state must also carry the `X-Aios`
     header, which a page on another site cannot add without CORS, and this server
     answers no CORS.
+
+    With `login_page` (the console's own login), the page, its scripts and the
+    login routes are served to anyone, so a browser can sign in.
     """
 
     def __init__(
-        self, identity: WebIdentity, users: Collection[User], authorizer: Authorizer
+        self,
+        identity: WebIdentity,
+        users: Collection[User],
+        authorizer: Authorizer,
+        login_page: bool = False,
     ) -> None:
         self._identity = identity
         self._users = users
         self._authorizer = authorizer
+        self._login_page = login_page
 
     @web.middleware
     async def middleware(self, request: web.Request, handler):  # type: ignore[no-untyped-def]
+        if self._login_page and self._open(request.path):
+            self._check_csrf(request)
+            return await handler(request)
         caller = await self._caller(request)
         if caller is None:
             raise web.HTTPForbidden(text="Not allowed. Ask the owner to add your web account.")
-        if (
-            request.method not in {"GET", "HEAD"}
-            and request.path not in NO_CSRF_PATHS
-            and request.headers.get(CSRF_HEADER) != "1"
-        ):
-            raise web.HTTPForbidden(text="missing X-Aios header")
+        self._check_csrf(request)
         request[CALLER] = caller
         # Configuration this request changes is committed in the caller's name.
         CurrentAuthor.set(ChangeAuthor(name=caller.user.name, email=caller.account.address))
@@ -60,6 +69,19 @@ class WebAuth:
         if not caller.can(permission):
             raise web.HTTPForbidden(text=f"needs the {permission} permission")
         return caller
+
+    @staticmethod
+    def _open(path: str) -> bool:
+        return path in LOGIN_PATHS or path.startswith(LOGIN_PREFIXES)
+
+    @staticmethod
+    def _check_csrf(request: web.Request) -> None:
+        if (
+            request.method not in {"GET", "HEAD"}
+            and request.path not in NO_CSRF_PATHS
+            and request.headers.get(CSRF_HEADER) != "1"
+        ):
+            raise web.HTTPForbidden(text="missing X-Aios header")
 
     async def _caller(self, request: web.Request) -> WebCaller | None:
         email = await self._identity.email_of(request)

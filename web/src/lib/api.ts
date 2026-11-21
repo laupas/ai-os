@@ -413,3 +413,16 @@ export interface AuditEntry {
   detail: string | null;
   commit: string | null;
 }
+
+/** The console's own login, if it has one (`web.auth.mode` pick, password or code); null behind a proxy. */
+export interface LoginInfo {
+  mode: "pick" | "password" | "code" | null;
+  /** pick: whom the login page offers. */
+  users?: UserRef[];
+}
+
+/** Who has a console password; `users` only for those who manage users. */
+export interface PasswordState {
+  mine: boolean;
+  users: string[] | null;
+}

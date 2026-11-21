@@ -3,6 +3,7 @@ import logging
 from aios.bootstrap.startup_step import StartupStep
 from aios.common.id_generator import IdGenerator
 from aios.config.owner_config import OwnerConfig
+from aios.entities.users.channel_account import ChannelAccount
 from aios.entities.users.role import Role
 from aios.entities.users.user import User
 from aios.storage.collection import Collection
@@ -11,10 +12,16 @@ from aios.users.default_roles import DefaultRoles
 log = logging.getLogger(__name__)
 
 
+DEFAULT_OWNER = OwnerConfig(name="Owner", accounts=[ChannelAccount(channel="web", address="owner")])
+
+
 class OwnerBootstrapper(StartupStep):
     """Makes a fresh data dir usable: default roles, and the owner from config.
 
-    Runs only while the collections are empty, so it never overwrites edits.
+    Without `owner` in the config the owner is "Owner" with a web account, so a
+    fresh ai-os can be signed in to on the console's login page (`pick`, the
+    default) and set up from there. Runs only while the collections are empty, so
+    it never overwrites edits.
     """
 
     def __init__(
@@ -40,13 +47,13 @@ class OwnerBootstrapper(StartupStep):
             await self._create_owner()
 
     async def _create_owner(self) -> None:
+        config = self._owner or DEFAULT_OWNER
         if self._owner is None:
-            log.warning("no users and no `owner` in config: nobody can talk to ai-os yet")
-            return
+            log.warning("no users and no `owner` in config: created %s", DEFAULT_OWNER.name)
         owner = User(
             id=self._ids.new_id(),
-            name=self._owner.name,
-            accounts=list(self._owner.accounts),
+            name=config.name,
+            accounts=list(config.accounts),
             role_ids=[DefaultRoles.OWNER],
         )
         await self._users.put(owner)

@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Cloud, KeyRound, Loader2, Network, PlugZap, Save, XCircle } from "lucide-react";
+import { CheckCircle2, Cloud, MessageSquareLock, KeyRound, Loader2, LockKeyhole, Network, PlugZap, Save, Users, XCircle } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ErrorBox, Loading } from "@/components/page";
@@ -10,7 +10,7 @@ import { Hint, Input, Label, Textarea } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-type Mode = "cloudflare" | "jwt" | "header" | "dev";
+type Mode = "cloudflare" | "jwt" | "header" | "pick" | "password" | "code" | "dev";
 type Auth = Record<string, unknown> & { mode: Mode };
 
 interface WebAuthState {
@@ -36,7 +36,34 @@ interface FieldSpec {
   lines?: boolean;
 }
 
-const MODES: { mode: Exclude<Mode, "dev">; title: string; body: string; icon: typeof Cloud; fields: FieldSpec[] }[] = [
+const SESSION_DAYS: FieldSpec = { key: "session_days", label: "Stay signed in for (days)", placeholder: "30", hint: "How long a browser stays signed in before it asks again." };
+
+const MODES: { mode: Exclude<Mode, "dev">; title: string; body: string; icon: typeof Cloud; fields: FieldSpec[]; warning?: string }[] = [
+  {
+    mode: "pick",
+    title: "No login: pick a user",
+    body: "The console asks who you are and lists everyone with a web account. No password.",
+    icon: Users,
+    fields: [SESSION_DAYS],
+    warning:
+      "Anyone who can open the console can act as anyone, administrators included. Only for a network where everyone is trusted, never on the internet without a proxy in front.",
+  },
+  {
+    mode: "password",
+    title: "Name and password",
+    body: "The console's own login page. Each user's password is set under People, or by themselves.",
+    icon: LockKeyhole,
+    fields: [SESSION_DAYS],
+    warning: "Set your own password first (Settings → People → you), or saving is refused. Put the console behind https: a password sent over plain http can be read on the way.",
+  },
+  {
+    mode: "code",
+    title: "Code by chat",
+    body: "The console asks for your name and sends a one-time code to your Slack, Teams, Signal or mail. No passwords to manage.",
+    icon: MessageSquareLock,
+    fields: [SESSION_DAYS],
+    warning: "Whoever can read someone's chat can sign in as them. Saving is refused unless ai-os can reach you on an enabled channel.",
+  },
   {
     mode: "cloudflare",
     title: "Cloudflare Access",
@@ -162,9 +189,8 @@ function LoginForm({ data }: { data: WebAuthState }) {
       <CardHeader>
         <CardTitle>Console login</CardTitle>
         <CardDescription>
-          How the console learns who is asking. It never has passwords of its own: a login proxy in front of it signs people in, and ai-os
-          checks what the proxy says. A new setting is first tried on this browser, and only saved if it would still recognise you (
-          {data.you}). Applies after a restart.
+          How the console learns who is asking: from its own login page, or from a login proxy in front of it whose word ai-os checks. A new
+          setting is first tried, and only saved if you ({data.you}) could still get in. Applies after a restart.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -199,6 +225,8 @@ function LoginForm({ data }: { data: WebAuthState }) {
           })}
         </div>
 
+        {spec.warning ? <p className="rounded-lg bg-warning/15 p-3 text-sm">{spec.warning}</p> : null}
+
         {spec.fields.map((f) => (
           <Label key={f.key}>
             {f.label}
@@ -211,7 +239,7 @@ function LoginForm({ data }: { data: WebAuthState }) {
                 onChange={(e) => set(f.key, e.target.value.split("\n").map((l) => l.trim()).filter(Boolean))}
               />
             ) : (
-              <Input className="font-mono" placeholder={f.placeholder} value={(auth[f.key] as string | undefined) ?? ""} onChange={(e) => set(f.key, e.target.value)} />
+              <Input className="font-mono" placeholder={f.placeholder} value={String(auth[f.key] ?? "")} onChange={(e) => set(f.key, e.target.value)} />
             )}
             {f.hint ? <Hint>{f.hint}</Hint> : null}
           </Label>
@@ -223,7 +251,7 @@ function LoginForm({ data }: { data: WebAuthState }) {
           <Hint>Where browsers reach the console, for connector sign-ins (OAuth). Empty: taken from each request.</Hint>
         </Label>
         <Hint>
-          Port {data.port}: fixed here, since the proxy in front sends to it; change it in aios.yaml together with the proxy.
+          Port {data.port}: fixed here, since a proxy in front may send to it; change it in aios.yaml.
         </Hint>
 
         <div className="flex flex-wrap items-center gap-2">

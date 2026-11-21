@@ -1,6 +1,7 @@
 import { AppShell, useNav } from "@/components/app-shell";
 import { ErrorBox, Loading } from "@/components/page";
 import { useRoute } from "@/lib/router";
+import { useLogin } from "@/lib/use-login";
 import { useMe } from "@/lib/use-me";
 import { AgentsPage } from "@/pages/agents-page";
 import { ApprovalsPage } from "@/pages/approvals-page";
@@ -8,6 +9,7 @@ import { AuditPage } from "@/pages/audit-page";
 import { ChatPage } from "@/pages/chat/chat-page";
 import { ConnectorsPage } from "@/pages/connectors-page";
 import { HealthPage } from "@/pages/health-page";
+import { LoginScreen } from "@/pages/login-page";
 import { LogsPage } from "@/pages/logs-page";
 import { MemoriesPage } from "@/pages/memories-page";
 import { SchedulesPage } from "@/pages/schedules-page";
@@ -22,7 +24,10 @@ export function App() {
   // Git moved into Settings; an old #/git link still lands there.
   const [page, arg] = route === "git" ? ["settings", "git"] : [route, routeArg];
   const allowed = useNav().map((n) => n.id);
-  if (me.isLoading) return <Loading />;
+  // Not signed in: the console's own login page, if it has one.
+  const login = useLogin(Boolean(me.error));
+  if (me.isLoading || (me.error && login.isLoading)) return <Loading />;
+  if (me.error && login.data?.mode) return <LoginScreen info={login.data} />;
   if (me.error) {
     return (
       <div className="flex h-dvh items-center justify-center p-6">
