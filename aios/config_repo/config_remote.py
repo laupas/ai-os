@@ -56,6 +56,7 @@ class ConfigRemote:
         self._known_hosts = Path(known_hosts)
         self._collections = collections
         self._pending: asyncio.Task[None] | None = None
+        self._unpushed = False
         self.last: RemoteResult | None = None
         store.on_commit(self._after_commit)
 
@@ -203,15 +204,19 @@ class ConfigRemote:
         remote = self.settings()
         if remote is None or not remote.auto_push or not remote.url:
             return
-        # Several saves in a row (a merge, a batch) become one push.
+        # Several saves in a row (a merge, a batch) become one push; a save made
+        # while a push runs gets one more, or it would wait for the next save.
+        self._unpushed = True
         if self._pending is None or self._pending.done():
             self._pending = asyncio.create_task(self._push_soon())
 
     async def _push_soon(self) -> None:
-        await asyncio.sleep(AUTO_PUSH_DELAY)
-        result = await self.push(None)
-        if not result.ok:
-            log.warning("auto-push failed: %s", result.message)
+        while self._unpushed:
+            await asyncio.sleep(AUTO_PUSH_DELAY)
+            self._unpushed = False
+            result = await self.push(None)
+            if not result.ok:
+                log.warning("auto-push failed: %s", result.message)
 
     async def _run(self, action: str, command) -> RemoteResult:  # type: ignore[no-untyped-def]
         remote = self.settings()
