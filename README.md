@@ -33,16 +33,31 @@ channel (web, Slack) ──► Gateway ──► Engine (Claude Agent SDK) ─�
 
 ## Quick start (Docker)
 
-You need Docker, and either an Anthropic API key or a Claude Code login.
+You need Docker, and either an Anthropic API key or a Claude subscription. The image
+is `ghcr.io/laupas/ai-os` (amd64 and arm64), built from `main` as `:latest` and from
+each release tag as `:<version>`.
 
 ```sh
-git clone https://github.com/laupas/ai-os.git && cd ai-os
-cp .env.example .env                       # fill in ANTHROPIC_API_KEY and AIOS_SECRETS_KEY
-mkdir -p data && cp aios.example.yaml data/config.yaml   # set the owner's address
-docker compose -f docker-compose.example.yml up -d --build
+mkdir ai-os && cd ai-os
+curl -fsSLo docker-compose.yml https://raw.githubusercontent.com/laupas/ai-os/main/docker-compose.example.yml
+docker compose up -d
 ```
 
-Open http://localhost:8080 and pick yourself on the login page. With no login set,
+Open http://localhost:8080, pick "Owner" on the login page, and set up the rest in
+the console: the Claude key under Settings → Claude, then your name and accounts
+under Settings → People, channels, connectors and agents. Everything lives in
+`./data`. For a server, set `AIOS_SECRETS_KEY` (and anything else from
+[`.env.example`](.env.example)) in a `.env` next to the compose file and uncomment
+`env_file: .env` there: without it the
+key that encrypts the console's secrets is generated into `./data`, so a backup of
+that folder holds them readable. `aios.example.yaml`, copied to
+`data/config.yaml` before the first start, sets the owner and the rest up front.
+
+To build the image yourself, clone the repository and run
+`docker compose -f docker-compose.example.yml up -d --build` with `build: .`
+uncommented.
+
+Open the console and pick yourself on the login page. With no login set,
 the console uses `web.auth.mode: pick`: anyone who reaches it chooses who they are,
 which is fine on your own machine and **never** on a server others can reach.
 Before exposing it, switch to a password or chat-code login, or put a login proxy in

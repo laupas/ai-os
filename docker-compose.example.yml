@@ -1,12 +1,18 @@
-# A starting point: `docker compose -f docker-compose.example.yml up -d --build`.
+# A starting point: put this file in an empty folder and run `docker compose up -d`,
+# then open http://localhost:8080. Everything else is set up in the console.
+#
 # The console starts without a login (pick a user): set one under Settings → Login,
 # or put a login proxy in front, before anyone else can reach port 8080 (see README).
 services:
   ai-os:
-    build: .
+    image: ghcr.io/laupas/ai-os:latest
+    # To build from a clone of the repository instead:
+    # build: .
     container_name: ai-os
     restart: unless-stopped
-    env_file: .env
+    # Optional: secrets and channel tokens from a .env next to this file (see
+    # .env.example). Everything but AIOS_SECRETS_KEY can also be set in the console.
+    # env_file: .env
     environment:
       AIOS_DATA_DIR: /data
       AIOS_LOG_LEVEL: INFO
