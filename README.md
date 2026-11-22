@@ -33,9 +33,7 @@ channel (web, Slack) ──► Gateway ──► Engine (Claude Agent SDK) ─�
 
 ## Quick start (Docker)
 
-You need Docker, and either an Anthropic API key or a Claude subscription. The image
-is `ghcr.io/laupas/ai-os` (amd64 and arm64), built from `main` as `:latest` and from
-each release tag as `:<version>`.
+You need Docker, and either an Anthropic API key or a Claude subscription.
 
 ```sh
 mkdir ai-os && cd ai-os
@@ -43,27 +41,37 @@ curl -fsSLo docker-compose.yml https://raw.githubusercontent.com/laupas/ai-os/ma
 docker compose up -d
 ```
 
-Open http://localhost:8080, pick "Owner" on the login page, and set up the rest in
-the console: the Claude key under Settings → Claude, then your name and accounts
-under Settings → People, channels, connectors and agents. Everything lives in
-`./data`. For a server, set `AIOS_SECRETS_KEY` (and anything else from
-[`.env.example`](.env.example)) in a `.env` next to the compose file and uncomment
-`env_file: .env` there: without it the
-key that encrypts the console's secrets is generated into `./data`, so a backup of
-that folder holds them readable. `aios.example.yaml`, copied to
-`data/config.yaml` before the first start, sets the owner and the rest up front.
+Open http://localhost:8080 and pick "Owner" on the login page: an empty ai-os starts
+with that one user, to sign in as and rename. Then set up the rest in the console:
 
-To build the image yourself, clone the repository and run
-`docker compose -f docker-compose.example.yml up -d --build` with `build: .`
-uncommented.
+1. **Settings → Claude**: the subscription token or API key (see **Claude** below).
+2. **Settings → People**: your name, and your accounts on Slack, Teams, Signal or mail.
+3. Channels, connectors and agents, as you need them.
 
-Open the console and pick yourself on the login page. With no login set,
-the console uses `web.auth.mode: pick`: anyone who reaches it chooses who they are,
-which is fine on your own machine and **never** on a server others can reach.
-Before exposing it, switch to a password or chat-code login, or put a login proxy in
-front (Settings → Login; see [Web console and login](#web-console-and-login)). An
-empty ai-os without `owner` in its config starts with one user, "Owner", to sign in
-as and rename.
+Everything lives in `./data`, next to the compose file.
+
+**Before anyone else can reach it**, change the login. Without one the console uses
+`web.auth.mode: pick`: whoever reaches it chooses who they are, which is fine on your
+own machine and **never** on a server others can reach. Switch to a password or
+chat-code login, or put a login proxy in front, under Settings → Login (see
+[Web console and login](#web-console-and-login)). The compose file publishes the
+port on loopback only for that reason.
+
+**On a server**, also set `AIOS_SECRETS_KEY` in a `.env` next to the compose file
+(the other variables are in [`.env.example`](.env.example)) and uncomment
+`env_file: .env`. Without it, the key that encrypts the console's secrets is
+generated into `./data`, so a backup of that folder holds them readable. Keep the key
+safe: without it, the stored secrets cannot be read.
+
+**To set things up front** instead of in the console (the owner, channels, the
+login), copy [`aios.example.yaml`](aios.example.yaml) to `data/config.yaml` before
+the first start.
+
+**Updating**: `docker compose pull && docker compose up -d`. The image is
+`ghcr.io/laupas/ai-os` (amd64 and arm64): `:latest` follows `main`, and each release
+tag `vX.Y.Z` is also published as `:X.Y.Z` and `:X.Y`, to pin a version. To build the
+image yourself, clone the repository, uncomment `build: .` in the compose file, and
+run `docker compose -f docker-compose.example.yml up -d --build`.
 
 To run without Docker:
 
@@ -381,6 +389,11 @@ uv run pytest
 uv run ruff check aios tests && uv run ruff format aios tests
 cd web && npm ci && npm run build   # typecheck and build the console
 ```
+
+GitHub Actions (`.github/workflows/docker.yml`) runs ruff and the tests on every push
+and pull request. From `main` and from `v*` tags it then builds the image for amd64
+and arm64 and pushes it to `ghcr.io/<owner>/ai-os`. A release is a tag:
+`git tag v2.1.0 && git push origin v2.1.0`.
 
 `CLAUDE.md` has the code conventions. To extend:
 
