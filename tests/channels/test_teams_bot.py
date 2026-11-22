@@ -79,3 +79,72 @@ async def test_a_cancelled_run_stops_the_sockets_and_passes_the_cancel_on(monkey
     with pytest.raises(asyncio.CancelledError):
         await asyncio.wait_for(task, 1)
     assert stopped == [True]
+
+
+def test_a_chat_thread_reads_back_with_its_reply_chain() -> None:
+    raw = {**RAW, "id": "1700000000005", "channelData": {"replyChain": {"id": "1700000000001"}}}
+    dumped = MessageActivity.model_validate(raw).model_dump(
+        mode="json", by_alias=True, exclude_none=True
+    )
+    message = TeamsActivityReader(TeamsThreads(in_chats=True), lambda b: False).read(dumped)
+    assert message is not None and message.binding.thread == "chat-1700000000001"
+
+
+async def test_a_refused_thread_reply_is_posted_at_the_top(monkeypatch) -> None:
+    bot = TeamsBot(app_id="00000000-0000-0000-0000-000000000000", password="x", tenant_id="t")
+    sent: list[str] = []
+
+    class Sent:
+        id = "1800"
+
+    async def ready() -> None:
+        return None
+
+    async def reply(conversation_id, message_id, activity, service_url=None):
+        raise RuntimeError("HTTP 400")
+
+    async def send(conversation_id, activity, service_url=None):
+        sent.append(conversation_id)
+        return Sent()
+
+    monkeypatch.setattr(bot, "_initialize", ready)
+    monkeypatch.setattr(bot._app, "reply", reply)
+    monkeypatch.setattr(bot._app, "send", send)
+    assert await bot.send_text("https://s/", "a:chat", "hi", reply_chain=("19:c", "1700")) == "1800"
+    assert sent == ["a:chat"]
+
+
+def test_a_quote_reads_back_through_the_sdk() -> None:
+    quote = {"type": "quotedReply", "quotedReply": {"messageId": "1700000000001"}}
+    raw = {**RAW, "id": "1700000000009", "entities": [quote]}
+    dumped = MessageActivity.model_validate(raw).model_dump(
+        mode="json", by_alias=True, exclude_none=True
+    )
+    threads = TeamsThreads()
+    started = threads.restart("a:chat", "1700000000000")
+    threads.remember("1700000000001", started)
+    threads.restart("a:chat", "1800000000000")
+    message = TeamsActivityReader(threads, lambda b: False).read(dumped)
+    assert message is not None and message.binding == started
+
+
+async def test_a_refused_quote_is_sent_without_it(monkeypatch) -> None:
+    bot = TeamsBot(app_id="00000000-0000-0000-0000-000000000000", password="x", tenant_id="t")
+    texts: list[str] = []
+
+    class Sent:
+        id = "1800"
+
+    async def ready() -> None:
+        return None
+
+    async def send(conversation_id, activity, service_url=None):
+        texts.append(activity.text)
+        if activity.entities:
+            raise RuntimeError("HTTP 400")
+        return Sent()
+
+    monkeypatch.setattr(bot, "_initialize", ready)
+    monkeypatch.setattr(bot._app, "send", send)
+    assert await bot.send_text("https://s/", "a:chat", "hi", quote="1700") == "1800"
+    assert texts == ['<quoted messageId="1700"/> hi', "hi"]

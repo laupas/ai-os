@@ -28,6 +28,9 @@ log = logging.getLogger(__name__)
 DEFAULT_SERVICE_URL = "https://smba.trafficmanager.net/teams"
 NEW_COMMAND = "/new"
 NEW_STARTED = "Started a new conversation."
+NEW_IN_THREADS = (
+    "Write at the top of the chat to start a new conversation: each one gets its own thread."
+)
 NO_VOICE = "I could not listen to that voice note."
 CANNOT_ANSWER = "You can't answer this one: it is no longer pending, or you may not approve it."
 
@@ -38,8 +41,9 @@ class TeamsChannel(
     """Microsoft Teams over the Teams SDK's Socket Mode: outbound connection only,
     no public address needed (see `TeamsBot`).
 
-    A post in a Teams channel is a conversation per thread; a personal or group
-    chat is one conversation until `/new` (see `TeamsThreads`). Who may talk is
+    A post in a Teams channel is a conversation per thread; so is a message at the
+    top of a personal or group chat with threads in chats on, else the chat is one
+    conversation until `/new` (see `TeamsThreads`). Who may talk is
     decided by the gateway from the users' Teams accounts (Entra object ids).
     A bot can only post as itself, so a user's words from another channel are
     labelled with their name.
@@ -65,7 +69,7 @@ class TeamsChannel(
         self._emoji = emoji
         self._chunker = chunker
         self._voice_notes = voice_notes
-        self._status = TeamsStatusTracker(bot, cards)
+        self._status = TeamsStatusTracker(bot, cards, threads)
         self._service_urls: dict[str, str] = {}
         self._tasks: set[asyncio.Task[None]] = set()
 
@@ -97,20 +101,27 @@ class TeamsChannel(
     async def send(self, binding: ChannelBinding, text: str) -> None:
         service_url = self._service_url_for(binding.address)
         conversation_id = TeamsThreads.conversation_id(binding)
+        reply_chain = self._threads.reply_chain(binding)
         for chunk in self._chunker.split(self._emoji.convert(text)):
-            await self._bot.send_text(service_url, conversation_id, chunk)
+            sent = await self._bot.send_text(
+                service_url, conversation_id, chunk, reply_chain, self._threads.take_quote(binding)
+            )
+            self._threads.remember(sent, binding)
 
     async def send_as(self, binding: ChannelBinding, text: str, author: User, via: str) -> None:
         await self.send(binding, f"**{author.name} ({via}):** {text}")
 
     async def start_thread(self, address: str, text: str) -> ChannelBinding:
-        """`address` is a user's Entra object id: posts into the personal chat with
-        them, which needs the app installed for them, and starts a new conversation."""
+        """`address` is a user's Entra object id: posts at the top of the personal chat
+        with them, which needs the app installed for them, and starts a new
+        conversation there (in the post's thread, with threads in chats)."""
         conversation_id = await self._bot.open_personal_chat(self._tenant_id, address.lower())
         activity_id = await self._bot.send_text(
             self._service_url_for(conversation_id), conversation_id, self._emoji.convert(text)
         )
-        return self._threads.restart(conversation_id, activity_id)
+        binding = self._threads.restart(conversation_id, activity_id)
+        self._threads.quote_next(binding, activity_id)
+        return binding
 
     async def report(self, binding: ChannelBinding, event: ProgressEvent) -> None:
         await self._status.add(binding, self._service_url_for(binding.address), event.label)
@@ -120,12 +131,14 @@ class TeamsChannel(
 
     async def present(self, approval: Approval) -> None:
         binding = approval.binding
-        await self._bot.send_card(
+        card_id = await self._bot.send_card(
             self._service_url_for(binding.address),
             TeamsThreads.conversation_id(binding),
             self._cards.approval(approval),
             approval.question,
+            self._threads.reply_chain(binding),
         )
+        self._threads.remember(card_id, binding)
 
     async def _dispatch(
         self,
@@ -144,6 +157,9 @@ class TeamsChannel(
             if message is None:
                 return
             if message.text == NEW_COMMAND and TeamsThreads.is_chat(message.binding):
+                if self._threads.reply_chain(message.binding):
+                    await self.send(message.binding, NEW_IN_THREADS)
+                    return
                 binding = self._threads.restart(message.binding.address, str(activity["id"]))
                 await self.send(binding, NEW_STARTED)
                 return
@@ -161,7 +177,7 @@ class TeamsChannel(
         sender = TeamsActivityReader.sender_of(activity)
         if sender is None:
             return
-        binding = self._threads.binding_of(activity["conversation"])
+        binding = self._threads.binding_of(activity)
         if action["aios"] == STOP:
             await inbound.cancel(binding, sender)
             return
@@ -198,7 +214,7 @@ class TeamsChannel(
         service_url = activity.get("serviceUrl")
         conversation = activity.get("conversation") or {}
         if service_url and conversation.get("id"):
-            address = self._threads.binding_of(conversation).address
+            address = self._threads.binding_of(activity).address
             self._service_urls[address] = str(service_url)
 
     def _service_url_for(self, address: str) -> str:

@@ -14,9 +14,10 @@ class TeamsStatusTracker:
     """One status card per running turn, edited in place as the agent works, with a
     Stop button while it runs."""
 
-    def __init__(self, bot: TeamsBot, cards: TeamsCards) -> None:
+    def __init__(self, bot: TeamsBot, cards: TeamsCards, threads: TeamsThreads) -> None:
         self._bot = bot
         self._cards = cards
+        self._threads = threads
         self._messages: dict[tuple[str, str], tuple[str, list[str]]] = {}
 
     async def add(self, binding: ChannelBinding, service_url: str, line: str) -> None:
@@ -34,8 +35,13 @@ class TeamsStatusTracker:
                 )
             else:
                 activity_id = await self._bot.send_card(
-                    service_url, conversation_id, card, "Working…"
+                    service_url,
+                    conversation_id,
+                    card,
+                    "Working…",
+                    self._threads.reply_chain(binding),
                 )
+                self._threads.remember(activity_id, binding)
         except Exception as exc:
             log.warning("status update failed: %s", exc)
         self._messages[key] = (activity_id, lines)

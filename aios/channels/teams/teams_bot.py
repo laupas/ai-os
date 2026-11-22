@@ -73,14 +73,30 @@ class TeamsBot:
         if task is not None and task.cancelling():
             raise asyncio.CancelledError
 
-    async def send_text(self, service_url: str, conversation_id: str, text: str) -> str:
+    async def send_text(
+        self,
+        service_url: str,
+        conversation_id: str,
+        text: str,
+        reply_chain: tuple[str, str] | None = None,
+        quote: str | None = None,
+    ) -> str:
+        """Posts `text`; with `reply_chain` (chat id, root message), in that thread;
+        with `quote`, below a quote of that message."""
         message = MessageActivityInput(text=text, text_format="markdown")
-        return await self._send(service_url, conversation_id, message)
+        return await self._send(service_url, conversation_id, message, reply_chain, quote)
 
     async def send_card(
-        self, service_url: str, conversation_id: str, card: dict[str, Any], summary: str
+        self,
+        service_url: str,
+        conversation_id: str,
+        card: dict[str, Any],
+        summary: str,
+        reply_chain: tuple[str, str] | None = None,
     ) -> str:
-        return await self._send(service_url, conversation_id, self._card(card, summary))
+        return await self._send(
+            service_url, conversation_id, self._card(card, summary), reply_chain
+        )
 
     async def update_card(
         self,
@@ -139,8 +155,31 @@ class TeamsBot:
                 await self._app.initialize()
                 self._ready = True
 
-    async def _send(self, service_url: str, conversation_id: str, message: Any) -> str:
+    async def _send(
+        self,
+        service_url: str,
+        conversation_id: str,
+        message: MessageActivityInput,
+        reply_chain: tuple[str, str] | None,
+        quote: str | None = None,
+    ) -> str:
         await self._initialize()
+        if quote:
+            quoted = message.model_copy(deep=True).prepend_quote(quote)
+            try:
+                return await self._send(service_url, conversation_id, quoted, reply_chain)
+            except Exception as exc:
+                log.warning("teams: quoting %s failed (%s); sending without", quote, exc)
+        if reply_chain:
+            try:
+                chat_id, root = reply_chain
+                sent = await self._app.reply(chat_id, root, message, service_url=service_url)
+                return sent.id
+            except Exception as exc:
+                # Threads in chats are still rolling out; better at the top than lost.
+                log.warning(
+                    "teams: replying in thread %s failed (%s); posting at the top", reply_chain, exc
+                )
         sent = await self._app.send(conversation_id, message, service_url=service_url)
         return sent.id
 

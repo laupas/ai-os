@@ -99,6 +99,24 @@ def test_a_new_chat_thread_is_used_until_the_next_one() -> None:
     assert TeamsThreads.conversation_id(channel) == "19:abc@thread.tacv2;messageid=17"
 
 
+def test_a_channel_post_keeps_its_thread_even_with_threads_in_chats() -> None:
+    message = _reader(threads=TeamsThreads(in_chats=True)).read(
+        _channel_post("<at>ai-os</at> hi", mention=True)
+    )
+    assert message is not None
+    assert message.binding.thread == "1699999999999"
+
+
+def test_reply_chains_are_only_for_numeric_chat_threads_with_threads_on() -> None:
+    on, off = TeamsThreads(in_chats=True), TeamsThreads()
+    chat = ChannelBinding(channel="teams", address="a:chat", thread="chat-1700")
+    assert on.reply_chain(chat) == ("a:chat", "1700") and off.reply_chain(chat) is None
+    assert on.reply_chain(chat.model_copy(update={"thread": "chat"})) is None
+    assert on.reply_chain(chat.model_copy(update={"thread": "chat-m7"})) is None
+    post = ChannelBinding(channel="teams", address="19:abc@thread.tacv2", thread="1700")
+    assert on.reply_chain(post) is None
+
+
 def test_cards_carry_their_answers_and_read_back() -> None:
     cards = TeamsCards()
     approval = Approval(
@@ -126,3 +144,41 @@ def test_the_setup_steps_link_to_the_developer_portal() -> None:
     steps = TeamsChannelType(transcriber=None).setup  # type: ignore[arg-type]
     assert steps[0].link == "https://dev.teams.microsoft.com"
     assert any("Socket mode" in step.text for step in steps)
+
+
+def _quoting(message_id: str, **overrides: object) -> dict[str, object]:
+    quote = {"type": "quotedReply", "quotedReply": {"messageId": message_id}}
+    return _activity(entities=[quote], **overrides)
+
+
+def test_a_quote_goes_back_to_the_quoted_conversation_and_stays_there() -> None:
+    threads = TeamsThreads()
+    reader = _reader(threads=threads)
+    first = threads.restart("a:personal-chat", "100")
+    threads.remember("101", first)  # the bot's answer in it
+    threads.restart("a:personal-chat", "200")
+    quoted = reader.read(_quoting("101", id="300", text="about that"))
+    assert quoted is not None and quoted.binding == first
+    after = reader.read(_activity(id="301", text="and more"))
+    assert after is not None and after.binding == first
+
+
+def test_a_quoted_scheduled_post_is_found_after_a_restart() -> None:
+    reader = _reader(known={"chat-500"})
+    message = reader.read(_quoting("500", id="600"))
+    assert message is not None and message.binding.thread == "chat-500"
+
+
+def test_an_unknown_quote_stays_in_the_current_conversation() -> None:
+    message = _reader().read(_quoting("999", id="600"))
+    assert message is not None and message.binding.thread == "chat"
+
+
+def test_a_user_message_can_be_quoted_later() -> None:
+    threads = TeamsThreads()
+    reader = _reader(threads=threads)
+    threads.restart("a:personal-chat", "100")
+    reader.read(_activity(id="110"))
+    threads.restart("a:personal-chat", "200")
+    message = reader.read(_quoting("110", id="210"))
+    assert message is not None and message.binding.thread == "chat-100"

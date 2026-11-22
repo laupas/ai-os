@@ -17,6 +17,8 @@ from aios.variables.variable_field import VariableField
 APP_ID = "TEAMS_APP_ID"
 PASSWORD = "TEAMS_APP_PASSWORD"
 TENANT = "TEAMS_TENANT_ID"
+CHAT_THREADS = "TEAMS_CHAT_THREADS"
+ON = {"on", "true", "yes", "1"}
 
 
 class TeamsChannelType(ChannelType):
@@ -69,6 +71,16 @@ class TeamsChannelType(ChannelType):
                 hint="Your Microsoft 365 organisation's id: Entra admin center → Overview.",
                 secret=False,
                 placeholder="00000000-0000-0000-0000-000000000000",
+            ),
+            VariableField(
+                variable=CHAT_THREADS,
+                label="Threads in chats",
+                hint="on: each message at the top of a chat starts a conversation, answered in its "
+                'thread, like Slack. Needs "Reply in thread" in your Teams chats. Empty: the chat '
+                "is one conversation until /new.",
+                secret=False,
+                required=False,
+                placeholder="on",
             ),
         ]
 
@@ -189,6 +201,12 @@ class TeamsChannelType(ChannelType):
                     "conversation, replies need no mention."
                 ),
                 details=[
+                    "Reply with quote on an earlier message in a chat goes back to that "
+                    "message's conversation, e.g. a scheduled run's; the chat stays there.",
+                    "With Threads in chats on, a chat works like a team: each message at the top "
+                    "is its own conversation, answered in its thread, and you continue it with "
+                    "Reply in thread. Only switch it on if Teams offers Reply in thread on chat "
+                    "messages; otherwise every message starts afresh.",
                     "Schedules reach a person in their personal chat with the bot, besides their "
                     "other channels, once the app is installed for them.",
                     "All Teams conversations also show in this console.",
@@ -253,7 +271,7 @@ class TeamsChannelType(ChannelType):
         return TeamsChannel(
             tenant_id=tenant,
             bot=TeamsBot(app_id=app_id, password=password, tenant_id=tenant),
-            threads=TeamsThreads(),
+            threads=TeamsThreads(in_chats=(values.get(CHAT_THREADS) or "").strip().lower() in ON),
             cards=TeamsCards(),
             emoji=TeamsEmoji(),
             chunker=MessageChunker(size=self._chunk_size),

@@ -7,6 +7,7 @@ from aios.channels.teams.teams_cards import TeamsCards
 from aios.channels.teams.teams_channel import (
     CANNOT_ANSWER,
     DEFAULT_SERVICE_URL,
+    NEW_IN_THREADS,
     NEW_STARTED,
     TeamsChannel,
 )
@@ -27,6 +28,8 @@ class FakeBot:
 
     def __init__(self, fail: bool = False) -> None:
         self.fail = fail
+        self.chains: list[tuple[str, str] | None] = []
+        self.quotes: list[str | None] = []
         self.on_activity: Any = None
         self.texts: list[tuple[str, str, str]] = []
         self.cards: list[tuple[str, str, dict[str, Any]]] = []
@@ -41,12 +44,16 @@ class FakeBot:
         self.running.set()
         await asyncio.Event().wait()
 
-    async def send_text(self, service_url: str, conversation_id: str, text: str) -> str:
+    async def send_text(self, service_url, conversation_id, text, reply_chain=None, quote=None):
         self.texts.append((service_url, conversation_id, text))
+        self.chains.append(reply_chain)
+        self.quotes.append(quote)
         return f"act{len(self.texts)}"
 
-    async def send_card(self, service_url: str, conversation_id: str, card: dict, summary: str):
+    async def send_card(self, service_url, conversation_id, card, summary, reply_chain=None):
         self.cards.append((service_url, conversation_id, card))
+        self.chains.append(reply_chain)
+        self.quotes.append(None)
         return f"card{len(self.cards)}"
 
     async def update_card(self, service_url, conversation_id, activity_id, card, summary) -> None:
@@ -88,11 +95,11 @@ class NoTranscriber:
         return False
 
 
-def _channel(bot: FakeBot) -> TeamsChannel:
+def _channel(bot: FakeBot, in_chats: bool = False) -> TeamsChannel:
     return TeamsChannel(
         tenant_id="tenant",
         bot=bot,  # type: ignore[arg-type]
-        threads=TeamsThreads(),
+        threads=TeamsThreads(in_chats=in_chats),
         cards=TeamsCards(),
         emoji=TeamsEmoji(),
         chunker=MessageChunker(size=1000),
@@ -188,6 +195,97 @@ async def test_a_scheduled_thread_opens_the_personal_chat_as_a_new_conversation(
     assert bot.opened == [("tenant", "user-oid")]
     assert bot.texts[0][2] == "⏰ Daily"
     assert binding == ChannelBinding(channel="teams", address="a:new-chat", thread="chat-act1")
+
+
+def _in_thread(root: str, **overrides: object) -> dict[str, Any]:
+    channel_data = {"replyChain": {"id": root}, "chat": {"id": "19:chat@unq.gbl.spaces"}}
+    return _activity(channelData=channel_data, **overrides)
+
+
+async def test_with_threads_each_top_message_is_a_conversation_answered_in_its_thread() -> None:
+    bot, inbound = FakeBot(), FakeInbound()
+    channel = _channel(bot, in_chats=True)
+    task = await _started(channel, bot, inbound=inbound)
+    await _deliver(channel, bot, _in_thread("1700", id="1700"))
+    await _deliver(channel, bot, _in_thread("1700", id="1705", text="more"))
+    await _deliver(channel, bot, _in_thread("1800", id="1800", text="other"))
+    first, more, other = (m.binding for m in inbound.handled)
+    assert first == more == ChannelBinding(channel="teams", address="a:chat", thread="chat-1700")
+    assert other.thread == "chat-1800"
+    await channel.send(first, "answer")
+    await channel.report(first, ProgressEvent(label="Reading mail", tool_name="x"))
+    assert bot.texts == [(SERVICE, "a:chat", "answer")]
+    assert bot.chains == [("19:chat@unq.gbl.spaces", "1700")] * 2
+    task.cancel()
+
+
+async def test_with_threads_a_button_belongs_to_the_thread_of_its_card() -> None:
+    bot, inbound = FakeBot(), FakeInbound()
+    channel = _channel(bot, in_chats=True)
+    task = await _started(channel, bot, inbound=inbound)
+    await _deliver(channel, bot, _in_thread("1700", id="f:guid", value={"aios": "stop"}))
+    assert inbound.cancelled[0][0].thread == "chat-1700"
+    task.cancel()
+
+
+async def test_with_threads_new_explains_instead_of_restarting() -> None:
+    bot, inbound = FakeBot(), FakeInbound()
+    channel = _channel(bot, in_chats=True)
+    task = await _started(channel, bot, inbound=inbound)
+    await _deliver(channel, bot, _in_thread("1700", id="1705", text="/new"))
+    assert not inbound.handled and bot.texts[0][2] == NEW_IN_THREADS
+    assert bot.chains == [("19:chat@unq.gbl.spaces", "1700")]
+    task.cancel()
+
+
+async def test_with_threads_a_scheduled_post_is_the_top_of_its_thread() -> None:
+    bot = FakeBot()
+    channel = _channel(bot, in_chats=True)
+    binding = await channel.start_thread("USER-OID", "Daily")
+    assert bot.chains == [None]  # the post itself is at the top
+    assert binding.thread == "chat-act1"
+    numeric = binding.model_copy(update={"thread": "chat-1900"})
+    await channel.send(numeric, "result")
+    assert bot.chains == [None, ("a:new-chat", "1900")]  # chat id not known yet
+
+
+async def test_without_threads_a_chat_ignores_reply_chains() -> None:
+    bot, inbound = FakeBot(), FakeInbound()
+    channel = _channel(bot)
+    task = await _started(channel, bot, inbound=inbound)
+    await _deliver(channel, bot, _in_thread("1700", id="1705"))
+    assert inbound.handled[0].binding.thread == "chat"
+    await channel.send(inbound.handled[0].binding, "answer")
+    assert bot.chains == [None]
+    task.cancel()
+
+
+async def test_a_scheduled_run_quotes_its_post_in_the_answer_once() -> None:
+    bot = FakeBot()
+    channel = _channel(bot)
+    binding = await channel.start_thread("USER-OID", "Daily")
+    binding = binding.model_copy(update={"thread": "chat-1900"})
+    channel._threads.quote_next(binding, "1900")
+    await channel.report(binding, ProgressEvent(label="Reading mail", tool_name="x"))
+    await channel.send(binding, "result")
+    await channel.send(binding, "more")
+    assert bot.quotes == [None, None, "1900", None]  # the post, the card, the answer, more
+
+
+async def test_a_quoted_message_is_quoted_in_the_answer() -> None:
+    bot, inbound = FakeBot(), FakeInbound()
+    channel = _channel(bot)
+    task = await _started(channel, bot, inbound=inbound)
+    started = channel._threads.restart("a:chat", "1500")
+    channel._threads.remember("1501", started)
+    quote = {"type": "quotedReply", "quotedReply": {"messageId": "1501"}}
+    await _deliver(channel, bot, _activity(id="1600", entities=[quote]))
+    await _deliver(channel, bot, _activity(id="1601", text="plain"))
+    assert [m.binding for m in inbound.handled] == [started, started]
+    await channel.send(started, "answer")
+    await channel.send(started, "another")
+    assert bot.quotes == ["1600", None]
+    task.cancel()
 
 
 async def test_a_failing_connection_does_not_end_the_channel() -> None:

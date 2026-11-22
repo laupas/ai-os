@@ -18,7 +18,8 @@ class TeamsActivityReader:
     `InboundMessage`.
 
     For ai-os: every message in a personal chat, a message that mentions the bot,
-    and any message in a thread or chat that is already a conversation. Card button
+    and any message in a thread or chat that is already a conversation. A quoted
+    message leads back to its conversation (see `TeamsThreads`). Card button
     presses (activities with a `value`) are not messages and are left to the channel.
     The sender is their Microsoft Entra object id.
     """
@@ -34,7 +35,7 @@ class TeamsActivityReader:
         conversation = activity.get("conversation") or {}
         if sender is None or not conversation.get("id"):
             return None
-        binding = self._threads.binding_of(conversation)
+        binding = self._threads.binding_of(activity, self._is_known)
         text, mentioned = self._without_mention(activity)
         personal = conversation.get("conversationType") == "personal"
         if not (personal or mentioned or self._is_known(binding)):
