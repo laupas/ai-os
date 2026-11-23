@@ -19,14 +19,14 @@ async def test_sections_come_with_their_schema_and_what_is_set(tmp_path) -> None
         sections = data["sections"]
         assert set(sections) == {
             "timezone",
-            "scheduler",
+            "triggers",
             "agent",
             "approval",
             "collection_access",
         }
         assert data["collections"] == {"memories": "write"}
         assert sections["approval"]["value"] == {"always": ["mcp__gcal__update-event"]}
-        assert sections["scheduler"]["value"] is None
+        assert sections["triggers"]["value"] is None
         assert sections["timezone"]["schema"]["default"] == "Europe/Zurich"
         assert "$defs" in sections["agent"]["schema"]
 

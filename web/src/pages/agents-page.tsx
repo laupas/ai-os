@@ -180,7 +180,7 @@ function AgentForm({ data, name }: { data: AgentsData; name: string }) {
   const remove = async () => {
     const ok = await confirm({
       title: `Delete ${a.name}?`,
-      body: "Conversations and schedules that go straight to it stop working.",
+      body: "Conversations and triggers that go straight to it stop working.",
       action: "Delete",
       destructive: true,
     });

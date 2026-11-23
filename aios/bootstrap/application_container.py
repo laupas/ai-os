@@ -19,10 +19,11 @@ from aios.conversations.conversations_container import ConversationsContainer
 from aios.conversations.gateway_container import GatewayContainer
 from aios.engine.engine_container import EngineContainer
 from aios.logs.log_reader import LogReader
-from aios.scheduler.scheduler_container import SchedulerContainer
 from aios.storage.storage_container import StorageContainer
 from aios.tools.tools_container import ToolsContainer
 from aios.transcription.transcription_container import TranscriptionContainer
+from aios.triggers.triggers_container import TriggersContainer
+from aios.triggers.triggers_migration import TriggersMigration
 from aios.users.users_container import UsersContainer
 from aios.variables.variables_container import VariablesContainer
 from aios.web.web_container import WebContainer
@@ -94,6 +95,8 @@ class ApplicationContainer(containers.DeclarativeContainer):
         users=storage.users,
         authorizer=users.authorizer,
         senders=channels.senders,
+        webhooks=storage.webhooks,
+        webhook_poster=channels.webhook_poster,
         recorder=conversations.recorder,
         conversations=storage.conversations,
         approvals=approvals.service,
@@ -175,24 +178,31 @@ class ApplicationContainer(containers.DeclarativeContainer):
         approvals=approvals.service,
         observers=providers.List(channels.web_hub),
     )
-    scheduler = providers.Container(
-        SchedulerContainer,
-        schedules=storage.schedules,
+    triggers = providers.Container(
+        TriggersContainer,
+        triggers=storage.triggers,
         users=storage.users,
         channels=channels.directory,
         turns=gateway.gateway,
         clock=common.clock,
-        scheduler_config=config.scheduler,
+        triggers_config=config.triggers,
     )
 
+    # What the configuration repository holds, one file per document.
+    config_collections = providers.List(
+        storage.agents,
+        storage.skills,
+        storage.connectors,
+        storage.triggers,
+        storage.roles,
+        storage.webhooks,
+    )
     config_repo = providers.Container(
         ConfigRepoContainer,
         repo_dir=config.settings.provided.repo_dir,
         store=storage.config_store,
         legacy_store=storage.document_store,
-        collections=providers.List(
-            storage.agents, storage.skills, storage.connectors, storage.schedules, storage.roles
-        ),
+        collections=config_collections,
         mcp_servers=app_config.provided.mcp_servers,
         remotes=storage.git_remotes,
         box=variables.box,
@@ -211,13 +221,15 @@ class ApplicationContainer(containers.DeclarativeContainer):
         conversations=storage.conversations,
         approvals=storage.approvals,
         memories=storage.memories,
-        schedules=storage.schedules,
+        triggers=storage.triggers,
         authorizer=users.authorizer,
         channels=channels.directory,
         web_channel=channels.web,
         web_hub=channels.web_hub,
         deleter=conversations.deleter,
         senders=channels.senders,
+        webhooks=storage.webhooks,
+        webhook_poster=channels.webhook_poster,
         channel_catalog=channels.catalog,
         channel_values=channels.values,
         file_root_guard=approval_policy.file_root_guard,
@@ -225,8 +237,9 @@ class ApplicationContainer(containers.DeclarativeContainer):
         resolver=conversations.resolver,
         recorder=conversations.recorder,
         approval_service=approvals.service,
-        schedule_timing=scheduler.timing,
-        schedule_runner=scheduler.runner,
+        trigger_timing=triggers.timing,
+        trigger_runner=triggers.runner,
+        triggers_config=config.triggers,
         log_reader=log_reader,
         clock=common.clock,
         ids=common.ids,
@@ -242,9 +255,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         connector_probe=engine.connector_probe,
         secret_extractor=variables.extractor,
         config_store=storage.config_store,
-        config_collections=providers.List(
-            storage.agents, storage.skills, storage.connectors, storage.schedules, storage.roles
-        ),
+        config_collections=config_collections,
         config_branches=config_repo.branches,
         config_remote=config_repo.remote,
         audit_trail=storage.audit_trail,
@@ -262,7 +273,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
     app_config_watcher = providers.Singleton(
         AppConfigWatcher, config=config.live, read=web.aios_yaml.provided.read_committed
     )
-    # The scheduler loop always runs: it reads `scheduler.enabled` on every tick.
+    # The triggers loop always runs: it reads `triggers.enabled` on every tick.
     background = providers.Callable(
         lambda config, yaml_watcher, watcher, renewer, loop, server: [
             yaml_watcher,
@@ -275,7 +286,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         app_config_watcher,
         config_repo.watcher,
         connectors.renewer,
-        scheduler.loop,
+        triggers.loop,
         web.server,
     )
     notice = providers.Singleton(
@@ -291,6 +302,13 @@ class ApplicationContainer(containers.DeclarativeContainer):
         startup=providers.List(
             # The repository first: roles live in it, and the owner needs them.
             config_repo.initializer,
+            providers.Singleton(
+                TriggersMigration,
+                store=storage.config_store,
+                state=storage.document_store,
+                collections=config_collections,
+                config=web.aios_yaml,
+            ),
             users.bootstrapper,
             config_repo.remote_from_env,
             config_repo.skills_link,

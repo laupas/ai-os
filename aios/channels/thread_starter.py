@@ -4,7 +4,7 @@ from aios.entities.conversations.channel_binding import ChannelBinding
 
 
 class ThreadStarter(ABC):
-    """A channel that can open a new conversation by itself, e.g. for a scheduled run."""
+    """A channel that can open a new conversation by itself, e.g. for a trigger's run."""
 
     @abstractmethod
     async def start_thread(self, address: str, text: str) -> ChannelBinding:

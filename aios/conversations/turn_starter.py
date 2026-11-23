@@ -5,7 +5,7 @@ from aios.entities.users.user import User
 
 
 class TurnStarter(ABC):
-    """Runs a turn that did not come in as a chat message, e.g. a scheduled prompt."""
+    """Runs a turn that did not come in as a chat message, e.g. a prompt started by a trigger."""
 
     @abstractmethod
     async def start_turn(

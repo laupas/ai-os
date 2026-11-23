@@ -7,7 +7,7 @@ class AuditPolicy(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     ignored_fields: frozenset[str] = frozenset()
-    """Fields that change by themselves (a token renewal, a schedule firing); a put
+    """Fields that change by themselves (a token renewal, a trigger firing); a put
     that changes only these is not a settings change and is not recorded."""
     show_values: bool = False
     """Record old and new values, not only the field names. Only for collections

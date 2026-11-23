@@ -75,7 +75,8 @@ agent:
   builtin_tools: [Task, Skill, WebSearch, WebFetch, TodoWrite, Read, Grep, Glob, Edit, Write]
   turn_timeout_seconds: 600  # the agent's own work; time waiting for an approval does not count
 
-scheduler:
+# Triggers: prompts run on a timer, once, or by webhook. Off, none of them runs.
+triggers:
   enabled: true
 
 # Optional: what agents may do with a collection of stored data (none | read | write).

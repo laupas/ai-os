@@ -4,7 +4,7 @@ from aios.agents.repo_agent_reader import RepoAgentReader
 from aios.agents.repo_skill_reader import RepoSkillReader
 from aios.config_repo.config_repo_initializer import ConfigRepoInitializer
 from aios.config_repo.config_repo_watcher import ConfigRepoWatcher
-from aios.entities.schedules.schedule import Schedule
+from aios.entities.triggers.trigger import Trigger
 from tests.config_repo.repo_world import RepoWorld
 
 
@@ -33,21 +33,21 @@ def _initializer(w: RepoWorld, tmp_path) -> ConfigRepoInitializer:  # type: igno
 async def test_the_first_start_takes_old_data_else_the_seed_in_one_commit(tmp_path) -> None:
     _seed(tmp_path)
     w = RepoWorld(tmp_path)
-    old = Schedule(id="s1", name="brief", prompt="Brief me.", cron=["0 7 * * *"], user_id="u")
+    old = Trigger(id="s1", name="brief", prompt="Brief me.", cron=["0 7 * * *"], user_id="u")
     older_shape = {
         **old.model_dump(mode="json", exclude={"user_id"}),
         "channel": "slack",
         "run_as_user_id": "u",
     }
-    await w.legacy.put("schedules", "s1", older_shape)
+    await w.legacy.put("triggers", "s1", older_shape)
     await _initializer(w, tmp_path).run()
     assert w.agents.get("general").builtin_tools == ["WebSearch"]  # type: ignore[union-attr]
     assert w.skills.get("voice").content == "Be brief.\n"  # type: ignore[union-attr]
     assert w.connectors.get("gcal").config["env"]["T"] == "${TOKEN}"  # type: ignore[union-attr]
-    assert w.schedules.get("s1").prompt == "Brief me."  # type: ignore[union-attr]
+    assert w.triggers.get("s1").prompt == "Brief me."  # type: ignore[union-attr]
     assert len(w.log(".")) == 1
-    assert "channel" not in (w.root / "schedules" / "s1.yaml").read_text()
-    await w.schedules.put(w.schedules.get("s1"))  # type: ignore[arg-type]
+    assert "channel" not in (w.root / "triggers" / "s1.yaml").read_text()
+    await w.triggers.put(w.triggers.get("s1"))  # type: ignore[arg-type]
     assert len(w.log(".")) == 1  # nothing left for a later save to rewrite
     assert w.store.last_head == w.repo.head()
 

@@ -91,14 +91,14 @@ async def test_a_web_conversation_can_go_straight_to_an_agent(tmp_path) -> None:
         assert c.world.conversations.get((await usual.json())["id"]).agent is None  # type: ignore[union-attr]
 
 
-async def test_a_schedule_may_name_an_existing_agent(tmp_path) -> None:
+async def test_a_trigger_may_name_an_existing_agent(tmp_path) -> None:
     async with Console(tmp_path) as c:
         h = c.headers(ALICE, write=True)
         body = {"name": "b", "prompt": "p", "cron": ["0 7 * * *"], "user_id": "alice"}
-        ok = await c.client.post("/api/schedules", json={**body, "agent": "calendar"}, headers=h)
+        ok = await c.client.post("/api/triggers", json={**body, "agent": "calendar"}, headers=h)
         assert ok.status == 201
-        assert c.schedules.get((await ok.json())["id"]).agent == "calendar"  # type: ignore[union-attr]
-        bad = await c.client.post("/api/schedules", json={**body, "agent": "nobody"}, headers=h)
+        assert c.triggers.get((await ok.json())["id"]).agent == "calendar"  # type: ignore[union-attr]
+        bad = await c.client.post("/api/triggers", json={**body, "agent": "nobody"}, headers=h)
         assert bad.status == 400
 
 

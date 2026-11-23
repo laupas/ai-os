@@ -34,6 +34,8 @@ class ProgressLabeler:
         if name == "send_message":
             via, recipient = tool_input.get("via", ""), tool_input.get("recipient", "")
             return f"Sending a {via} message to {recipient}"
+        if name == "send_webhook":
+            return f"Posting to {tool_input.get('destination', 'a webhook')}"
         if name == "ask_human":
             return "Waiting for your answer"
         if name in ("data_put", "data_delete"):

@@ -19,10 +19,10 @@ class TeamsThreads:
     channels: a message at the top of the chat starts a conversation, answered in
     its thread (Teams' "Reply in thread"), and a reply in that thread continues it;
     the thread is `chat-<root>`. Without it, the whole chat is one conversation
-    (thread `chat`) until a new one is started there (`/new`, or a scheduled run),
+    (thread `chat`) until a new one is started there (`/new`, or a trigger's run),
     which is remembered only while ai-os runs: after a restart the chat is back at
     thread `chat`. "Reply with quote" on a message goes back to that message's
-    conversation, and the chat stays there; a scheduled post is found from its
+    conversation, and the chat stays there; a trigger's post is found from its
     thread even after a restart, other messages only while ai-os runs. The bot's
     first answer in such a conversation quotes where it began (`quote_next`); its
     cards do not, as Teams shows a quote above a card as a bubble of its own.

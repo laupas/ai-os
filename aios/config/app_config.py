@@ -9,7 +9,7 @@ from aios.config.channel_config import ChannelConfig
 from aios.config.connector_override import ConnectorOverride
 from aios.config.files_config import FilesConfig
 from aios.config.owner_config import OwnerConfig
-from aios.config.scheduler_config import SchedulerConfig
+from aios.config.triggers_config import TriggersConfig
 from aios.config.web_config import WebConfig
 from aios.storage.agent_access import AgentAccess
 
@@ -20,14 +20,15 @@ class AppConfig(BaseModel):
     model_config = ConfigDict(use_attribute_docstrings=True)
 
     channels: dict[str, ChannelConfig] = {"web": ChannelConfig()}
-    """The channels ai-os uses, by name: `slack`, `teams`, `web`, `signal`, `mail`. What each
+    """The channels ai-os uses, by name: `slack`, `teams`, `web`, `signal`, `mail`,
+    `webhook`. What each
     can do (chat, send) is its own; its tokens and numbers are Variables."""
     timezone: str = "Europe/Zurich"
-    """For schedules and dates in prompts: an IANA name such as `Europe/Zurich`."""
+    """For triggers and dates in prompts: an IANA name such as `Europe/Zurich`."""
     owner: OwnerConfig | None = None
     approval: ApprovalConfig = ApprovalConfig()
     agent: AgentConfig = AgentConfig()
-    scheduler: SchedulerConfig = SchedulerConfig()
+    triggers: TriggersConfig = TriggersConfig()
     files: FilesConfig = FilesConfig()
     web: WebConfig = WebConfig()
     connectors: dict[str, ConnectorOverride] = {}
@@ -54,6 +55,7 @@ class AppConfig(BaseModel):
     def _read_older_files(cls, data: Any) -> Any:
         if isinstance(data, dict):
             data = cls._channels_as_one_map(data)
+            data = cls._schedules_as_triggers(data)
         # Until 2026-11-06 trading was part of ai-os, with its limits as `trading:`
         # here. Refused rather than ignored: ignoring it would drop the limits.
         if isinstance(data, dict) and "trading" in data:
@@ -80,6 +82,22 @@ class AppConfig(BaseModel):
         for name in data.pop("senders", None) or []:
             merged.setdefault(name, {})
         data["channels"] = merged
+        return data
+
+    @staticmethod
+    def _schedules_as_triggers(data: dict[str, Any]) -> dict[str, Any]:
+        """Until 2026-11-23 triggers were schedules: `scheduler:` and the
+        `schedules` collection's access are read under their new names."""
+        data = dict(data)
+        if "scheduler" in data:
+            data.setdefault("triggers", data.pop("scheduler"))
+            data.pop("scheduler", None)
+        access = data.get("collection_access")
+        if isinstance(access, dict) and "schedules" in access:
+            access = dict(access)
+            access.setdefault("triggers", access.pop("schedules"))
+            access.pop("schedules", None)
+            data["collection_access"] = access
         return data
 
     def enabled_channels(self) -> list[str]:

@@ -325,7 +325,7 @@ function FileView({ branch, opened, onOpen }: { branch: string; opened: Opened; 
   const dirty = draft !== null && (isNew || draft !== data?.text);
 
   const refresh = () => {
-    for (const key of ["repo-tree", "repo-file", "repo-history", "repo-remote", "git", "settings", "agents", "connectors", "schedules", "audit"])
+    for (const key of ["repo-tree", "repo-file", "repo-history", "repo-remote", "git", "settings", "agents", "connectors", "triggers", "audit"])
       void queryClient.invalidateQueries({ queryKey: [key] });
   };
   const write = async (body: { text: string | null; base: string | null }, done: string) => {

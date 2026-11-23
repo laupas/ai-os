@@ -27,7 +27,7 @@ export function GitPanel() {
     <div className="space-y-3">
       <div className="flex flex-wrap items-start gap-3">
         <p className="min-w-0 flex-1 text-sm text-muted-foreground">
-          The whole configuration (aios.yaml, agents, skills, connectors, schedules, roles) is a git repository. Each branch is a version of
+          The whole configuration (aios.yaml, agents, skills, connectors, triggers, roles) is a git repository. Each branch is a version of
           it; ai-os runs the one checked out.
         </p>
         <Button onClick={() => setCreating(true)} disabled={!data}>
@@ -87,7 +87,7 @@ function BranchCard({ branch: b, data, onMerge }: { branch: GitBranchRow; data: 
   const [files, setFiles] = useState<{ status: string; path: string }[] | null>(null);
   const [busy, setBusy] = useState(false);
   const switchTo = async () => {
-    if (!(await confirm({ title: `Switch to ${b.name}?`, body: "ai-os runs this branch's agents, skills, connectors and schedules from the next turn.", action: "Switch" })))
+    if (!(await confirm({ title: `Switch to ${b.name}?`, body: "ai-os runs this branch's agents, skills, connectors and triggers from the next turn.", action: "Switch" })))
       return;
     setBusy(true);
     try {

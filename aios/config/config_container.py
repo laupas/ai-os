@@ -19,5 +19,5 @@ class ConfigContainer(containers.DeclarativeContainer):
     agent = providers.Callable(lambda live: lambda: live.current().agent, live)
     approval = providers.Callable(lambda live: lambda: live.current().approval, live)
     files = providers.Callable(lambda live: lambda: live.current().files, live)
-    scheduler = providers.Callable(lambda live: lambda: live.current().scheduler, live)
+    triggers = providers.Callable(lambda live: lambda: live.current().triggers, live)
     timezone = providers.Callable(lambda live: lambda: live.current().timezone, live)

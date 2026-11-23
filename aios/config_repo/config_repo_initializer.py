@@ -15,7 +15,7 @@ log = logging.getLogger(__name__)
 
 
 MARKER = ".aios-imported"
-EARLIER_IMPORTS = {"agents", "skills", "connectors", "schedules"}
+EARLIER_IMPORTS = {"agents", "skills", "connectors", "triggers"}
 """What a repository made before the marker existed had already imported."""
 
 

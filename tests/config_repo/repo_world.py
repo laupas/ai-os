@@ -6,8 +6,8 @@ from aios.config_repo.git_repository import GitRepository
 from aios.config_repo.yaml_layout import YamlLayout
 from aios.entities.agents.agent import Agent
 from aios.entities.connectors.connector import Connector
-from aios.entities.schedules.schedule import Schedule
 from aios.entities.skills.skill import Skill
+from aios.entities.triggers.trigger import Trigger
 from aios.entities.users.role import Role
 from aios.storage.collection import Collection
 from aios.storage.collection_definition import CollectionDefinition
@@ -28,21 +28,21 @@ class RepoWorld:
                 "agents": FrontMatterLayout("agents/{id}.md", "prompt"),
                 "skills": FrontMatterLayout("skills/{id}/SKILL.md", "content", name_in_head=True),
                 "connectors": YamlLayout("connectors"),
-                "schedules": YamlLayout("schedules"),
+                "triggers": YamlLayout("triggers"),
                 "roles": YamlLayout("roles"),
             },
             self.legacy,
-            {"schedules": ["last_fired_at"]},
+            {"triggers": ["last_fired_at"]},
         )
         self.agents: Collection[Agent] = self._collection("agents", Agent)
         self.skills: Collection[Skill] = self._collection("skills", Skill)
         self.connectors: Collection[Connector] = self._collection("connectors", Connector)
-        self.schedules: Collection[Schedule] = self._collection("schedules", Schedule)
+        self.triggers: Collection[Trigger] = self._collection("triggers", Trigger)
         self.roles: Collection[Role] = self._collection("roles", Role)
 
     @property
     def collections(self) -> list[Collection]:  # type: ignore[type-arg]
-        return [self.agents, self.skills, self.connectors, self.schedules]
+        return [self.agents, self.skills, self.connectors, self.triggers]
 
     def log(self, path: str) -> list[dict[str, str]]:
         return self.repo.log(path)

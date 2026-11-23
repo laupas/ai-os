@@ -32,14 +32,16 @@ from aios.web.routes.login_routes import LoginRoutes
 from aios.web.routes.memory_routes import MemoryRoutes
 from aios.web.routes.password_routes import PasswordRoutes
 from aios.web.routes.repository_routes import RepositoryRoutes
-from aios.web.routes.schedule_routes import ScheduleRoutes
 from aios.web.routes.settings_routes import SettingsRoutes
 from aios.web.routes.settings_section_routes import SettingsSectionRoutes
 from aios.web.routes.skill_routes import SkillRoutes
+from aios.web.routes.trigger_hook_routes import TriggerHookRoutes
+from aios.web.routes.trigger_routes import TriggerRoutes
 from aios.web.routes.variable_routes import VariableRoutes
 from aios.web.routes.voice_routes import VoiceRoutes
 from aios.web.routes.voice_settings_routes import VoiceSettingsRoutes
 from aios.web.routes.web_auth_settings_routes import WebAuthSettingsRoutes
+from aios.web.routes.webhook_routes import WebhookRoutes
 from aios.web.web_auth import WebAuth
 from aios.web.web_identity_factory import WebIdentityFactory
 from aios.web.web_server import WebServer
@@ -58,18 +60,21 @@ class WebContainer(containers.DeclarativeContainer):
     conversations = providers.Dependency()
     approvals = providers.Dependency()
     memories = providers.Dependency()
-    schedules = providers.Dependency()
+    triggers = providers.Dependency()
     authorizer = providers.Dependency()
     channels = providers.Dependency()
     web_channel = providers.Dependency()
     web_hub = providers.Dependency()
     deleter = providers.Dependency()
     senders = providers.Dependency()
+    webhooks = providers.Dependency()
+    webhook_poster = providers.Dependency()
     resolver = providers.Dependency()
     recorder = providers.Dependency()
     approval_service = providers.Dependency()
-    schedule_timing = providers.Dependency()
-    schedule_runner = providers.Dependency()
+    trigger_timing = providers.Dependency()
+    trigger_runner = providers.Dependency()
+    triggers_config = providers.Dependency()  # a getter: `triggers` as it is now
     log_reader = providers.Dependency()
     clock = providers.Dependency()
     ids = providers.Dependency()
@@ -167,7 +172,7 @@ class WebContainer(containers.DeclarativeContainer):
             conversations=conversations,
             approvals=approvals,
             memories=memories,
-            schedules=schedules,
+            triggers=triggers,
             users=users,
             log_reader=log_reader,
             clock=clock,
@@ -203,14 +208,21 @@ class WebContainer(containers.DeclarativeContainer):
         providers.Singleton(ApprovalRoutes, approvals=approvals, service=approval_service),
         providers.Singleton(VoiceRoutes, transcriber=transcriber),
         providers.Singleton(
-            ScheduleRoutes,
-            schedules=schedules,
-            timing=schedule_timing,
-            runner=schedule_runner,
+            TriggerRoutes,
+            triggers=triggers,
+            timing=trigger_timing,
+            runner=trigger_runner,
             clock=clock,
             ids=ids,
             users=users,
             agents=agents,
+        ),
+        providers.Singleton(
+            TriggerHookRoutes,
+            triggers=triggers,
+            runner=trigger_runner,
+            clock=clock,
+            config=triggers_config,
         ),
         providers.Singleton(MemoryRoutes, memories=memories, users=users, ids=ids, clock=clock),
         providers.Singleton(
@@ -225,6 +237,9 @@ class WebContainer(containers.DeclarativeContainer):
         ),
         providers.Singleton(SkillRoutes, skills=skills, agents=agents),
         providers.Singleton(HistoryRoutes, store=config_store, collections=config_collections),
+        providers.Singleton(
+            WebhookRoutes, destinations=webhooks, poster=webhook_poster, secrets=secret_extractor
+        ),
         providers.Singleton(GitRoutes, branches=config_branches, remote=config_remote),
         providers.Singleton(
             ConnectorRoutes,
@@ -276,7 +291,14 @@ class WebContainer(containers.DeclarativeContainer):
             values=channel_values,
             variables=variable_catalog,
             running=providers.Callable(
-                lambda chat, send: [*chat.names(), *send.names()], channels, senders
+                lambda chat, send, hooks: [
+                    *chat.names(),
+                    *send.names(),
+                    *(["webhook"] if hooks.enabled else []),
+                ],
+                channels,
+                senders,
+                webhook_poster,
             ),
         ),
         providers.Singleton(

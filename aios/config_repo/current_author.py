@@ -9,7 +9,7 @@ _author: ContextVar[ChangeAuthor] = ContextVar("config_author", default=AIOS)
 
 class CurrentAuthor:
     """The author of changes made in the current task: a console user while their
-    request is handled, ai-os itself otherwise (an agent's write, a schedule run)."""
+    request is handled, ai-os itself otherwise (an agent's write, a trigger run)."""
 
     @staticmethod
     def get() -> ChangeAuthor:

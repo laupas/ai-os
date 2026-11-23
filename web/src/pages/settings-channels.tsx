@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpen, CheckCircle2, ExternalLink, LifeBuoy, Loader2, MessageSquare, PlugZap, Save, Send, XCircle } from "lucide-react";
+import { BookOpen, CheckCircle2, Webhook, ExternalLink, LifeBuoy, Loader2, MessageSquare, PlugZap, Save, Send, XCircle } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ErrorBox, Loading } from "@/components/page";
@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { api, type ChannelSetting, type SetupProblem, type SetupStep } from "@/lib/api";
 import { href } from "@/lib/router";
 import { cn } from "@/lib/utils";
+import { WebhookDestinations } from "./settings-webhooks";
 
 
 export function ChannelsPanel() {
@@ -95,6 +96,11 @@ function ChannelCard({ channel: c }: { channel: ChannelSetting }) {
                 <Send /> sends
               </Badge>
             ) : null}
+            {c.capabilities.includes("webhook") ? (
+              <Badge variant="secondary">
+                <Webhook /> posts
+              </Badge>
+            ) : null}
             {c.running ? <Badge variant="success">running</Badge> : null}
             {pending ? <Badge variant="warning">{c.enabled ? "on after a restart" : "off after a restart"}</Badge> : null}
           </CardTitle>
@@ -141,6 +147,7 @@ function ChannelCard({ channel: c }: { channel: ChannelSetting }) {
               </span>
             </div>
           ) : null}
+          {c.capabilities.includes("webhook") ? <WebhookDestinations /> : null}
         </CardContent>
       ) : null}
     </Card>

@@ -5,17 +5,21 @@ messages out, with a human in the loop for anything that matters. Configured fro
 web console; its whole configuration is a git repository.
 
 ```
-channel (web, Slack) ──► Gateway ──► Engine (Claude Agent SDK) ──► orchestrator
+channel (web, Slack, Teams) ──► Gateway ──► Engine (Claude Agent SDK) ──► orchestrator
         ▲     │ progress / approvals               │                 └► agents
         └─────┘                                    ├► skills
                                                    ├► connectors (MCP servers)
                                                    └► ai-os tools (in-process MCP server "aios")
                                                         send_message ─► policy ─► approval ─► Signal / mail
+                                                        send_webhook ─► policy ─► approval ─► webhook destinations
                                                         data_*       ─► policy ─► approval ─► storage
 ```
 
-- **Channels** are where people talk to ai-os: the web console, Slack, Microsoft Teams, the terminal.
-- **Senders** deliver messages elsewhere: Signal, mail (through Resend).
+- **Channels** are where people talk to ai-os: the web console (typed or spoken),
+  Slack and Microsoft Teams. A conversation can live on several at once.
+- **Senders** deliver messages to people elsewhere: Signal, mail (through Resend).
+- **Webhooks** post to named destinations (an n8n flow, Home Assistant, a chat's
+  incoming webhook), each with its own URL, headers and body template.
 - **Agents** do the work: an orchestrator answers every turn and delegates to the
   others. Each agent may use only the tools, skills and connectors it was granted,
   enforced in code.
@@ -25,11 +29,17 @@ channel (web, Slack) ──► Gateway ──► Engine (Claude Agent SDK) ─�
   through the SDK's `can_use_tool`; nothing is pre-allowed.
 - **Users and roles** decide who may chat, who may approve, and who can be messaged
   without asking.
-- **Scheduler** runs stored prompts on cron times or once.
+- **Triggers** run stored prompts on cron times, once, or when a program calls
+  the trigger's webhook, as a user, opening the conversation wherever that user
+  can be reached.
 - **Memories** keep what a user asked to remember. Each belongs to one user, whose
   turns alone see it, or is shared with every user; agents save shared ones only
   with an administrator's approval. Shared preferences and the user's own go into
   the system prompt.
+- **Voice**: voice notes on Slack and Teams, and the console's Voice page, are
+  transcribed (OpenAI) and handled like typed messages.
+- **Audit**: every settings change, and every commit to the configuration, in one
+  feed; logs and a health page for the running instance.
 
 ## Quick start (Docker)
 
@@ -45,7 +55,7 @@ Open http://localhost:8080 and pick "Owner" on the login page: an empty ai-os st
 with that one user, to sign in as and rename. Then set up the rest in the console:
 
 1. **Settings → Claude**: the subscription token or API key (see **Claude** below).
-2. **Settings → People**: your name, and your accounts on Slack, Teams, Signal or mail.
+2. **Settings → Users**: your name, and your accounts on Slack, Teams, Signal or mail.
 3. Channels, connectors and agents, as you need them.
 
 Everything lives in `./data`, next to the compose file.
@@ -101,25 +111,64 @@ Anthropic's terms for the kind of use you have in mind.
 | Where | What |
 |---|---|
 | environment | secrets and paths: `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN`, `AIOS_SECRETS_KEY`, `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `TEAMS_APP_ID`, `TEAMS_APP_PASSWORD`, `TEAMS_TENANT_ID`, `RESEND_API_KEY`, `AIOS_MAIL_FROM`, `SIGNAL_API_URL`, `SIGNAL_SENDER`, `OPENAI_API_KEY` (voice notes), `AIOS_DATA_DIR`, `AIOS_VARIABLE_FILES_DIR` (best a tmpfs), `AIOS_LOG_LEVEL`; see `.env.example` |
-| `<data>/config` | the configuration repository (git): `aios.yaml`, agents, skills, connectors, schedules, roles |
+| `<data>/config` | the configuration repository (git): `aios.yaml`, agents, skills, connectors, triggers, roles, webhooks |
 | `<data>/users` | who is who, with their accounts on each channel |
 | `<data>/variables` | values and secrets for connectors, set in the console; secrets encrypted |
 | `<data>/…` | runtime: conversations, approvals, memories, logs |
 
-`aios.yaml` holds channels, senders, the web console and its login, file access,
-approval rules, the model and the built-in tools agents may get, and limits. Start
+`aios.yaml` holds:
+
+| Key | What |
+|---|---|
+| `channels` | which channels are on: `web`, `slack`, `teams`, `signal`, `mail`, `webhook` (their tokens are Variables) |
+| `timezone` | for triggers and dates in prompts (`Europe/Zurich`) |
+| `owner` | the first user, created once when there is none |
+| `web` | port, `auth` (the login, see below), `public_url` for OAuth redirects |
+| `agent` | `model`, `auth` (subscription or API key), `builtin_tools` agents may be given, `turn_timeout_seconds` |
+| `approval` | `always` and `deny` (tool names), `timeout_seconds` after which an unanswered approval is No |
+| `files` | `read_roots` and `write_roots` for the built-in file tools |
+| `triggers` | `enabled` (off: no trigger runs, on time or by webhook), `tick_seconds`; until 2026-11-23 `scheduler`, still read |
+| `collection_access` | per stored collection, what agents may do with it (`none`, `read`, `write`) |
+
+Every section can be edited on the console's Settings page. Start
 from `aios.example.yaml`: put it at `<data>/config.yaml` before the first start, which
 moves it into the configuration repository. Afterwards edit it on the console's
 Settings page. It is read at start; a banner offers a restart when it changed.
 
+Users have accounts (one per channel: a Slack id, an Entra object id, a phone
+number, a mail address, a web address) and roles. A role is a set of permissions:
+
+| Permission | Allows |
+|---|---|
+| `chat` | talking to ai-os on a channel |
+| `approve` | answering approval requests |
+| `receive_unapproved` | being sent a message without an approval first |
+| `manage_users` | approving an agent's changes to users and roles |
+| `administer` | the console's controls: settings, agents, connectors, logs, every conversation, restart |
+
 Default roles (created on the first start): `owner` (everything), `member` (may
-chat), `trusted_contact` (may be messaged without approval).
+chat), `trusted_contact` (may be messaged without approval). Edit them, or add
+your own, under Settings → Roles. On every start the owners get a "started and
+ready" message on a channel that can reach them.
 
 ## Web console and login
 
-The console (port 8080) has chat, approvals, schedules, memories, agents, skills,
-connectors, variables, logs, health and settings. It is a React app in `web/` (Vite,
-Tailwind, shadcn/ui), built by the Dockerfile.
+The console (port 8080) is a React app in `web/` (Vite, Tailwind, shadcn/ui), built
+by the Dockerfile. What each person sees depends on their permissions:
+
+| Page | What |
+|---|---|
+| Chat | conversations with ai-os, picking the agent to talk to; every conversation for administrators |
+| Voice | hands-free talking: speech is transcribed, the reply read aloud, "stop" cuts it off |
+| Approvals | open approval requests, answered here or on Slack and Teams |
+| Triggers | create, edit, switch off, run now; turn on a trigger's webhook and renew its token |
+| Memories | what ai-os remembers, per user or shared |
+| Agents, Skills | prompts, models and grants; instructions |
+| Connectors | MCP servers and code connectors, starting and signing in; users who are not administrators see only their own sign-ins |
+| Variables | values and secrets for connectors, channels and webhooks |
+| Audit | who changed what when, settings and configuration commits together |
+| Logs, Health | the instance's log, and what is running (channels, connectors, Claude sign-in) |
+| Settings | Claude, Channels (with Webhooks), General, Agents, Approvals, Login, Files, Data access, Users, Roles, Repository (the configuration files, editable), Branches, aios.yaml |
 
 The console either signs people in itself, or trusts a **login proxy** in front of
 it and checks again who is asking, since anything on the same network may reach the
@@ -128,7 +177,7 @@ port directly. Pick one in `web.auth` (or under Settings → Login):
 | `mode` | For | Checks |
 |---|---|---|
 | `pick` (default) | a fresh install, or a home network where everyone is trusted | nothing: the login page lists the users and you pick one |
-| `password` | a small installation without a proxy (behind https) | a name (web address, name or alias) and a password set per user under Settings → People |
+| `password` | a small installation without a proxy (behind https) | a name (web address, name or alias) and a password set per user under Settings → Users |
 | `code` | the same, without passwords | a one-time code ai-os sends to the user's Slack, Teams, Signal or mail account |
 | `cloudflare` | Cloudflare Access (Zero Trust) | Access's signed token (`team_domain`, `audience`) |
 | `jwt` | oauth2-proxy, Authentik, Pomerium, any proxy forwarding a signed token | signature against `jwks_url`, `issuer`, `audience` |
@@ -148,12 +197,43 @@ the `chat` permission; the controls need `administer`. Changes need an `X-Aios: 
 header, which another site cannot send. No change is accepted that would leave
 nobody able to administer ai-os.
 
+## Conversations
+
+- A conversation is the unit, not a channel: replies and progress go to every place
+  it lives, and a user's message is mirrored to the others (on Slack and Teams as
+  written by them, where the app may).
+- While a turn runs, its progress shows ("Looking at the calendar", "Waiting for
+  your answer"), with a **Stop** button on Slack, Teams and the web.
+- Approvals arrive as buttons on Slack and Teams, in the console, or as a yes/no
+  question where a channel has no buttons. A turn waits for the answer; an
+  unanswered one is No after `approval.timeout_seconds`.
+- On Teams, a personal or group chat is one conversation until `/new`; in a team,
+  each post that mentions the bot is a thread. Quoting an earlier message goes back
+  to its conversation.
+- Agents can search the user's earlier conversations (`conversation_search`).
+
+### ai-os tools
+
+What ai-os offers its agents, besides connectors. Each must be granted to an agent
+(connector `aios`), and passes the approval policy like any tool.
+
+| Tool | Does | Approval |
+|---|---|---|
+| `send_message` | sends a Signal or mail message to a known user | asked, unless the recipient has `receive_unapproved` |
+| `send_webhook` | posts to a webhook destination | per destination: ask, allow or deny |
+| `ask_human` | asks the user to choose between options and waits | none |
+| `data_list_collections`, `data_query`, `data_get` | read stored data (users, triggers, memories, …) | as `collection_access` allows |
+| `data_put`, `data_delete` | change stored data | asked, except a user's own memories; refused where a collection is read-only |
+| `config_list`, `config_get`, `config_put`, `config_delete` | read and change agents, skills and connectors | only the `ai-os-configurator`, and every change is asked of an administrator |
+| `conversation_search` | the user's own earlier conversations | none |
+| `read_logs` | ai-os's own log lines | none |
+
 ## Agents and skills
 
 The orchestrator answers every turn and delegates to the enabled agents. Each agent is
 a prompt plus what it may use: built-in tools, skills, connectors and which of their
 tools. Edit them on the **Agents** page, add your own, switch them off. `orchestrator`,
-`ai-os-configurator`, `scheduler`, `memory` and `messenger` are fixed: editable, never
+`ai-os-configurator`, `triggers`, `memory` and `messenger` are fixed: editable, never
 off or deleted. A prompt may contain `{{agents}}`, replaced on every turn by the
 enabled agents.
 
@@ -161,7 +241,7 @@ The grants are enforced in code: `AgentGrantRule` refuses any tool, connector or
 delegation the calling agent was not granted, before any approval is asked.
 
 A conversation can skip the orchestrator: a new web chat has a **Talk to** picker,
-and a schedule an **Agent** field.
+and a trigger an **Agent** field.
 
 Agents that ship with ai-os (a seed: edit or delete them freely):
 
@@ -175,8 +255,8 @@ Agents that ship with ai-os (a seed: edit or delete them freely):
 | `homey` | smart home across one or several Homey hubs | a `homey` connector (OAuth) |
 | `weather` | weather from wttr.in | none |
 | `memory` | remembers and recalls | none |
-| `scheduler` | creates and manages schedules and reminders | none |
-| `ai-os-configurator` | creates and changes agents, skills, connectors and schedules from a chat; every change is approved by an administrator | none |
+| `triggers` | creates and manages triggers and reminders | none |
+| `ai-os-configurator` | creates and changes agents, skills, connectors and triggers from a chat; every change is approved by an administrator | none |
 | `second-brain` | searches and writes a notes vault mounted at `/vault` | `files.write_roots: [/vault]` |
 | `log-checker` | ai-os's own errors and warnings | none |
 
@@ -232,6 +312,83 @@ can still be typed, so a list that cannot be fetched costs nothing.
 > repository, or push to its remote, can run code on the machine; agents cannot
 > write there.
 
+## Webhooks
+
+The `webhook` channel lets agents post to named **destinations**, set up under
+Settings → Channels → Webhooks. Each is one file, `webhooks/<name>.yaml`, in the
+configuration repository, and applies to the next turn without a restart:
+
+```yaml
+description: Posts an alert into the family channel.  # agents read this to pick it
+method: POST                                           # POST, PUT, PATCH or GET
+url: https://n8n.example.com/webhook/${N8N_ALERTS_ID}
+headers:
+  Authorization: Bearer ${N8N_TOKEN}
+fields:                                                # JSON schema of what the agent gives
+  type: object
+  properties:
+    text: {type: string, description: The alert}
+    level: {type: integer, minimum: 1, maximum: 3}
+  required: [text]
+body:                                                  # a mapping or list is sent as JSON
+  message: "Alert: {{text}}"
+  level: "{{level}}"                                   # exactly one field: keeps its type
+approval: ask                                          # ask, allow or deny
+enabled: true
+```
+
+- `{{field}}` is a value the agent gives; every field a template uses must be
+  declared in `fields`, and the agent's values are checked against that schema
+  before anyone is asked to approve.
+- `${NAME}` is a Variable. Both are filled in one pass, so a field holding
+  `${SECRET}` stays literal text: an agent cannot pull a secret into a request.
+- In the URL a field is percent-encoded; in a header it loses its line breaks. A
+  body that is a string is sent as written (a form, plain text); set `Content-Type`
+  under `headers`. A GET sends no body.
+- A literal secret in a header whose name says so is moved into a Variable on
+  save, as for connectors. A token in the URL belongs in a `${NAME}` too.
+- **Send test** in the editor really calls the destination, as typed, saved or not.
+- Switch the channel on (restart), then grant `send_webhook` to the agents that may
+  post. A post and its fields are recorded in the conversation.
+
+## Triggers
+
+A trigger is a prompt ai-os runs by itself for one user: on cron times (**Repeat**),
+once (**Once**), or when a program calls its webhook. Each run is a new conversation
+for that user, opened wherever they can be reached, and runs with their permissions.
+Manage them on the Triggers page, or ask the `triggers` agent ("remind me tomorrow
+at 9 to …"). Until 2026-11-23 they were called schedules: the first start after the
+update moves `schedules/` to `triggers/` and the `scheduler` agent to `triggers` in
+one commit, `/hooks/schedules/<id>` keeps working, and an agent prompt that still
+names the `schedules` collection finds the triggers.
+
+### Starting a trigger by webhook
+
+A trigger can also be started by a program (n8n, a CI job, Home Assistant): turn on
+**Can also be started by a webhook** in its editor, or pick **Webhook only** for a
+trigger with no time at all. The console then shows its URL and token, once:
+
+```sh
+curl -X POST https://ai-os.example.com/hooks/triggers/<id> \
+  -H "Authorization: Bearer aios_..." \
+  -H "Content-Type: application/json" \
+  -d '{"service": "web", "status": "failed"}'
+```
+
+- The answer is `202` and the run starts like any other: a new conversation for the
+  trigger's user. Whatever the call sent (JSON, pretty-printed, or plain text, up
+  to 20,000 characters) is added below the prompt, fenced and marked as data the
+  agent must not take orders from. Its tools are still approved as usual.
+- A wrong token, an unknown trigger and one without a webhook all answer `404`. A
+  switched-off trigger answers `409`, switched-off `triggers` `503`, and a second
+  call within 10 seconds `429`.
+- Only the token's SHA-256 is stored in the trigger's file. **New token** makes a
+  new one and retires the old; turning the webhook off drops it.
+- `/hooks/` is the only path the console's sign-in lets through, since the token is
+  the proof. Behind Cloudflare Access (or another login proxy) give `/hooks/*` a
+  bypass or service-token rule, or call ai-os from inside its network
+  (`http://ai-os:8080/hooks/...`).
+
 ## Connectors and variables
 
 External MCP servers are **connectors**, managed on the **Connectors** page: add,
@@ -270,7 +427,7 @@ it. A connector does nothing until an agent is granted it.
     administrator. Right for a household device such as Homey.
   - `per_user`: every user who may chat signs in on the Connectors page with their
     own account, and a turn carries only the sign-in of the user it is for; a
-    schedule runs as its user. A user who has not signed in does not get the
+    trigger runs as its user. A user who has not signed in does not get the
     connector at all for that turn (the agent is told to ask them to sign in),
     unless `shared_fallback: true` lets them use the shared account.
 
@@ -310,7 +467,7 @@ it. A connector does nothing until an agent is granted it.
 ## The configuration repository
 
 Everything that says how ai-os behaves (`aios.yaml`, agents, skills, connectors,
-schedules, roles) is one git repository at `<data>/config`, one file per thing:
+triggers, roles, webhooks, code connectors) is one git repository at `<data>/config`, one file per thing:
 
 | File | What |
 |---|---|
@@ -318,11 +475,14 @@ schedules, roles) is one git repository at `<data>/config`, one file per thing:
 | `agents/<name>.md` | front matter (description, model, enabled, tools, skills, connectors), then the prompt |
 | `skills/<name>/SKILL.md` | front matter (name, description), then the instructions |
 | `connectors/<name>.yaml` | description, enabled, and the MCP config (`${VAR}` for secrets) |
-| `schedules/<id>.yaml` | the schedule; when it last fired is runtime state, outside git |
+| `triggers/<id>.yaml` | the trigger; when it last fired is runtime state, outside git |
 | `roles/<id>.yaml` | a role's name and permissions |
+| `webhooks/<name>.yaml` | a webhook destination (`${VAR}` for secrets) |
+| `code/<name>/` | a code connector: `connector.yaml`, `server.py`, its agents |
 
 - Every save in the console is a commit, under the name of whoever saved it. Each
-  item has a **History** with diffs and *Restore*.
+  item has a **History** with diffs and *Restore*. Settings → Repository browses
+  and edits the files themselves, on any branch.
 - Commits made outside ai-os (an editor, a terminal) are picked up within seconds;
   a commit that does not load is ignored and logged.
 - **Branches** (Settings → Git): each is a whole version of the configuration. ai-os
@@ -347,10 +507,15 @@ nothing in a running installation.
   Bash, since the process environment holds secrets.
 - The file tools reach only `files.read_roots` / `files.write_roots`.
 - Who may chat, approve or be messaged is decided from users and roles in code, never
-  by a prompt. Agents cannot read or change agents, skills, connectors, variables or
-  sign-ins.
+  by a prompt. Agents cannot read or change agents, skills, connectors, webhook
+  destinations, variables or sign-ins; only the configurator changes the first
+  three, and only with an administrator's yes.
+- Each agent may use only what it was granted (`AgentGrantRule`), checked before
+  any approval is asked.
 - Secrets are environment variables or encrypted variables; nothing secret is written
-  to the configuration repository.
+  to the configuration repository. A trigger's webhook keeps only its token's hash.
+- `/hooks/` is the only way in without the console's sign-in; each call there needs
+  the trigger's own token, and what it sends reaches the agent as marked data.
 
 ## Slack app
 
@@ -379,7 +544,21 @@ outbound HTTPS to `login.microsoftonline.com`, `*.botapi.skype.com` and
 A Teams user can talk to ai-os once their Microsoft Entra object id is a `teams`
 account of a user with the `chat` permission. In a team, mention the bot to start a
 thread; a personal or group chat is one conversation until someone writes `/new`.
-Scheduled runs reach a user in their personal chat with the bot.
+Trigger runs reach a user in their personal chat with the bot.
+
+## Signal and mail
+
+Both only send: agents message people, nobody chats with ai-os there. The console's
+Settings → Channels has the setup steps and a **Test** for each.
+
+- **Signal** goes through [signal-cli-rest-api](https://github.com/bbernhard/signal-cli-rest-api)
+  running next to ai-os, with a number linked or registered there: its address
+  (`SIGNAL_API_URL`) and the number (`SIGNAL_SENDER`).
+- **Mail** goes through [Resend](https://resend.com), from a domain verified there:
+  an API key (`RESEND_API_KEY`) and a From address (`AIOS_MAIL_FROM`).
+
+A person is reached once their number or address is a `signal` or `mail` account
+on their user.
 
 ## Development
 
@@ -401,8 +580,8 @@ and arm64 and pushes it to `ghcr.io/<owner>/ai-os`. A release is a tag:
 |---|---|
 | an agent, skill or connector | in the console (the files in this repo only seed a new install) |
 | a tool | a class implementing `AiosTool` in `aios/tools/`, registered in `ToolsContainer`; approval logic as an `ApprovalRule` beside it |
-| a channel | a package `aios/channels/<name>/` with a `MessageChannel`, one provider in `ChannelsContainer` |
-| a sender | `aios/messaging/<name>/<name>_sender.py` implementing `MessageSender`, one provider in `MessagingContainer` |
+| a chat channel | a package `aios/channels/<name>/` with a `ChannelType` and its `MessageChannel`, one entry in `ChannelsContainer.types` |
+| a sender | a package `aios/messaging/<name>/` with a `ChannelType` and its `MessageSender`, one entry in `ChannelsContainer.types` |
 | stored data | an entity in `aios/entities/<subject>/`, a collection in `StorageContainer` |
 
 ## License

@@ -23,6 +23,8 @@ NO_CSRF_PATHS = frozenset({"/api/oauth/callback"})
 # With the console's own login, what a browser needs before signing in.
 LOGIN_PATHS = frozenset({"/", "/api/login", "/api/logout"})
 LOGIN_PREFIXES = ("/static/",)
+# Called by programs, not people: each route checks its own token.
+HOOK_PREFIXES = ("/hooks/",)
 
 
 class WebAuth:
@@ -35,6 +37,9 @@ class WebAuth:
 
     With `login_page` (the console's own login), the page, its scripts and the
     login routes are served to anyone, so a browser can sign in.
+
+    `/hooks/` is let through without an identity: those routes prove the caller
+    with a token of their own, and have no session a CSRF check could protect.
     """
 
     def __init__(
@@ -51,6 +56,8 @@ class WebAuth:
 
     @web.middleware
     async def middleware(self, request: web.Request, handler):  # type: ignore[no-untyped-def]
+        if request.path.startswith(HOOK_PREFIXES):
+            return await handler(request)
         if self._login_page and self._open(request.path):
             self._check_csrf(request)
             return await handler(request)

@@ -23,7 +23,7 @@ class RepositoryFileCheck:
     did nothing.
 
     - `aios.yaml` against the model ai-os reads it with;
-    - an agent, skill, connector, schedule or role through its collection's own
+    - an agent, skill, connector, trigger or role through its collection's own
       layout and entity;
     - a code connector's `connector.yaml` against the manifest model;
     - Python by compiling it, other YAML and JSON by parsing them.

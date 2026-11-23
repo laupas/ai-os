@@ -12,7 +12,7 @@ import { HealthPage } from "@/pages/health-page";
 import { LoginScreen } from "@/pages/login-page";
 import { LogsPage } from "@/pages/logs-page";
 import { MemoriesPage } from "@/pages/memories-page";
-import { SchedulesPage } from "@/pages/schedules-page";
+import { TriggersPage } from "@/pages/triggers-page";
 import { SettingsPage } from "@/pages/settings-page";
 import { VariablesPage } from "@/pages/variables-page";
 import { VoicePage } from "@/pages/voice/voice-page";
@@ -43,7 +43,7 @@ export function App() {
     chat: <ChatPage id={arg} />,
     voice: <VoicePage />,
     approvals: <ApprovalsPage />,
-    schedules: <SchedulesPage />,
+    triggers: <TriggersPage />,
     memories: <MemoriesPage />,
     agents: <AgentsPage name={arg} />,
     skills: <SkillsPage />,

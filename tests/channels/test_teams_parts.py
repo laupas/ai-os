@@ -138,6 +138,7 @@ def test_cards_carry_their_answers_and_read_back() -> None:
 
 def test_slack_shortcodes_become_emoji() -> None:
     assert TeamsEmoji().convert(":alarm_clock: daily :nope:") == "⏰ daily :nope:"
+    assert TeamsEmoji().convert(":zap: hook") == "⚡ hook"
 
 
 def test_the_setup_steps_link_to_the_developer_portal() -> None:

@@ -4,16 +4,16 @@ import pytest
 from pydantic import ValidationError
 
 from aios.common.clock import Clock
-from aios.config.scheduler_config import SchedulerConfig
+from aios.config.triggers_config import TriggersConfig
 from aios.entities.conversations.channel_binding import ChannelBinding
-from aios.entities.schedules.schedule import Schedule
+from aios.entities.triggers.trigger import Trigger
 from aios.entities.users.user import User
-from aios.scheduler.schedule_runner import ScheduleRunner
-from aios.scheduler.schedule_timing import ScheduleTiming
-from aios.scheduler.scheduler_loop import SchedulerLoop
 from aios.storage.collection import Collection
 from aios.storage.collection_definition import CollectionDefinition
 from aios.storage.in_memory_document_store import InMemoryDocumentStore
+from aios.triggers.trigger_loop import TriggerLoop
+from aios.triggers.trigger_runner import TriggerRunner
+from aios.triggers.trigger_timing import TriggerTiming
 
 
 class _FixedClock(Clock):
@@ -24,15 +24,15 @@ class _FixedClock(Clock):
         return self.current
 
 
-class _RecordingRunner(ScheduleRunner):
+class _RecordingRunner(TriggerRunner):
     def __init__(self) -> None:
         self.ran: list[str] = []
 
-    async def run(self, schedule: Schedule) -> None:
-        self.ran.append(schedule.name)
+    async def run(self, trigger: Trigger) -> None:
+        self.ran.append(trigger.name)
 
 
-def _schedule(**overrides: object) -> Schedule:
+def _trigger(**overrides: object) -> Trigger:
     data: dict[str, object] = {
         "id": "s1",
         "name": "brief",
@@ -41,38 +41,44 @@ def _schedule(**overrides: object) -> Schedule:
         "user_id": "u",
     }
     data.update(overrides)
-    return Schedule.model_validate(data)
+    return Trigger.model_validate(data)
 
 
 def test_needs_exactly_one_of_cron_and_once_at() -> None:
     with pytest.raises(ValidationError):
-        _schedule(cron=[])
+        _trigger(cron=[])
     with pytest.raises(ValidationError):
-        _schedule(once_at=datetime(2026, 1, 1, tzinfo=UTC))
+        _trigger(once_at=datetime(2026, 1, 1, tzinfo=UTC))
     with pytest.raises(ValidationError):
-        _schedule(cron=["not cron"])
+        _trigger(cron=["not cron"])
     with pytest.raises(ValidationError):
-        _schedule(cron=[], once_at=datetime(2026, 1, 1))  # no offset
+        _trigger(cron=[], once_at=datetime(2026, 1, 1))  # no offset
+
+
+def test_a_webhook_alone_is_enough() -> None:
+    trigger = _trigger(cron=[], webhook_token_sha256="ab" * 32)
+    assert trigger.webhook
+    assert TriggerTiming().next_after(trigger, datetime(2026, 1, 1, tzinfo=UTC)) is None
 
 
 def test_cron_is_local_time_and_takes_the_earliest_rule() -> None:
-    timing = ScheduleTiming()
-    schedule = _schedule(cron=["0 10 * * *", "0 7 * * *"], timezone="Europe/Zurich")
+    timing = TriggerTiming()
+    trigger = _trigger(cron=["0 10 * * *", "0 7 * * *"], timezone="Europe/Zurich")
     after = datetime(2026, 7, 1, 0, 0, tzinfo=UTC)  # 02:00 in Zurich (summer)
-    assert timing.next_after(schedule, after) == datetime(2026, 7, 1, 5, 0, tzinfo=UTC)
+    assert timing.next_after(trigger, after) == datetime(2026, 7, 1, 5, 0, tzinfo=UTC)
 
 
 async def _loop(
-    schedule: Schedule, now: datetime
-) -> tuple[SchedulerLoop, Collection[Schedule], _RecordingRunner, _FixedClock]:
-    schedules: Collection[Schedule] = Collection(
-        CollectionDefinition(name="schedules", entity=Schedule), InMemoryDocumentStore()
+    trigger: Trigger, now: datetime
+) -> tuple[TriggerLoop, Collection[Trigger], _RecordingRunner, _FixedClock]:
+    triggers: Collection[Trigger] = Collection(
+        CollectionDefinition(name="triggers", entity=Trigger), InMemoryDocumentStore()
     )
-    await schedules.put(schedule)
+    await triggers.put(trigger)
     runner, clock = _RecordingRunner(), _FixedClock(now)
     return (
-        SchedulerLoop(schedules, ScheduleTiming(), runner, clock, SchedulerConfig),
-        schedules,
+        TriggerLoop(triggers, TriggerTiming(), runner, clock, TriggersConfig),
+        triggers,
         runner,
         clock,
     )
@@ -84,12 +90,12 @@ async def _settle() -> None:
     await asyncio.sleep(0)
 
 
-async def test_a_new_cron_schedule_waits_for_its_next_slot() -> None:
+async def test_a_new_cron_trigger_waits_for_its_next_slot() -> None:
     start = datetime(2026, 7, 1, 4, 59, tzinfo=UTC)  # 06:59 Zurich
-    loop, schedules, runner, clock = await _loop(_schedule(), start)
+    loop, triggers, runner, clock = await _loop(_trigger(), start)
     await loop.tick()
     await _settle()
-    assert runner.ran == [] and schedules.get("s1").last_fired_at == start  # type: ignore[union-attr]
+    assert runner.ran == [] and triggers.get("s1").last_fired_at == start  # type: ignore[union-attr]
     clock.current = start + timedelta(minutes=1, seconds=10)
     await loop.tick()
     await _settle()
@@ -101,27 +107,27 @@ async def test_a_new_cron_schedule_waits_for_its_next_slot() -> None:
 
 async def test_a_long_missed_slot_is_skipped_not_replayed() -> None:
     fired = datetime(2026, 7, 1, 5, 0, tzinfo=UTC)
-    loop, schedules, runner, clock = await _loop(_schedule(last_fired_at=fired), fired)
+    loop, triggers, runner, clock = await _loop(_trigger(last_fired_at=fired), fired)
     clock.current = fired + timedelta(days=1, hours=3)  # down over the next 07:00
     await loop.tick()
     await _settle()
-    assert runner.ran == [] and schedules.get("s1").last_fired_at == clock.current  # type: ignore[union-attr]
+    assert runner.ran == [] and triggers.get("s1").last_fired_at == clock.current  # type: ignore[union-attr]
 
 
 async def test_once_fires_and_is_removed() -> None:
     at = datetime(2026, 7, 1, 9, 0, tzinfo=UTC)
-    loop, schedules, runner, _ = await _loop(
-        _schedule(cron=[], once_at=at), at + timedelta(seconds=5)
+    loop, triggers, runner, _ = await _loop(
+        _trigger(cron=[], once_at=at), at + timedelta(seconds=5)
     )
     await loop.tick()
     await _settle()
-    assert runner.ran == ["brief"] and schedules.get("s1") is None
+    assert runner.ran == ["brief"] and triggers.get("s1") is None
 
 
-async def test_disabled_schedules_do_not_fire() -> None:
+async def test_disabled_triggers_do_not_fire() -> None:
     at = datetime(2026, 7, 1, 9, 0, tzinfo=UTC)
     loop, _, runner, _ = await _loop(
-        _schedule(cron=[], once_at=at, enabled=False), at + timedelta(seconds=5)
+        _trigger(cron=[], once_at=at, enabled=False), at + timedelta(seconds=5)
     )
     await loop.tick()
     await _settle()
@@ -148,9 +154,9 @@ async def test_runner_opens_the_run_wherever_the_user_is() -> None:
     )
     world.gateway._channels = world.channels
     world.gateway._delivery = ConversationDelivery(world.channels)
-    runner = ScheduleRunner(world.users, world.channels, world.gateway)
+    runner = TriggerRunner(world.users, world.channels, world.gateway)
 
-    await runner.run(_schedule(user_id="alice", agent="calendar"))
+    await runner.run(_trigger(user_id="alice", agent="calendar"))
 
     [request] = world.engine.requests  # type: ignore[attr-defined]
     assert request.user.id == "alice" and request.text == "brief me"
@@ -162,8 +168,8 @@ async def test_runner_opens_the_run_wherever_the_user_is() -> None:
     assert fake.texts() == ["ok"] and signal.texts() == ["ok"]  # the prompt is not mirrored
 
 
-def test_an_older_schedule_document_is_read_with_its_user() -> None:
-    old = Schedule.model_validate(
+def test_an_older_trigger_document_is_read_with_its_user() -> None:
+    old = Trigger.model_validate(
         {
             "id": "s1",
             "name": "brief",

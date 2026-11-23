@@ -21,6 +21,8 @@ from aios.tools.data_query_tool import DataQueryTool
 from aios.tools.read_logs_tool import ReadLogsTool
 from aios.tools.send_message_approval_rule import SendMessageApprovalRule
 from aios.tools.send_message_tool import SendMessageTool
+from aios.tools.send_webhook_approval_rule import SendWebhookApprovalRule
+from aios.tools.send_webhook_tool import SendWebhookTool
 
 
 class ToolsContainer(containers.DeclarativeContainer):
@@ -30,6 +32,8 @@ class ToolsContainer(containers.DeclarativeContainer):
     users = providers.Dependency()
     authorizer = providers.Dependency()
     senders = providers.Dependency()
+    webhooks = providers.Dependency()
+    webhook_poster = providers.Dependency()
     recorder = providers.Dependency()
     conversations = providers.Dependency()
     approvals = providers.Dependency()
@@ -47,6 +51,9 @@ class ToolsContainer(containers.DeclarativeContainer):
 
     send_message = providers.Singleton(
         SendMessageTool, users=users, senders=senders, recorder=recorder
+    )
+    send_webhook = providers.Singleton(
+        SendWebhookTool, destinations=webhooks, poster=webhook_poster, recorder=recorder
     )
     ask_human = providers.Singleton(AskHumanTool, approvals=approvals)
     data_list_collections = providers.Singleton(DataListCollectionsTool, guard=guard)
@@ -77,6 +84,7 @@ class ToolsContainer(containers.DeclarativeContainer):
         AiosToolServer,
         tools=providers.List(
             send_message,
+            send_webhook,
             ask_human,
             data_list_collections,
             data_query,
@@ -94,6 +102,7 @@ class ToolsContainer(containers.DeclarativeContainer):
 
     approval_rules = providers.List(
         providers.Singleton(SendMessageApprovalRule, users=users, authorizer=authorizer),
+        providers.Singleton(SendWebhookApprovalRule, destinations=webhooks),
         providers.Singleton(DataAccessApprovalRule, registry=registry),
         providers.Singleton(ConfigChangeApprovalRule),
     )

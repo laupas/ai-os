@@ -26,7 +26,7 @@ class ClaudeOptionsFactory:
     tool call goes through the permission gate, which knows which agent is calling.
 
     Connectors carry the sign-in of the turn's user (`ConnectorCatalog.servers`): a
-    scheduled run is a turn of the schedule's user, so it uses their account too.
+    trigger's run is a turn of the trigger's user, so it uses their account too.
 
     The main thread is the orchestrator, or the agent the conversation was started
     with; subagents are offered only to a main agent that may delegate.

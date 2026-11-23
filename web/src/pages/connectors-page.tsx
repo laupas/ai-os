@@ -545,7 +545,7 @@ function ConnectorForm({ connector: c, library, onDone }: { connector: Connector
                 </NativeSelect>
                 <Hint>
                   Shared: every user's turns work in the one account (Homey). Each user's own: everybody signs in on this page, and a turn uses
-                  only the account of the user it is for; a schedule runs as its user.
+                  only the account of the user it is for; a trigger runs as its user.
                 </Hint>
               </Label>
               {signInMode === "per_user" ? (

@@ -16,7 +16,7 @@ PROTECTED = "main"
 
 class ConfigBranches:
     """Branches of the configuration repository: several versions of the agents,
-    skills, connectors and schedules side by side.
+    skills, connectors and triggers side by side.
 
     The checked-out branch is the one ai-os runs; switching reloads the
     configuration at once. A merge into another branch happens in a temporary

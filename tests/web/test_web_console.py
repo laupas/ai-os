@@ -214,7 +214,7 @@ async def test_an_invalid_config_is_refused_and_not_written(tmp_path) -> None:
         )
         wrong_type = await c.client.put(
             "/api/settings/config",
-            json={"text": "scheduler: {tick_seconds: soon}"},
+            json={"text": "triggers: {tick_seconds: soon}"},
             headers=c.headers(ALICE, write=True),
         )
         assert response.status == 400

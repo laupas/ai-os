@@ -24,9 +24,10 @@ class SecretExtractor:
         self._resolver = resolver
 
     async def extract(
-        self, owner: str, config: dict[str, Any], author: str
+        self, owner: str, config: dict[str, Any], author: str, kind: str = "connector"
     ) -> tuple[dict[str, Any], list[str]]:
-        """The config with every literal secret replaced, and the variables made."""
+        """The config with every literal secret replaced, and the variables made.
+        `kind` names what `owner` is, for the variable's description."""
         config = dict(config)
         moved: list[str] = []
         for section in ("headers", "env"):
@@ -36,13 +37,13 @@ class SecretExtractor:
             values = dict(values)
             for key, value in values.items():
                 if self._is_literal(value) and SECRET_WORDS.search(key.upper()):
-                    values[key] = await self._move(owner, key, value, author, moved)
+                    values[key] = await self._move(owner, key, value, author, moved, kind)
             config[section] = values
         oauth = config.get("oauth")
         if isinstance(oauth, dict) and self._is_literal(oauth.get("client_secret")):
             oauth = {**oauth}
             oauth["client_secret"] = await self._move(
-                owner, "client_secret", oauth["client_secret"], author, moved
+                owner, "client_secret", oauth["client_secret"], author, moved, kind
             )
             config["oauth"] = oauth
         return config, moved
@@ -56,7 +57,9 @@ class SecretExtractor:
             and not value.startswith(("/", "~"))
         )
 
-    async def _move(self, owner: str, key: str, value: str, author: str, moved: list[str]) -> str:
+    async def _move(
+        self, owner: str, key: str, value: str, author: str, moved: list[str], kind: str
+    ) -> str:
         base = re.sub(r"[^A-Z0-9]+", "_", f"{owner}_{key}".upper()).strip("_")[:60]
         name, n = base, 1
         while (current := self._variables.get(name)) is not None:
@@ -69,7 +72,7 @@ class SecretExtractor:
             value,
             secret=True,
             file=False,
-            description=f"Moved out of connector {owner} ({key}) when it was saved.",
+            description=f"Moved out of {kind} {owner} ({key}) when it was saved.",
             author=author,
         )
         moved.append(name)

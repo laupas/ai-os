@@ -28,7 +28,7 @@ export function HealthPage() {
     ["Warnings, 24 h", c.warnings_24h, c.warnings_24h ? "text-warning" : undefined],
     ["Pending approvals", c.pending_approvals],
     ["Conversations", c.conversations],
-    ["Schedules on", `${c.schedules_enabled} / ${c.schedules}`],
+    ["Triggers on", `${c.triggers_enabled} / ${c.triggers}`],
     ["Memories", c.memories],
     ["Users", c.users],
   ];
@@ -73,8 +73,8 @@ export function HealthPage() {
             </div>
           ) : null}
           <div className="flex items-center gap-2 py-3">
-            <span className="w-32 text-sm text-muted-foreground">Scheduler</span>
-            <Badge variant={h.scheduler ? "success" : "destructive"}>{h.scheduler ? "running" : "off"}</Badge>
+            <span className="w-32 text-sm text-muted-foreground">Triggers</span>
+            <Badge variant={h.triggers ? "success" : "destructive"}>{h.triggers ? "running" : "off"}</Badge>
           </div>
         </CardContent>
       </Card>

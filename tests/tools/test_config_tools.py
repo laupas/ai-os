@@ -43,12 +43,12 @@ def _call(tool: str, agent: str | None = CONFIGURATOR, **tool_input: object) -> 
 
 def test_only_the_configurator_may_use_the_config_tools() -> None:
     rule = ConfigChangeApprovalRule()
-    for agent in ("orchestrator", "scheduler", None):
+    for agent in ("orchestrator", "triggers", None):
         decision = rule.evaluate(_call("config_list", agent=agent, kind="agents"))
         assert decision is not None and decision.verdict is PolicyVerdict.DENY
     decision = rule.evaluate(_call("config_list", kind="agents"))
     assert decision is not None and decision.verdict is PolicyVerdict.ALLOW
-    assert rule.evaluate(_call("data_put", collection="schedules")) is None
+    assert rule.evaluate(_call("data_put", collection="triggers")) is None
 
 
 def test_every_change_asks_an_administrator_with_the_document() -> None:

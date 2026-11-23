@@ -18,6 +18,7 @@ dependencies = [
     "cryptography>=44",
     "tzdata>=2026.5",
     "ruamel-yaml>=0.18",
+    "jsonschema>=4.23",
 ]
 
 [dependency-groups]

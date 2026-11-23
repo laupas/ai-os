@@ -3,6 +3,7 @@ import re
 _SHORTCODE = re.compile(r":([a-z0-9_+-]+):")
 _EMOJI = {
     "alarm_clock": "⏰",
+    "zap": "⚡",
     "large_green_circle": "🟢",
     "white_check_mark": "✅",
     "raised_hand": "✋",

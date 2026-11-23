@@ -49,7 +49,7 @@ class Settings(BaseSettings):
         return self.data_dir / "config.yaml"
 
     def config_dir(self) -> Path:
-        """The configuration repository: agents, skills, connectors, schedules."""
+        """The configuration repository: agents, skills, connectors, triggers."""
         return self.data_dir / "config"
 
     def secrets_key_file(self) -> Path:

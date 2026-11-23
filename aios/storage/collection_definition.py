@@ -10,6 +10,8 @@ class CollectionDefinition(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
     name: str
+    former_names: frozenset[str] = frozenset()
+    """Names it had before, still found under: an agent's prompt may use them."""
     entity: type[BaseModel]
     agent_access: AgentAccess = AgentAccess.NONE
     agent_writes_need_approval: bool = True

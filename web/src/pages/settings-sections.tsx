@@ -103,15 +103,15 @@ function DurationField({ label, hint, seconds, fallback, unit, onChange }: { lab
 export function GeneralPanel() {
   return (
     <div className="space-y-3">
-      <Loaded>{(s) => <GeneralForm key={JSON.stringify([s.timezone.value, s.scheduler.value])} timezone={s.timezone} scheduler={s.scheduler} />}</Loaded>
+      <Loaded>{(s) => <GeneralForm key={JSON.stringify([s.timezone.value, s.triggers.value])} timezone={s.timezone} triggers={s.triggers} />}</Loaded>
       <VoiceCard />
     </div>
   );
 }
 
-function GeneralForm({ timezone, scheduler }: { timezone: Section; scheduler: Section }) {
+function GeneralForm({ timezone, triggers }: { timezone: Section; triggers: Section }) {
   const [zone, setZone] = useState((timezone.value as string | null) ?? "");
-  const [sched, setSched] = useState<Values>(isPlain(scheduler.value) ? scheduler.value : {});
+  const [trig, setTrig] = useState<Values>(isPlain(triggers.value) ? triggers.value : {});
   const save = useSave();
   const zones = useMemo(() => {
     try {
@@ -128,15 +128,15 @@ function GeneralForm({ timezone, scheduler }: { timezone: Section; scheduler: Se
     now = "";
   }
   const zoneDirty = zone !== ((timezone.value as string | null) ?? "");
-  const schedDirty = JSON.stringify(sched) !== JSON.stringify(isPlain(scheduler.value) ? scheduler.value : {});
+  const trigDirty = JSON.stringify(trig) !== JSON.stringify(isPlain(triggers.value) ? triggers.value : {});
   const onSave = () => {
     const changes: Record<string, unknown> = {};
     if (zoneDirty) changes.timezone = zone || null;
-    if (schedDirty) changes.scheduler = Object.keys(sched).length ? sched : null;
+    if (trigDirty) changes.triggers = Object.keys(trig).length ? trig : null;
     void save(changes);
   };
   return (
-    <SectionCard title="General" description="Time zone and the scheduler. Applies at once." dirty={zoneDirty || schedDirty} onSave={onSave}>
+    <SectionCard title="General" description="Time zone and the triggers. Applies at once." dirty={zoneDirty || trigDirty} onSave={onSave}>
       <Label>
         Time zone
         <Input list="aios-timezones" className="max-w-sm" placeholder={timezone.schema.default} value={zone} onChange={(e) => setZone(e.target.value.trim())} />
@@ -146,12 +146,12 @@ function GeneralForm({ timezone, scheduler }: { timezone: Section; scheduler: Se
           ))}
         </datalist>
         <Hint>
-          For schedules and the dates agents see. {now ? `Now there: ${now}.` : "Not a time zone this browser knows."}
+          For triggers and the dates agents see. {now ? `Now there: ${now}.` : "Not a time zone this browser knows."}
         </Hint>
       </Label>
       <div className="space-y-2">
-        <div className="text-sm font-medium">Scheduler</div>
-        <SettingsFields schema={only(scheduler.schema, ["enabled", "tick_seconds"])} values={sched} onChange={setSched} />
+        <div className="text-sm font-medium">Triggers</div>
+        <SettingsFields schema={only(triggers.schema, ["enabled", "tick_seconds"])} values={trig} onChange={setTrig} />
       </div>
     </SectionCard>
   );
@@ -568,7 +568,7 @@ const COLLECTION_HINT: Record<string, string> = {
   conversations: "chats and their messages",
   approvals: "questions asked and answered",
   memories: "what agents keep for later",
-  schedules: "timed runs",
+  triggers: "runs started on time or by webhook",
 };
 
 export function DataAccessPanel() {

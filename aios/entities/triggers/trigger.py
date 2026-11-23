@@ -6,12 +6,13 @@ from croniter import croniter
 from pydantic import BaseModel, model_validator
 
 
-class Schedule(BaseModel):
-    """A prompt ai-os runs by itself, on cron times or once, for one user.
+class Trigger(BaseModel):
+    """A prompt ai-os runs by itself, on cron times, once, or when a webhook
+    calls it, for one user.
 
     Each run is a new conversation that runs as `user_id` and is opened wherever
     that user can be reached (their Slack DM, the web console, ...), like any other
-    conversation. Where exactly is the user's accounts' business, not the schedule's.
+    conversation. Where exactly is the user's accounts' business, not the trigger's.
     """
 
     id: str
@@ -29,13 +30,16 @@ class Schedule(BaseModel):
     enabled: bool = True
     max_lateness_minutes: int = 60
     """A run that is later than this (e.g. after downtime) is skipped, not replayed."""
+    webhook_token_sha256: str | None = None
+    """Set: a POST to `/hooks/triggers/<id>` with this token also starts a run.
+    Only the token's hash is kept, so the configuration repository holds no secret."""
     last_fired_at: datetime | None = None
     created_at: datetime | None = None
 
     @model_validator(mode="before")
     @classmethod
     def _read_older_documents(cls, data: Any) -> Any:
-        # Before 2026-11-01 a schedule named a channel and address to post to and a
+        # Before 2026-11-01 a schedule (a trigger now) named a channel and address to post to and a
         # `run_as_user_id`; the place is now the user's, so only the user is kept.
         if not isinstance(data, dict):
             return data
@@ -44,9 +48,11 @@ class Schedule(BaseModel):
         return {k: v for k, v in data.items() if k not in ("channel", "address", "run_as_user_id")}
 
     @model_validator(mode="after")
-    def _check_timing(self) -> "Schedule":
-        if bool(self.cron) == (self.once_at is not None):
-            raise ValueError("set either `cron` or `once_at`, not both or neither")
+    def _check_timing(self) -> "Trigger":
+        if self.cron and self.once_at is not None:
+            raise ValueError("set either `cron` or `once_at`, not both")
+        if not self.cron and self.once_at is None and self.webhook_token_sha256 is None:
+            raise ValueError("set `cron`, `once_at` or a webhook")
         for expression in self.cron:
             if not croniter.is_valid(expression):
                 raise ValueError(f"invalid cron expression: {expression!r}")
@@ -54,3 +60,7 @@ class Schedule(BaseModel):
         if self.once_at is not None and self.once_at.tzinfo is None:
             raise ValueError("`once_at` needs a timezone offset")
         return self
+
+    @property
+    def webhook(self) -> bool:
+        return self.webhook_token_sha256 is not None

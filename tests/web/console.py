@@ -16,6 +16,7 @@ from aios.channels.web.web_event_hub import WebEventHub
 from aios.config.app_config_loader import AppConfigLoader
 from aios.config.channel_config import ChannelConfig
 from aios.config.live_app_config import LiveAppConfig
+from aios.config.triggers_config import TriggersConfig
 from aios.config.web_auth_config import WebAuthConfig
 from aios.config.web_config import WebConfig
 from aios.connectors.code_connector_library import CodeConnectorLibrary
@@ -32,22 +33,25 @@ from aios.conversations.turn_canceller import TurnCanceller
 from aios.engine.agent_engine import AgentEngine
 from aios.entities.connectors.connector_token import ConnectorToken
 from aios.entities.memories.memory import Memory
-from aios.entities.schedules.schedule import Schedule
 from aios.entities.skills.skill import Skill
+from aios.entities.triggers.trigger import Trigger
 from aios.entities.users.channel_account import ChannelAccount
 from aios.entities.users.web_password import WebPassword
 from aios.entities.variables.variable import Variable
+from aios.entities.webhooks.webhook_destination import WebhookDestination
 from aios.logs.log_reader import LogReader
 from aios.messaging.mail.mail_channel_type import MailChannelType
 from aios.messaging.sender_directory import SenderDirectory
 from aios.messaging.signal.signal_channel_type import SignalChannelType
-from aios.scheduler.schedule_runner import ScheduleRunner
-from aios.scheduler.schedule_timing import ScheduleTiming
+from aios.messaging.webhook.webhook_poster import WebhookPoster
+from aios.messaging.webhook.webhook_template import WebhookTemplate
 from aios.storage.agent_access import AgentAccess
 from aios.storage.collection import Collection
 from aios.storage.collection_access_overrides import CollectionAccessOverrides
 from aios.storage.collection_definition import CollectionDefinition
 from aios.storage.collection_definition import CollectionDefinition as Definition
+from aios.triggers.trigger_runner import TriggerRunner
+from aios.triggers.trigger_timing import TriggerTiming
 from aios.variables.secret_box import SecretBox
 from aios.variables.secret_extractor import SecretExtractor
 from aios.variables.variable_catalog import VariableCatalog
@@ -77,14 +81,16 @@ from aios.web.routes.log_routes import LogRoutes
 from aios.web.routes.login_routes import LoginRoutes
 from aios.web.routes.memory_routes import MemoryRoutes
 from aios.web.routes.password_routes import PasswordRoutes
-from aios.web.routes.schedule_routes import ScheduleRoutes
 from aios.web.routes.settings_routes import SettingsRoutes
 from aios.web.routes.settings_section_routes import SettingsSectionRoutes
 from aios.web.routes.skill_routes import SkillRoutes
+from aios.web.routes.trigger_hook_routes import TriggerHookRoutes
+from aios.web.routes.trigger_routes import TriggerRoutes
 from aios.web.routes.variable_routes import VariableRoutes
 from aios.web.routes.voice_routes import MAX_AUDIO_BYTES, VoiceRoutes
 from aios.web.routes.voice_settings_routes import VoiceSettingsRoutes
 from aios.web.routes.web_auth_settings_routes import WebAuthSettingsRoutes
+from aios.web.routes.webhook_routes import WebhookRoutes
 from aios.web.web_auth import WebAuth
 from aios.web.web_identity import WebIdentity
 from aios.web.web_identity_factory import WebIdentityFactory
@@ -140,6 +146,7 @@ class Console:
         )
         self.restart = RestartRequest()
         self.sign_in_check = FakeClaudeSignInCheck({"sk-ant-good"})
+        self.triggers_config = TriggersConfig()
 
     async def __aenter__(self) -> "Console":
         w = self.world
@@ -176,8 +183,8 @@ class Console:
             [self.hub],
         )
         deleter = ConversationDeleter(w.conversations, self.recorder, canceller)
-        self.schedules: Collection[Schedule] = Collection(
-            CollectionDefinition(name="schedules", entity=Schedule), w.store
+        self.triggers: Collection[Trigger] = Collection(
+            CollectionDefinition(name="triggers", entity=Trigger), w.store
         )
         self.memories: Collection[Memory] = Collection(
             CollectionDefinition(name="memories", entity=Memory), w.store
@@ -205,6 +212,9 @@ class Console:
         box = SecretBox(None, self.tmp_path / "secrets.key")
         self.variables = VariableCatalog(variables, box, w.clock)
         self.variable_resolver = VariableResolver(variables, box, self.tmp_path / "variable-files")
+        self.webhooks: Collection[WebhookDestination] = Collection(
+            CollectionDefinition(name="webhooks", entity=WebhookDestination), w.store
+        )
         self.tokens = ConnectorTokens(
             Collection(
                 CollectionDefinition(name="connector-tokens", entity=ConnectorToken), w.store
@@ -341,17 +351,28 @@ class Console:
                     lambda: self.live_config.current().agent.auth,
                     self.sign_in_check,
                 ),
+                WebhookRoutes(
+                    self.webhooks,
+                    WebhookPoster(WebhookTemplate(self.variable_resolver), enabled=True),
+                    SecretExtractor(self.variables, self.variable_resolver),
+                ),
                 MemoryRoutes(self.memories, w.users, w.ids, w.clock),
                 self.voice,
                 ApprovalRoutes(w.approvals, w.approval_service),
-                ScheduleRoutes(
-                    self.schedules,
-                    ScheduleTiming(),
-                    ScheduleRunner(w.users, channels, gateway),
+                TriggerRoutes(
+                    self.triggers,
+                    TriggerTiming(),
+                    TriggerRunner(w.users, channels, gateway),
                     w.clock,
                     w.ids,
                     w.users,
                     aw.agents,
+                ),
+                TriggerHookRoutes(
+                    self.triggers,
+                    TriggerRunner(w.users, channels, gateway),
+                    w.clock,
+                    lambda: self.triggers_config,
                 ),
             ],
             self.restart,

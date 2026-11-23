@@ -8,7 +8,7 @@ from aios.config_repo.file_layout import FileLayout
 
 class YamlLayout(FileLayout):
     """One YAML file per document: `<directory>/<id>.yaml`. For short settings
-    (a connector, a schedule) that have no long text to read as Markdown."""
+    (a connector, a trigger) that have no long text to read as Markdown."""
 
     def __init__(self, directory: str) -> None:
         self._dir = directory

@@ -18,7 +18,7 @@ class Permission(StrEnum):
 
     ADMINISTER = "administer"
     """May use the web console's controls: health, logs, every conversation,
-    schedules, memories, settings and restart."""
+    triggers, memories, settings and restart."""
 
     @property
     def description(self) -> str:

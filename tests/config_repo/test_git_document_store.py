@@ -3,8 +3,8 @@ from datetime import UTC, datetime
 from aios.config_repo.change_author import ChangeAuthor
 from aios.config_repo.current_author import CurrentAuthor
 from aios.entities.agents.agent import Agent
-from aios.entities.schedules.schedule import Schedule
 from aios.entities.skills.skill import Skill
+from aios.entities.triggers.trigger import Trigger
 from tests.config_repo.repo_world import RepoWorld
 
 
@@ -45,19 +45,17 @@ async def test_files_read_back_into_the_same_documents(tmp_path) -> None:
     assert w.skills.get("voice") == Skill(id="voice", description="Voice.", content="Be brief.\n")
 
 
-async def test_a_schedule_firing_changes_no_file(tmp_path) -> None:
+async def test_a_trigger_firing_changes_no_file(tmp_path) -> None:
     w = RepoWorld(tmp_path)
     w.repo.init()
-    schedule = Schedule(
-        id="brief", name="brief", prompt="Brief me.", cron=["0 7 * * *"], user_id="u"
-    )
-    await w.schedules.put(schedule)
+    trigger = Trigger(id="brief", name="brief", prompt="Brief me.", cron=["0 7 * * *"], user_id="u")
+    await w.triggers.put(trigger)
     fired = datetime(2026, 11, 2, 7, tzinfo=UTC)
-    await w.schedules.put(schedule.model_copy(update={"last_fired_at": fired}))
-    assert len(w.log("schedules/brief.yaml")) == 1
-    assert "last_fired_at" not in (w.root / "schedules" / "brief.yaml").read_text()
-    await w.schedules.load()
-    assert w.schedules.get("brief").last_fired_at == fired  # type: ignore[union-attr]
+    await w.triggers.put(trigger.model_copy(update={"last_fired_at": fired}))
+    assert len(w.log("triggers/brief.yaml")) == 1
+    assert "last_fired_at" not in (w.root / "triggers" / "brief.yaml").read_text()
+    await w.triggers.load()
+    assert w.triggers.get("brief").last_fired_at == fired  # type: ignore[union-attr]
 
 
 async def test_an_unreadable_file_is_skipped(tmp_path) -> None:

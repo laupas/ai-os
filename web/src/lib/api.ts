@@ -87,7 +87,7 @@ export interface Approval {
   created_at: string;
 }
 
-export interface Schedule {
+export interface Trigger {
   id: string;
   name: string;
   prompt: string;
@@ -99,6 +99,8 @@ export interface Schedule {
   agent: string | null;
   enabled: boolean;
   max_lateness_minutes: number;
+  /** A POST to `/hooks/triggers/<id>` with its token also starts a run. */
+  webhook: boolean;
   last_fired_at: string | null;
   next_run: string | null;
 }
@@ -137,7 +139,7 @@ export interface Health {
   channels: string[];
   senders: string[];
   mcp_servers: string[];
-  scheduler: boolean;
+  triggers: boolean;
   /** Which credential signs ai-os in to Claude, and where it comes from; never its value. */
   claude: { auth: "subscription" | "api_key"; variable: string; source: "variable" | "environment" | null } | null;
   counts: Record<string, number>;
@@ -195,7 +197,7 @@ export interface ChannelSetting {
   name: string;
   title: string;
   description: string;
-  capabilities: ("chat" | "send")[];
+  capabilities: ("chat" | "send" | "webhook")[];
   enabled: boolean;
   running: boolean;
   checkable: boolean;
@@ -204,6 +206,24 @@ export interface ChannelSetting {
   setup: SetupStep[];
   /** What commonly goes wrong while setting it up, and the fix. */
   problems: SetupProblem[];
+}
+
+/** Somewhere agents post to with `send_webhook`. `url`, `headers` and `body` are
+ * templates: `{{field}}` from the agent, `${VAR}` a Variable. */
+export interface WebhookDestination {
+  name: string;
+  description: string;
+  method: "POST" | "PUT" | "PATCH" | "GET";
+  url: string;
+  headers: Record<string, string>;
+  /** JSON schema of what the agent gives. */
+  fields: Record<string, any>;
+  /** A mapping or list is sent as JSON, a string as written, null for none. */
+  body: unknown;
+  approval: "ask" | "allow" | "deny";
+  enabled: boolean;
+  /** Variables the templates name that are set nowhere. */
+  missing: string[];
 }
 
 /** One setup step of a channel, with the provider's page for it and what to watch out for. */

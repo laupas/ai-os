@@ -33,7 +33,7 @@ def test_a_change_applies_to_what_reads_it_on_use() -> None:
 def test_a_file_that_does_not_load_keeps_the_previous_one() -> None:
     live = _live()
     assert not live.apply("approval: {deny: nope: [}")
-    assert not live.apply("scheduler: {tick_seconds: soon}")
+    assert not live.apply("triggers: {tick_seconds: soon}")
     assert live.current().approval.deny == ["mcp__x__send"]
 
 

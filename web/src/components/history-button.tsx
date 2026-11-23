@@ -17,7 +17,7 @@ interface Commit {
   subject: string;
 }
 
-type Kind = "agents" | "skills" | "connectors" | "schedules";
+type Kind = "agents" | "skills" | "connectors" | "triggers" | "webhooks";
 
 /** The git history of one configuration file: who changed it when, what changed,
  * and bringing an earlier version back (as a new commit). */

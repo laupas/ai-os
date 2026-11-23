@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, CalendarClock, Pencil, Play, Plus, Trash2 } from "lucide-react";
+import { Bot, CalendarClock, Copy, KeyRound, Pencil, Play, Plus, Trash2, X, Zap } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ListView } from "@/components/list-view";
@@ -12,43 +12,55 @@ import { Hint, Input, Label, NativeSelect, Textarea } from "@/components/ui/inpu
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { api, type Schedule, type UserRef } from "@/lib/api";
+import { api, type Trigger, type UserRef } from "@/lib/api";
 import { useConfirm } from "@/lib/confirm";
 import { useMe } from "@/lib/use-me";
 import { when } from "@/lib/utils";
 
-interface SchedulesData {
-  schedules: Schedule[];
+interface TriggersData {
+  triggers: Trigger[];
   users: UserRef[];
   /** Agents a run can go to directly, besides the orchestrator. */
   agents: string[];
 }
 
 // A datetime-local input holds local time without a zone; the API wants one.
+/** A webhook token, shown once: right after it was made. */
+interface Revealed {
+  id: string;
+  name: string;
+  token: string;
+}
+
+const hookUrl = (id: string) => `${window.location.origin}/hooks/triggers/${encodeURIComponent(id)}`;
+
 const toLocalInput = (iso: string | null) => {
   if (!iso) return "";
   const d = new Date(iso);
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 };
 
-export function SchedulesPage() {
+export function TriggersPage() {
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const { data, isLoading, error } = useQuery({
-    queryKey: ["schedules"],
-    queryFn: () => api<SchedulesData>("GET", "/api/schedules"),
+    queryKey: ["triggers"],
+    queryFn: () => api<TriggersData>("GET", "/api/triggers"),
   });
-  const [editing, setEditing] = useState<Schedule | "new" | null>(null);
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["schedules"] });
+  const [editing, setEditing] = useState<Trigger | "new" | null>(null);
+  const [revealed, setRevealed] = useState<Revealed | null>(null);
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ["triggers"] });
   const act = useMutation({
-    mutationFn: async ({ s, action }: { s: Schedule; action: "toggle" | "run" | "delete" }) => {
-      const path = `/api/schedules/${encodeURIComponent(s.id)}`;
+    mutationFn: async ({ s, action }: { s: Trigger; action: "toggle" | "run" | "token" | "delete" }) => {
+      const path = `/api/triggers/${encodeURIComponent(s.id)}`;
       if (action === "toggle") return api("PATCH", path, { enabled: !s.enabled });
       if (action === "run") return api("POST", `${path}/run`);
+      if (action === "token") return api<{ token: string }>("POST", `${path}/webhook`);
       return api("DELETE", path);
     },
-    onSuccess: (_, { action }) => {
+    onSuccess: (result, { s, action }) => {
       if (action === "run") toast.success("Started. It opens a new conversation for its user.");
+      if (action === "token") setRevealed({ id: s.id, name: s.name, token: (result as { token: string }).token });
       void refresh();
     },
     onError: (e) => toast.error(e.message),
@@ -57,19 +69,20 @@ export function SchedulesPage() {
   return (
     <Page>
       <PageHeader
-        title="Schedules"
-        description="Prompts ai-os runs by itself. Each run is a conversation that reaches its user on Slack and here."
+        title="Triggers"
+        description="Prompts ai-os runs by itself: on a timer, once, or when a program calls their webhook. Each run is a conversation that reaches its user on Slack and here."
         actions={
           <Button onClick={() => setEditing("new")}>
-            <Plus /> New schedule
+            <Plus /> New trigger
           </Button>
         }
       />
+      {revealed ? <TokenCard revealed={revealed} onClose={() => setRevealed(null)} /> : null}
       {isLoading ? <Loading /> : null}
       {error ? <ErrorBox error={error} /> : null}
       {data ? (
         <ListView
-          items={data.schedules}
+          items={data.triggers}
           keyOf={(s) => s.id}
           text={(s) => `${s.name} ${s.prompt} ${s.cron.join(" ")}`}
           facets={[
@@ -77,7 +90,7 @@ export function SchedulesPage() {
             { label: "users", value: (s) => userName(s.user_id) },
             { label: "agents", value: (s) => s.agent ?? "orchestrator" },
           ]}
-          empty="No schedules yet."
+          empty="No triggers yet."
         >
           {(s) => (
           <Card className="p-4">
@@ -88,11 +101,16 @@ export function SchedulesPage() {
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{s.name}</span>
-                  {s.enabled ? (
-                    <Badge variant="success">next {when(s.next_run)}</Badge>
-                  ) : (
+                  {!s.enabled ? (
                     <Badge variant="secondary">off</Badge>
-                  )}
+                  ) : s.next_run ? (
+                    <Badge variant="success">next {when(s.next_run)}</Badge>
+                  ) : null}
+                  {s.webhook ? (
+                    <Badge variant="outline" className="gap-1">
+                      <Zap className="size-3" /> webhook
+                    </Badge>
+                  ) : null}
                   <Badge variant="outline">for {userName(s.user_id)}</Badge>
                   {s.agent ? (
                     <Badge variant="outline" className="gap-1">
@@ -108,8 +126,10 @@ export function SchedulesPage() {
                         {c}
                       </code>
                     ))
-                  ) : (
+                  ) : s.once_at ? (
                     <span className="text-xs text-muted-foreground">once, {when(s.once_at)}</span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">only when its webhook is called</span>
                   )}
                 </div>
               </div>
@@ -122,6 +142,24 @@ export function SchedulesPage() {
               <Button size="sm" variant="outline" onClick={() => act.mutate({ s, action: "run" })}>
                 <Play /> Run now
               </Button>
+              {s.webhook ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    if (
+                      await confirm({
+                        title: `New webhook token for ${s.name}?`,
+                        body: "The current token stops working at once.",
+                        action: "Make a new token",
+                      })
+                    )
+                      act.mutate({ s, action: "token" });
+                  }}
+                >
+                  <KeyRound /> New token
+                </Button>
+              ) : null}
               <span className="flex-1" />
               <Button
                 size="sm"
@@ -142,12 +180,13 @@ export function SchedulesPage() {
       <Sheet open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
         <SheetContent side="right" className="gap-0 p-0">
           {editing !== null && data ? (
-            <ScheduleForm
-              schedule={editing === "new" ? null : editing}
+            <TriggerForm
+              trigger={editing === "new" ? null : editing}
               users={data.users}
               agents={data.agents}
-              onDone={() => {
+              onDone={(made) => {
                 setEditing(null);
+                if (made) setRevealed(made);
                 void refresh();
               }}
             />
@@ -158,23 +197,24 @@ export function SchedulesPage() {
   );
 }
 
-function ScheduleForm({
-  schedule: s,
+function TriggerForm({
+  trigger: s,
   users,
   agents,
   onDone,
 }: {
-  schedule: Schedule | null;
+  trigger: Trigger | null;
   users: UserRef[];
   agents: string[];
-  onDone: () => void;
+  onDone: (made?: Revealed) => void;
 }) {
   const { data: me } = useMe();
   const defaultUser = users.find((u) => u.name === me?.name)?.id ?? users[0]?.id ?? "";
   const [form, setForm] = useState({
     name: s?.name ?? "",
     prompt: s?.prompt ?? "",
-    timing: s?.once_at ? "once" : "cron",
+    timing: s?.once_at ? "once" : s && !s.cron.length ? "webhook" : "cron",
+    webhook: s?.webhook ?? false,
     cron: s ? s.cron.join("\n") : "0 7 * * 1-5",
     once_at: toLocalInput(s?.once_at ?? null),
     timezone: s?.timezone ?? "Europe/Zurich",
@@ -187,23 +227,28 @@ function ScheduleForm({
   const save = useMutation({
     mutationFn: () => {
       const once = form.timing === "once";
+      const hookOnly = form.timing === "webhook";
       if (once && !form.once_at) throw new Error("Pick when it should run.");
       const body = {
         name: form.name.trim(),
         prompt: form.prompt.trim(),
-        cron: once ? [] : form.cron.split("\n").map((l) => l.trim()).filter(Boolean),
+        cron: once || hookOnly ? [] : form.cron.split("\n").map((l) => l.trim()).filter(Boolean),
         once_at: once ? new Date(form.once_at).toISOString() : null,
         timezone: form.timezone.trim(),
         user_id: form.user_id,
         agent: form.agent || null,
         enabled: form.enabled,
         max_lateness_minutes: Number(form.max_lateness_minutes),
+        webhook: hookOnly || form.webhook,
       };
-      return s ? api("PUT", `/api/schedules/${encodeURIComponent(s.id)}`, body) : api("POST", "/api/schedules", body);
+      return s
+        ? api<{ token: string | null }>("PUT", `/api/triggers/${encodeURIComponent(s.id)}`, body)
+        : api<{ id: string; token: string | null }>("POST", "/api/triggers", body);
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       toast.success(s ? "Saved." : "Created.");
-      onDone();
+      const id = s?.id ?? ("id" in result ? String(result.id) : "");
+      onDone(result.token ? { id, name: form.name.trim(), token: result.token } : undefined);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -216,7 +261,7 @@ function ScheduleForm({
       }}
     >
       <SheetHeader className="border-b">
-        <SheetTitle>{s ? `Edit ${s.name}` : "New schedule"}</SheetTitle>
+        <SheetTitle>{s ? `Edit ${s.name}` : "New trigger"}</SheetTitle>
         <SheetDescription>Changing when it runs counts from now.</SheetDescription>
       </SheetHeader>
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
@@ -245,9 +290,15 @@ function ScheduleForm({
           <TabsList>
             <TabsTrigger value="cron">Repeat</TabsTrigger>
             <TabsTrigger value="once">Once</TabsTrigger>
+            <TabsTrigger value="webhook">Webhook only</TabsTrigger>
           </TabsList>
         </Tabs>
-        {form.timing === "cron" ? (
+        {form.timing === "webhook" ? (
+          <Hint>
+            Runs only when a program calls its webhook. What the call sends is added below the prompt, as
+            data the agent must not take orders from.
+          </Hint>
+        ) : form.timing === "cron" ? (
           <Label>
             Cron, one per line
             <Textarea rows={3} className="font-mono" value={form.cron} onChange={(e) => set({ cron: e.target.value })} />
@@ -261,6 +312,12 @@ function ScheduleForm({
             <Input type="datetime-local" value={form.once_at} onChange={(e) => set({ once_at: e.target.value })} />
           </Label>
         )}
+        {form.timing !== "webhook" ? (
+          <label className="flex items-center gap-3 text-sm font-medium">
+            <Switch checked={form.webhook} onCheckedChange={(webhook) => set({ webhook })} /> Can also be started by
+            a webhook
+          </label>
+        ) : null}
         <div className="grid gap-4 sm:grid-cols-2">
           <Label>
             For
@@ -290,11 +347,48 @@ function ScheduleForm({
         <Button type="submit" disabled={save.isPending} className="flex-1 sm:flex-none">
           {s ? "Save" : "Create"}
         </Button>
-        <Button type="button" variant="outline" onClick={onDone}>
+        <Button type="button" variant="outline" onClick={() => onDone()}>
           Cancel
         </Button>
-        {s ? <HistoryButton kind="schedules" id={s.id} label={s.name} onRestored={onDone} /> : null}
+        {s ? <HistoryButton kind="triggers" id={s.id} label={s.name} onRestored={onDone} /> : null}
       </div>
     </form>
+  );
+}
+
+function TokenCard({ revealed, onClose }: { revealed: Revealed; onClose: () => void }) {
+  const url = hookUrl(revealed.id);
+  const curl = `curl -X POST ${url} \\\n  -H "Authorization: Bearer ${revealed.token}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"text": "what happened"}'`;
+  const copy = (text: string) => navigator.clipboard.writeText(text).then(() => toast.success("Copied."));
+  return (
+    <Card className="mb-4 space-y-3 border-amber-500/50 p-4">
+      <div className="flex items-start gap-3">
+        <Zap className="mt-0.5 size-4 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <div className="font-medium">Webhook for {revealed.name}</div>
+          <p className="text-sm text-muted-foreground">
+            Copy the token now: it is shown only this once. Lost, make a new one.
+          </p>
+        </div>
+        <Button size="icon" variant="ghost" onClick={onClose} aria-label="Close">
+          <X />
+        </Button>
+      </div>
+      {[
+        ["URL (POST)", url],
+        ["Token", revealed.token],
+      ].map(([label, value]) => (
+        <div key={label} className="space-y-1">
+          <div className="text-xs font-medium text-muted-foreground">{label}</div>
+          <div className="flex items-center gap-2">
+            <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1 text-xs">{value}</code>
+            <Button size="icon" variant="outline" onClick={() => copy(value)} aria-label={`Copy ${label}`}>
+              <Copy />
+            </Button>
+          </div>
+        </div>
+      ))}
+      <pre className="overflow-x-auto rounded bg-muted p-2 text-xs">{curl}</pre>
+    </Card>
   );
 }

@@ -69,10 +69,10 @@ Read `README.md` for what ai-os is. This file is the rules for changing it.
   set that on a collection that can hold a secret (variables, tokens, remotes).
   Configuration in the git repository is not audited twice: `ConfigHistory` reads
   its commits into the same feed.
-- Configuration (agents, skills, connectors, schedules) is the git repository
+- Configuration (agents, skills, connectors, triggers, webhooks) is the git repository
   `<data>/config` (`GitDocumentStore`). Never put a secret into it: connector configs
   carry `${VAR}`, and git history keeps whatever was committed. Runtime fields
-  (`last_fired_at`) stay out of it, or every schedule run is a commit.
+  (`last_fired_at`) stay out of it, or every trigger run is a commit.
 
 ## Working in this tree
 

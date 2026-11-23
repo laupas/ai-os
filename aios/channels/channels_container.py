@@ -12,6 +12,9 @@ from aios.channels.web.web_event_hub import WebEventHub
 from aios.messaging.mail.mail_channel_type import MailChannelType
 from aios.messaging.sender_directory import SenderDirectory
 from aios.messaging.signal.signal_channel_type import SignalChannelType
+from aios.messaging.webhook.webhook_channel_type import WebhookChannelType
+from aios.messaging.webhook.webhook_poster import WebhookPoster
+from aios.messaging.webhook.webhook_template import WebhookTemplate
 
 
 class ChannelsContainer(containers.DeclarativeContainer):
@@ -35,6 +38,7 @@ class ChannelsContainer(containers.DeclarativeContainer):
         providers.Singleton(SignalChannelType),
         providers.Singleton(MailChannelType),
         providers.Singleton(TeamsChannelType, transcriber=transcriber),
+        providers.Singleton(WebhookChannelType),
     )
     values = providers.Singleton(ChannelValues, resolver=resolver)
     catalog = providers.Singleton(ChannelCatalog, types=types, config=config, values=values)
@@ -48,4 +52,9 @@ class ChannelsContainer(containers.DeclarativeContainer):
         SenderDirectory,
         factories=catalog.provided.sender_factories.call(),
         enabled=catalog.provided.enabled.call(ChannelCapability.SEND),
+    )
+    webhook_poster = providers.Singleton(
+        WebhookPoster,
+        template=providers.Singleton(WebhookTemplate, resolver=resolver),
+        enabled=catalog.provided.is_on.call("webhook"),
     )

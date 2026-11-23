@@ -22,12 +22,12 @@ FILE = re.compile(r"^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$")
 
 
 class GitDocumentStore(DocumentStore):
-    """The configuration collections (agents, skills, connectors, schedules) as
+    """The configuration collections (agents, skills, connectors, triggers) as
     files in a git repository, with one commit per change.
 
     A commit is attributed to `CurrentAuthor`: the console user, or ai-os. Fields
-    that change at runtime (a schedule's `last_fired_at`) are kept in `state`
-    instead, so a schedule firing does not make a commit. A failing git command is
+    that change at runtime (a trigger's `last_fired_at`) are kept in `state`
+    instead, so a trigger firing does not make a commit. A failing git command is
     logged and never fails the save: the file is the data, the commit its history.
     """
 

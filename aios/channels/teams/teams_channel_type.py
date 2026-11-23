@@ -202,12 +202,12 @@ class TeamsChannelType(ChannelType):
                 ),
                 details=[
                     "Reply with quote on an earlier message in a chat goes back to that "
-                    "message's conversation, e.g. a scheduled run's; the chat stays there.",
+                    "message's conversation, e.g. a trigger's run; the chat stays there.",
                     "With Threads in chats on, a chat works like a team: each message at the top "
                     "is its own conversation, answered in its thread, and you continue it with "
                     "Reply in thread. Only switch it on if Teams offers Reply in thread on chat "
                     "messages; otherwise every message starts afresh.",
-                    "Schedules reach a person in their personal chat with the bot, besides their "
+                    "Triggers reach a person in their personal chat with the bot, besides their "
                     "other channels, once the app is installed for them.",
                     "All Teams conversations also show in this console.",
                 ],

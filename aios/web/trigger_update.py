@@ -1,5 +1,5 @@
 from pydantic import BaseModel
 
 
-class ScheduleUpdate(BaseModel):
+class TriggerUpdate(BaseModel):
     enabled: bool

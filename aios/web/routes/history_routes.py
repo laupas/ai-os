@@ -14,7 +14,7 @@ from aios.web.web_routes import WebRoutes
 
 
 class HistoryRoutes(WebRoutes):
-    """The git history of one agent, skill, connector or schedule: its commits, what
+    """The git history of one agent, skill, connector or trigger: its commits, what
     each changed, and bringing an earlier version back. Administrators only.
 
     A restore is a new commit with the old content, never a rewrite of history, and

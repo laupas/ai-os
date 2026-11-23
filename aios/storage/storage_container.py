@@ -14,13 +14,14 @@ from aios.entities.connectors.connector_token import ConnectorToken
 from aios.entities.conversations.conversation import Conversation
 from aios.entities.git.git_remote import GitRemote
 from aios.entities.memories.memory import Memory
-from aios.entities.schedules.schedule import Schedule
 from aios.entities.skills.skill import Skill
+from aios.entities.triggers.trigger import Trigger
 from aios.entities.users.permission import Permission
 from aios.entities.users.role import Role
 from aios.entities.users.user import User
 from aios.entities.users.web_password import WebPassword
 from aios.entities.variables.variable import Variable
+from aios.entities.webhooks.webhook_destination import WebhookDestination
 from aios.storage.agent_access import AgentAccess
 from aios.storage.collection import Collection
 from aios.storage.collection_access_overrides import CollectionAccessOverrides
@@ -34,7 +35,7 @@ class StorageContainer(containers.DeclarativeContainer):
     """Stores and collections. A new kind of stored data is one definition and one
     collection provider here, plus an entry in `registry`.
 
-    Configuration (agents, skills, connectors, schedules, roles) is kept as files in
+    Configuration (agents, skills, connectors, triggers, roles, webhooks) is kept as files in
     the git repository `config_dir`; everything else as JSON documents in `data_dir`.
     """
 
@@ -93,10 +94,11 @@ class StorageContainer(containers.DeclarativeContainer):
             ),
             connectors=providers.Singleton(YamlLayout, "connectors"),
             roles=providers.Singleton(YamlLayout, "roles"),
-            schedules=providers.Singleton(YamlLayout, "schedules"),
+            triggers=providers.Singleton(YamlLayout, "triggers"),
+            webhooks=providers.Singleton(YamlLayout, "webhooks"),
         ),
         state=document_store,
-        runtime_fields={"schedules": ["last_fired_at"]},
+        runtime_fields={"triggers": ["last_fired_at"]},
     )
     collection_overrides = providers.Singleton(
         CollectionAccessOverrides, overrides=access_overrides
@@ -150,9 +152,14 @@ class StorageContainer(containers.DeclarativeContainer):
             )
         )
     )
-    schedules_definition = providers.Singleton(
+    triggers_definition = providers.Singleton(
         collection_overrides.provided.apply.call(
-            CollectionDefinition(name="schedules", entity=Schedule, agent_access=AgentAccess.WRITE)
+            CollectionDefinition(
+                name="triggers",
+                former_names=frozenset({"schedules"}),
+                entity=Trigger,
+                agent_access=AgentAccess.WRITE,
+            )
         )
     )
 
@@ -186,16 +193,25 @@ class StorageContainer(containers.DeclarativeContainer):
     connectors_definition = providers.Singleton(
         CollectionDefinition, name="connectors", entity=Connector, agent_access=AgentAccess.NONE
     )
+    # An agent that could write a destination could send anything anywhere, with
+    # any Variable in its headers.
+    webhooks_definition = providers.Singleton(
+        CollectionDefinition,
+        name="webhooks",
+        entity=WebhookDestination,
+        agent_access=AgentAccess.NONE,
+    )
 
     users = providers.Singleton(Collection, definition=users_definition, store=settings_store)
     memories = providers.Singleton(Collection, definition=memories_definition, store=document_store)
-    schedules = providers.Singleton(Collection, definition=schedules_definition, store=config_store)
+    triggers = providers.Singleton(Collection, definition=triggers_definition, store=config_store)
     agents = providers.Singleton(Collection, definition=agents_definition, store=config_store)
     skills = providers.Singleton(Collection, definition=skills_definition, store=config_store)
     connectors = providers.Singleton(
         Collection, definition=connectors_definition, store=config_store
     )
     roles = providers.Singleton(Collection, definition=roles_definition, store=config_store)
+    webhooks = providers.Singleton(Collection, definition=webhooks_definition, store=config_store)
     variables = providers.Singleton(
         Collection, definition=variables_definition, store=settings_store
     )
@@ -223,10 +239,11 @@ class StorageContainer(containers.DeclarativeContainer):
             conversations,
             approvals,
             memories,
-            schedules,
+            triggers,
             agents,
             skills,
             connectors,
+            webhooks,
             connector_tokens,
             variables,
             git_remotes,

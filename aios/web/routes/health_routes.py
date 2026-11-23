@@ -12,7 +12,7 @@ from aios.entities.approvals.approval import Approval
 from aios.entities.approvals.approval_status import ApprovalStatus
 from aios.entities.conversations.conversation import Conversation
 from aios.entities.memories.memory import Memory
-from aios.entities.schedules.schedule import Schedule
+from aios.entities.triggers.trigger import Trigger
 from aios.entities.users.permission import Permission
 from aios.entities.users.user import User
 from aios.logs.log_reader import LogReader
@@ -33,7 +33,7 @@ class HealthRoutes(WebRoutes):
         conversations: Collection[Conversation],
         approvals: Collection[Approval],
         memories: Collection[Memory],
-        schedules: Collection[Schedule],
+        triggers: Collection[Trigger],
         users: Collection[User],
         log_reader: LogReader,
         clock: Clock,
@@ -48,7 +48,7 @@ class HealthRoutes(WebRoutes):
         self._conversations = conversations
         self._approvals = approvals
         self._memories = memories
-        self._schedules = schedules
+        self._triggers = triggers
         self._users = users
         self._log_reader = log_reader
         self._clock = clock
@@ -82,7 +82,7 @@ class HealthRoutes(WebRoutes):
                 "channels": self._channels.names(),
                 "senders": self._senders.names(),
                 "mcp_servers": sorted(self._connectors.enabled_names()),
-                "scheduler": self._config.scheduler.enabled,
+                "triggers": self._config.triggers.enabled,
                 "claude": self._credentials.status() if self._credentials else None,
                 "counts": {
                     "conversations": len(self._conversations.all()),
@@ -90,8 +90,8 @@ class HealthRoutes(WebRoutes):
                         self._approvals.filter(lambda a: a.status is ApprovalStatus.PENDING)
                     ),
                     "memories": len(self._memories.all()),
-                    "schedules": len(self._schedules.all()),
-                    "schedules_enabled": len(self._schedules.filter(lambda s: s.enabled)),
+                    "triggers": len(self._triggers.all()),
+                    "triggers_enabled": len(self._triggers.filter(lambda s: s.enabled)),
                     "users": len(self._users.all()),
                     "warnings_24h": len(problems) - len(errors),
                     "errors_24h": len(errors),
