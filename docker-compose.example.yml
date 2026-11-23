@@ -24,6 +24,18 @@ services:
       # Loopback only: reach it through your proxy, or directly on this machine.
       - "127.0.0.1:8080:8080"
 
+  # A browser for the Playwright connector from the Store (the ai-os image has none).
+  # ai-os reaches it at http://playwright-mcp:8931/mcp; keep its port unpublished:
+  # whoever reaches it can drive the browser.
+  # playwright-mcp:
+  #   image: mcr.microsoft.com/playwright/mcp:v0.0.86
+  #   container_name: playwright-mcp
+  #   restart: unless-stopped
+  #   init: true
+  #   entrypoint: ["node", "/app/cli.js"]
+  #   command: [--headless, --browser=chromium, --no-sandbox, --isolated,
+  #             --host=0.0.0.0, --port=8931, --allowed-hosts=playwright-mcp:8931]
+
   # Signal as a sender: pair once with the QR code of signal-cli-rest-api, then set
   # SIGNAL_API_URL=http://signal-api:8080 and SIGNAL_SENDER in .env.
   # signal-api:
