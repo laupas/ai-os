@@ -14,6 +14,10 @@ log = logging.getLogger(__name__)
 # The built console (web/, `npm run build`), copied here by the Dockerfile.
 STATIC_DIR = Path(__file__).parent / "static"
 IMMUTABLE = "public, max-age=31536000, immutable"
+# aiohttp refuses a header over 8 KiB. A browser sends every cookie of the host, and
+# other apps on the same host (localhost, above all) can push the Cookie header
+# past that; the console would then answer nothing but a 400.
+HEADER_LIMITS = {"max_line_size": 64 * 1024, "max_field_size": 64 * 1024}
 NOT_BUILT = (
     "<!doctype html><title>ai-os</title><p>The web console is not built. "
     "Run <code>npm run build</code> in <code>web/</code>, or use the Docker image.</p>"
@@ -60,7 +64,7 @@ class WebServer(BackgroundService):
         return app
 
     async def run(self) -> None:
-        runner = web.AppRunner(self.build(), access_log=None)
+        runner = web.AppRunner(self.build(), access_log=None, **HEADER_LIMITS)
         await runner.setup()
         await web.TCPSite(runner, "0.0.0.0", self._port).start()
         log.info("web console listening on port %d", self._port)

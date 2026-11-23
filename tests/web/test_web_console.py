@@ -27,6 +27,13 @@ async def test_the_web_address_is_matched_without_regard_to_case(tmp_path) -> No
         assert response.status == 200
 
 
+async def test_a_cookie_header_over_8_kib_is_accepted(tmp_path) -> None:
+    async with Console(tmp_path) as c:
+        headers = {**c.headers(ALICE), "Cookie": "other-app=" + "x" * 20_000}
+        response = await c.client.get("/api/conversations", headers=headers)
+        assert response.status == 200
+
+
 async def test_a_change_without_the_csrf_header_is_refused(tmp_path) -> None:
     async with Console(tmp_path) as c:
         response = await c.client.post(

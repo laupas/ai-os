@@ -94,7 +94,7 @@ from aios.web.routes.webhook_routes import WebhookRoutes
 from aios.web.web_auth import WebAuth
 from aios.web.web_identity import WebIdentity
 from aios.web.web_identity_factory import WebIdentityFactory
-from aios.web.web_server import WebServer
+from aios.web.web_server import HEADER_LIMITS, WebServer
 from tests.agents.agent_world import AgentWorld
 from tests.config_repo.repo_world import RepoWorld
 from tests.connectors.fake_connector_probe import FakeConnectorProbe
@@ -379,7 +379,10 @@ class Console:
             port=0,
             static_dir=self._built_page(),
         )
-        self.client = TestClient(TestServer(server.build()))
+        # The limits as in WebServer.run; TestServer drops what its constructor gets.
+        test_server = TestServer(server.build())
+        await test_server.start_server(**HEADER_LIMITS)
+        self.client = TestClient(test_server)
         await self.client.start_server()
         return self
 
