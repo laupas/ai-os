@@ -78,11 +78,8 @@ safe: without it, the stored secrets cannot be read.
 login), copy [`aios.example.yaml`](aios.example.yaml) to `data/config.yaml` before
 the first start.
 
-**Updating**: `docker compose pull && docker compose up -d`. The image is
-`ghcr.io/laupas/ai-os` (amd64 and arm64): `:latest` follows `main`, and each release
-tag `vX.Y.Z` is also published as `:X.Y.Z` and `:X.Y`, to pin a version. To build the
-image yourself, clone the repository, uncomment `build: .` in the compose file, and
-run `docker compose -f docker-compose.example.yml up -d --build`.
+To build the image yourself, clone the repository, uncomment `build: .` in the
+compose file, and run `docker compose -f docker-compose.example.yml up -d --build`.
 
 To run without Docker:
 
@@ -106,6 +103,34 @@ restart, the value is stored as a secret Variable and applies to the next turn. 
 process environment is the fallback, so it can also come from `.env`. Only the chosen
 one reaches the CLI, and Health shows which is in use and where it came from. Check
 Anthropic's terms for the kind of use you have in mind.
+
+### Updating
+
+**ai-os itself**: in the folder with the compose file,
+
+```sh
+docker compose pull
+docker compose up -d
+```
+
+pulls the new image and restarts ai-os with it; conversations in progress are
+interrupted, nothing else. Everything in `./data` stays as it is: an update never
+changes your agents, skills, connectors, triggers, users or Variables. The agents
+that ship with ai-os only seed an empty installation, and a setting that was renamed
+is still read under its old name. Before a bigger jump, copy `./data` (with ai-os
+stopped), or push the configuration to a remote (Settings → Git) so it is off the
+machine anyway.
+
+The image is `ghcr.io/laupas/ai-os` (amd64 and arm64): `:latest` follows `main`, and
+each release tag `vX.Y.Z` is also published as `:X.Y.Z` and `:X.Y`. To stay on one
+version, set the tag in the compose file (`image: ghcr.io/laupas/ai-os:2.0`) and
+change it when you want to move on. A self-built image is updated with `git pull`
+in the clone, then `docker compose up -d --build`.
+
+**What you installed from the Store**: open the Store page and press **Refresh**.
+An item whose source has a newer version shows **Update**; updating replaces only
+that item, never what it brought along or what you made yourself. ai-os does not
+update anything on its own.
 
 ## Configuration
 
