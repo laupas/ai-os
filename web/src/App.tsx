@@ -14,6 +14,7 @@ import { LogsPage } from "@/pages/logs-page";
 import { MemoriesPage } from "@/pages/memories-page";
 import { TriggersPage } from "@/pages/triggers-page";
 import { SettingsPage } from "@/pages/settings-page";
+import { StorePage } from "@/pages/store-page";
 import { VariablesPage } from "@/pages/variables-page";
 import { VoicePage } from "@/pages/voice/voice-page";
 import { SkillsPage } from "@/pages/skills-page";
@@ -48,6 +49,7 @@ export function App() {
     agents: <AgentsPage name={arg} />,
     skills: <SkillsPage />,
     connectors: <ConnectorsPage />,
+    store: <StorePage />,
     variables: <VariablesPage />,
     audit: <AuditPage />,
     logs: <LogsPage />,

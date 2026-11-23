@@ -35,6 +35,7 @@ from aios.web.routes.repository_routes import RepositoryRoutes
 from aios.web.routes.settings_routes import SettingsRoutes
 from aios.web.routes.settings_section_routes import SettingsSectionRoutes
 from aios.web.routes.skill_routes import SkillRoutes
+from aios.web.routes.store_routes import StoreRoutes
 from aios.web.routes.trigger_hook_routes import TriggerHookRoutes
 from aios.web.routes.trigger_routes import TriggerRoutes
 from aios.web.routes.variable_routes import VariableRoutes
@@ -105,6 +106,8 @@ class WebContainer(containers.DeclarativeContainer):
     transcriber = providers.Dependency()
     web_passwords = providers.Dependency()
     secret_box = providers.Dependency()
+    store_sources = providers.Dependency()
+    store_installer = providers.Dependency()
 
     # The console's own login (`web.auth.mode` pick, password or code). A new way of
     # signing in is a `WebLogin` plus an entry in `logins`.
@@ -207,6 +210,13 @@ class WebContainer(containers.DeclarativeContainer):
         ),
         providers.Singleton(ApprovalRoutes, approvals=approvals, service=approval_service),
         providers.Singleton(VoiceRoutes, transcriber=transcriber),
+        providers.Singleton(
+            StoreRoutes,
+            sources=store_sources,
+            installer=store_installer,
+            config=aios_yaml,
+            resolver=variable_resolver,
+        ),
         providers.Singleton(
             TriggerRoutes,
             triggers=triggers,

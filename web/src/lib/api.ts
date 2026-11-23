@@ -446,3 +446,90 @@ export interface PasswordState {
   mine: boolean;
   users: string[] | null;
 }
+
+export type StoreKind = "agent" | "skill" | "connector" | "trigger";
+
+/** A git repository the Store offers items from (`store.sources` in aios.yaml). */
+export interface StoreSource {
+  url: string;
+  branch: string | null;
+  /** From the source's store.yaml, once fetched. */
+  name: string | null;
+  description: string | null;
+  /** Why the last fetch failed, if it did. */
+  error: string | null;
+  fetched_at: string | null;
+}
+
+export interface StoreRequirement {
+  kind: StoreKind;
+  id: string;
+  installed: boolean;
+  /** The same source has it, so it is installed along with the item. */
+  in_source: boolean;
+}
+
+export interface StoreItem {
+  /** The source's url. */
+  source: string;
+  kind: StoreKind;
+  id: string;
+  title: string;
+  description: string;
+  category: string | null;
+  /** Markdown: how to set it up, shown before installing. */
+  notes: string;
+  /** Always false for a trigger: each install adds one. */
+  installed: boolean;
+  /** A code connector: its server runs on this machine. */
+  code: boolean;
+  requires: StoreRequirement[];
+  /** The item's and those of the requirements installed with it. */
+  variables: VariableFieldRow[];
+  version: string | null;
+  author: string | null;
+  license: string | null;
+  /** A URL. */
+  homepage: string | null;
+  tags: string[];
+  /** Null when not installed, or installed before versions were tracked. */
+  installed_version: string | null;
+  /** The source URL it was installed from. */
+  installed_from: string | null;
+  /** Installed, and the source has a higher version. */
+  update_available: boolean;
+  /** `kind:id` of what refers to it; only for installed items. */
+  used_by: string[];
+  /** Installed and not a fixed core agent; never a trigger. */
+  removable: boolean;
+}
+
+export interface StoreState {
+  sources: StoreSource[];
+  items: StoreItem[];
+}
+
+export interface StoreInstallRequest {
+  source: string;
+  kind: StoreKind;
+  id: string;
+  /** An empty value leaves that variable as it is. */
+  variables: Record<string, string>;
+  replace: boolean;
+  trust_code: boolean;
+}
+
+/** `kind:id` of what was installed, kept as it was, or needed and found nowhere. */
+export interface StoreInstallResult {
+  installed: string[];
+  kept: string[];
+  missing: string[];
+  moved_secrets: string[];
+  version: string | null;
+}
+
+/** `removed`: `kind:id`, and for a code connector its files under code/. */
+export interface StoreUninstallResult {
+  removed: string[];
+  still_used_by: string[];
+}

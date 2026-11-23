@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import shutil
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -135,6 +136,20 @@ class GitDocumentStore(DocumentStore):
             await self._commit([path], message)
         return True
 
+    async def remove_folder(self, path: str, message: str) -> list[str]:
+        """Removes a folder that is no collection's (a code connector's), committed
+        like a delete. Returns the files removed."""
+        self._check_file(path)
+        async with self._lock:
+            folder = self._repo.root / path
+            files = await asyncio.to_thread(self._files_in, folder)
+            if not files:
+                return []
+            await asyncio.to_thread(shutil.rmtree, folder)
+            paths = [f.relative_to(self._repo.root).as_posix() for f in files]
+            await self._commit(paths, message)
+        return paths
+
     def read_file(self, path: str) -> str | None:
         return self._read(self._repo.root / self._check_file(path))
 
@@ -203,6 +218,10 @@ class GitDocumentStore(DocumentStore):
         tmp = file.with_name(f".{file.name}.tmp")
         tmp.write_text(text, encoding="utf-8")
         tmp.replace(file)
+
+    @staticmethod
+    def _files_in(folder: Path) -> list[Path]:
+        return sorted(f for f in folder.rglob("*") if f.is_file()) if folder.is_dir() else []
 
     @staticmethod
     def _remove(file: Path, root: Path) -> None:

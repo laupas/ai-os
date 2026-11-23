@@ -25,10 +25,15 @@ class GitRepository:
     def exists(self) -> bool:
         return (self._root / ".git").is_dir()
 
-    def clone(self, url: str, env: dict[str, str]) -> None:
+    def clone(
+        self, url: str, env: dict[str, str], branch: str | None = None, shallow: bool = False
+    ) -> None:
         self._root.parent.mkdir(parents=True, exist_ok=True)
+        options = ["--branch", branch] if branch else []
+        if shallow:
+            options += ["--depth", "1"]
         result = subprocess.run(
-            ["git", "clone", "--quiet", url, str(self._root)],
+            ["git", "clone", "--quiet", *options, "--", url, str(self._root)],
             capture_output=True,
             text=True,
             check=False,

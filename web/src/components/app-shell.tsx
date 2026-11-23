@@ -15,6 +15,7 @@ import {
   Settings,
   ShieldCheck,
   Sparkles,
+  Store,
   type LucideIcon,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -43,6 +44,7 @@ export const NAV: NavItem[] = [
   { id: "skills", label: "Skills", icon: Sparkles, needs: "administer" },
   // Everyone who may chat signs in to per-user connectors here; the rest is for administrators.
   { id: "connectors", label: "Connectors", icon: Plug, needs: "chat" },
+  { id: "store", label: "Store", icon: Store, needs: "administer" },
   { id: "variables", label: "Variables", icon: KeyRound, needs: "administer" },
   { id: "audit", label: "Audit", icon: ClipboardList, needs: "administer" },
   { id: "logs", label: "Logs", icon: ScrollText, needs: "administer" },

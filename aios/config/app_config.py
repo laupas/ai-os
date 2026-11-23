@@ -9,6 +9,7 @@ from aios.config.channel_config import ChannelConfig
 from aios.config.connector_override import ConnectorOverride
 from aios.config.files_config import FilesConfig
 from aios.config.owner_config import OwnerConfig
+from aios.config.store_config import StoreConfig
 from aios.config.triggers_config import TriggersConfig
 from aios.config.web_config import WebConfig
 from aios.storage.agent_access import AgentAccess
@@ -31,6 +32,7 @@ class AppConfig(BaseModel):
     triggers: TriggersConfig = TriggersConfig()
     files: FilesConfig = FilesConfig()
     web: WebConfig = WebConfig()
+    store: StoreConfig = StoreConfig()
     connectors: dict[str, ConnectorOverride] = {}
     """The older place for a code connector's fixed settings, by its name. Moved
     onto the connector at the next start and taken out of here; a manifest's

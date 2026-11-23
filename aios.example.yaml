@@ -82,6 +82,12 @@ triggers:
 # Optional: what agents may do with a collection of stored data (none | read | write).
 collection_access: {}
 
+# The Store page: git repositories to install agents, connectors, skills and
+# triggers from. Add your own below the templates (or on the Store page).
+store:
+  sources:
+    - url: https://github.com/laupas/ai-os-templates
+
 # Optional: MCP servers, copied into the console's Connectors on the first start.
 # ${VAR} is filled in from the environment (or a Variable) when a server starts.
 # mcp_servers:

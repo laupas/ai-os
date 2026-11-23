@@ -56,7 +56,8 @@ with that one user, to sign in as and rename. Then set up the rest in the consol
 
 1. **Settings → Claude**: the subscription token or API key (see **Claude** below).
 2. **Settings → Users**: your name, and your accounts on Slack, Teams, Signal or mail.
-3. Channels, connectors and agents, as you need them.
+3. Channels as you need them, and agents and connectors (Google, Playwright, GitHub, ...)
+   from the **Store** page.
 
 Everything lives in `./data`, next to the compose file.
 
@@ -243,26 +244,65 @@ delegation the calling agent was not granted, before any approval is asked.
 A conversation can skip the orchestrator: a new web chat has a **Talk to** picker,
 and a trigger an **Agent** field.
 
-Agents that ship with ai-os (a seed: edit or delete them freely):
+A new installation starts with the core agents (a seed: edit them freely; the
+fixed ones cannot be switched off or deleted). Everything else comes from the
+[Store](#store).
 
-| Agent | Does | Needs |
-|---|---|---|
-| `general` | questions, web research | none |
-| `messenger` | writes and sends Signal / mail, or drafts | a sender, recipients as users |
-| `calendar` | reads and changes Google Calendar | a `gcal` connector |
-| `contacts` | looks up people (users, then Google Contacts) | optionally a `gcontacts` connector |
-| `inbox-triage` | labels unread Gmail, drafts replies, never sends | a `gmail` connector |
-| `homey` | smart home across one or several Homey hubs | a `homey` connector (OAuth) |
-| `weather` | weather from wttr.in | none |
-| `memory` | remembers and recalls | none |
-| `triggers` | creates and manages triggers and reminders | none |
-| `ai-os-configurator` | creates and changes agents, skills, connectors and triggers from a chat; every change is approved by an administrator | none |
-| `second-brain` | searches and writes a notes vault mounted at `/vault` | `files.write_roots: [/vault]` |
-| `log-checker` | ai-os's own errors and warnings | none |
+| Agent | Does |
+|---|---|
+| `orchestrator` | answers every turn and hands work to the others (fixed) |
+| `ai-os-configurator` | creates and changes agents, skills, connectors and triggers from a chat; every change is approved by an administrator (fixed) |
+| `triggers` | creates and manages triggers and reminders (fixed) |
+| `memory` | remembers and recalls (fixed) |
+| `messenger` | writes and sends Signal / mail, or drafts (fixed; needs a sender, recipients as users) |
+| `general` | questions, web research |
+| `log-checker` | ai-os's own errors and warnings |
 
 **Skills** are instructions an agent loads when a task calls for them, edited on the
 **Skills** page; which agent may use one is set on the agent. One ships:
 `message-style`, the user's voice for messages and mails.
+
+### Store
+
+The **Store** page installs agents, skills, connectors and triggers from git
+repositories laid out like the configuration repository. The default source is
+[laupas/ai-os-templates](https://github.com/laupas/ai-os-templates): Google
+Calendar, Gmail, Drive and Contacts (Google's own MCP servers), Playwright, GitHub,
+Homey, and agents and triggers that use them. Add your own sources on the same page;
+they are `store.sources` in `aios.yaml`:
+
+```yaml
+store:
+  sources:
+    - url: https://github.com/laupas/ai-os-templates
+    - url: https://github.com/you/your-templates
+      branch: main
+```
+
+Each item is installed on its own, in one commit, together with what it needs and
+the installation does not have yet: an agent's connectors and skills, a trigger's
+agent. What is there already is kept, never overwritten; the item itself is
+replaced only on **Reinstall**. The install asks for the values the item names
+(an OAuth client, a token) and saves them as Variables, and a connector's config
+goes through the same secret check as a save on the Connectors page. A trigger is
+added for whoever installs it. A code connector is copied into `code/` only after
+you confirm you trust the source: it is a program that runs on this server.
+
+**Versions and updates**: ai-os records which source and version each item came
+from, in `.aios-store.yaml` in the configuration repository. When a source offers a
+higher version, the item shows **Update**, which replaces only the item itself.
+
+**Uninstall** removes one item and its record in one commit, and for a code
+connector its folder under `code/`. What it brought along, its Variables and its
+sign-ins stay, since other items may use them; the page names what still refers to
+it before you confirm. The fixed core agents cannot be removed, and a trigger is
+deleted on the Triggers page.
+
+An item may carry a `store:` block (in the front matter of an agent or skill) with
+`title`, `category`, `version`, `author`, `license`, `homepage`, `tags`, `notes`
+(Markdown setup steps), `variables` (asked for on install) and `requires` (further
+items, as `connectors/<id>`); the templates repository's README describes the
+format.
 
 ### Code connectors
 

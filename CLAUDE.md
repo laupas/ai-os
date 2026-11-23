@@ -63,6 +63,11 @@ Read `README.md` for what ai-os is. This file is the rules for changing it.
 - Every connector save from the console or a `config_*` tool goes through
   `SecretExtractor`, so no literal secret reaches the configuration repository. Keep
   it in front of any new way of writing a connector.
+- The Store (`aios/store/`) installs only through the same paths as the console:
+  agents and skills through their catalogs, connectors through `SecretExtractor`,
+  and never over an item that exists unless the administrator asked to replace it.
+  A code connector from a source is copied into `code/` only with `trust_code`;
+  keep that confirmation, it is third-party code running on the server.
 
 - The audit trail (`<data>/audit.jsonl`, `AuditedDocumentStore`) records field
   names, and old and new values only where `AuditPolicy.show_values` is set. Never

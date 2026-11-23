@@ -16,6 +16,7 @@ from aios.channels.web.web_event_hub import WebEventHub
 from aios.config.app_config_loader import AppConfigLoader
 from aios.config.channel_config import ChannelConfig
 from aios.config.live_app_config import LiveAppConfig
+from aios.config.store_config import TEMPLATES
 from aios.config.triggers_config import TriggersConfig
 from aios.config.web_auth_config import WebAuthConfig
 from aios.config.web_config import WebConfig
@@ -50,6 +51,10 @@ from aios.storage.collection import Collection
 from aios.storage.collection_access_overrides import CollectionAccessOverrides
 from aios.storage.collection_definition import CollectionDefinition
 from aios.storage.collection_definition import CollectionDefinition as Definition
+from aios.store.store_installer import StoreInstaller
+from aios.store.store_installs import StoreInstalls
+from aios.store.store_source_reader import StoreSourceReader
+from aios.store.store_sources import StoreSources
 from aios.triggers.trigger_runner import TriggerRunner
 from aios.triggers.trigger_timing import TriggerTiming
 from aios.variables.secret_box import SecretBox
@@ -84,6 +89,7 @@ from aios.web.routes.password_routes import PasswordRoutes
 from aios.web.routes.settings_routes import SettingsRoutes
 from aios.web.routes.settings_section_routes import SettingsSectionRoutes
 from aios.web.routes.skill_routes import SkillRoutes
+from aios.web.routes.store_routes import StoreRoutes
 from aios.web.routes.trigger_hook_routes import TriggerHookRoutes
 from aios.web.routes.trigger_routes import TriggerRoutes
 from aios.web.routes.variable_routes import VariableRoutes
@@ -249,6 +255,12 @@ class Console:
             ChannelValues(self.variable_resolver),
         )
         self.repo_world = RepoWorld(self.tmp_path / "repo")
+        self.store_sources = StoreSources(
+            self.tmp_path / "store",
+            # Without the default source: the tests stay off GitHub.
+            lambda: [s for s in self.live_config.current().store.sources if s.url != TEMPLATES],
+            StoreSourceReader(),
+        )
         self.repo_world.repo.init()
         console_users = ConsoleUsers(w.users, w.authorizer)
         self.passwords = WebPasswords(
@@ -359,6 +371,23 @@ class Console:
                 MemoryRoutes(self.memories, w.users, w.ids, w.clock),
                 self.voice,
                 ApprovalRoutes(w.approvals, w.approval_service),
+                StoreRoutes(
+                    self.store_sources,
+                    StoreInstaller(
+                        self.repo_world.store,
+                        aw.agents,
+                        self.skills,
+                        aw.connector_store,
+                        self.triggers,
+                        self.variables,
+                        w.ids,
+                        w.clock,
+                        StoreInstalls(self.repo_world.store, w.clock),
+                        SecretExtractor(self.variables, self.variable_resolver),
+                    ),
+                    AiosYamlFile(self.config_file, live=self.live_config),
+                    self.variable_resolver,
+                ),
                 TriggerRoutes(
                     self.triggers,
                     TriggerTiming(),

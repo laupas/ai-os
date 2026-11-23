@@ -20,6 +20,7 @@ from aios.conversations.gateway_container import GatewayContainer
 from aios.engine.engine_container import EngineContainer
 from aios.logs.log_reader import LogReader
 from aios.storage.storage_container import StorageContainer
+from aios.store.store_container import StoreContainer
 from aios.tools.tools_container import ToolsContainer
 from aios.transcription.transcription_container import TranscriptionContainer
 from aios.triggers.triggers_container import TriggersContainer
@@ -210,6 +211,20 @@ class ApplicationContainer(containers.DeclarativeContainer):
         known_hosts=config.settings.provided.known_hosts_file.call(),
         settings=config.settings,
     )
+    store = providers.Container(
+        StoreContainer,
+        root=providers.Callable(lambda s: s.data_dir / "store", config.settings),
+        sources=providers.Callable(lambda live: lambda: live.current().store.sources, config.live),
+        config_store=storage.config_store,
+        agents=agents.catalog,
+        skills=agents.skill_catalog,
+        connectors=storage.connectors,
+        triggers=storage.triggers,
+        variables=variables.catalog,
+        ids=common.ids,
+        clock=common.clock,
+        secrets=variables.extractor,
+    )
     web = providers.Container(
         WebContainer,
         app_config=app_config,
@@ -266,6 +281,8 @@ class ApplicationContainer(containers.DeclarativeContainer):
         transcriber=transcription.transcriber,
         web_passwords=storage.web_passwords,
         secret_box=variables.box,
+        store_sources=store.catalog,
+        store_installer=store.installer,
     )
 
     # aios.yaml applied while ai-os runs. In the configuration repository only a
