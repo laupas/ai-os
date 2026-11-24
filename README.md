@@ -276,6 +276,12 @@ web:
     default_group: member
 ```
 
+Every answer carries security headers: a Content-Security-Policy that allows only
+the console's own scripts, `X-Frame-Options: DENY` (no embedding in another site),
+`nosniff`, `Referrer-Policy: same-origin`, a Permissions-Policy that allows only the
+microphone (for Voice), and HSTS once the console is reached over https
+(`public_url`, or the proxy's `X-Forwarded-Proto`).
+
 A person gets in with a `web` account (the address the proxy reports) on a user with
 the `chat` permission; the controls need `administer`. Changes need an `X-Aios: 1`
 header, which another site cannot send. No change is accepted that would leave

@@ -54,6 +54,7 @@ from aios.web.routes.voice_routes import VoiceRoutes
 from aios.web.routes.voice_settings_routes import VoiceSettingsRoutes
 from aios.web.routes.web_auth_settings_routes import WebAuthSettingsRoutes
 from aios.web.routes.webhook_routes import WebhookRoutes
+from aios.web.security_headers import SecurityHeaders
 from aios.web.web_auth import WebAuth
 from aios.web.web_identity_factory import WebIdentityFactory
 from aios.web.web_server import WebServer
@@ -390,4 +391,7 @@ class WebContainer(containers.DeclarativeContainer):
         restart=restart,
         port=app_config.provided.web.port,
         audit=audit,
+        security=providers.Singleton(
+            SecurityHeaders, public_url=app_config.provided.web.public_url
+        ),
     )

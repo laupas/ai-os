@@ -6,6 +6,7 @@ from aiohttp import web
 from aios.bootstrap.background_service import BackgroundService
 from aios.web.audit_middleware import AuditMiddleware
 from aios.web.restart_request import RestartRequest
+from aios.web.security_headers import SecurityHeaders
 from aios.web.web_auth import WebAuth
 from aios.web.web_routes import WebRoutes
 
@@ -41,7 +42,9 @@ class WebServer(BackgroundService):
         port: int,
         static_dir: Path = STATIC_DIR,
         audit: AuditMiddleware | None = None,
+        security: SecurityHeaders | None = None,
     ) -> None:
+        self._security = security or SecurityHeaders()
         self._auth = auth
         self._routes = routes
         self._restart = restart
@@ -56,6 +59,7 @@ class WebServer(BackgroundService):
             middlewares.append(self._audit.middleware)
         app = web.Application(middlewares=middlewares, client_max_size=1024**2)
         app.on_response_prepare.append(self._caching)
+        app.on_response_prepare.append(self._security.on_prepare)
         for routes in self._routes:
             routes.register(app)
         app.router.add_get("/", self._index)

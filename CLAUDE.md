@@ -64,6 +64,9 @@ Read `README.md` for what ai-os is. This file is the rules for changing it.
   makes a second user for an address someone already has. `group_map` (`GroupSync`)
   touches only the groups the map names and never fills a group that administers
   or manages users.
+- Every response gets `SecurityHeaders` (CSP with `script-src 'self'`, no
+  framing, HSTS over https). Keep the console free of inline scripts; a page that
+  needs more (the API docs) sets its own CSP, never a looser global one.
 - Console sessions (`WebSessions`) live on the server; the cookie holds a random
   token and only its SHA-256 is stored. Never store the token, and keep the
   places that end sessions: sign-out, a new password, a deleted user.

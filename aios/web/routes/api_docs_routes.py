@@ -10,6 +10,11 @@ from aios.web.web_auth import WebAuth
 from aios.web.web_routes import WebRoutes
 
 SWAGGER = "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14"
+DOCS_CSP = (
+    "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: "
+    "https://cdn.jsdelivr.net; connect-src 'self'; frame-ancestors 'none'"
+)
 PAGE = f"""<!doctype html>
 <html lang="en">
 <head>
@@ -59,7 +64,10 @@ class ApiDocsRoutes(WebRoutes):
     async def _page(self, request: web.Request) -> web.Response:
         """This page."""
         self._check(request)
-        return web.Response(text=PAGE, content_type="text/html")
+        # Swagger UI comes from its CDN and starts with an inline script.
+        return web.Response(
+            text=PAGE, content_type="text/html", headers={"Content-Security-Policy": DOCS_CSP}
+        )
 
     def _check(self, request: web.Request) -> None:
         if not self._live().api_docs.enabled:
