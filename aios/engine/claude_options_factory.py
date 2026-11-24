@@ -5,6 +5,7 @@ from claude_agent_sdk import ClaudeAgentOptions
 
 from aios.agents.agent_catalog import AgentCatalog
 from aios.agents.agent_tracker import AgentTracker
+from aios.agents.agent_unavailable_error import AgentUnavailableError
 from aios.config.agent_config import AgentConfig
 from aios.connectors.connector_catalog import ConnectorCatalog
 from aios.engine.agent_definitions_builder import AgentDefinitionsBuilder
@@ -15,6 +16,7 @@ from aios.engine.turn_deadline import TurnDeadline
 from aios.engine.turn_request import TurnRequest
 from aios.tools.aios_tool_server import AiosToolServer
 from aios.tools.tool_context import ToolContext
+from aios.users.audience import Audience
 
 
 class ClaudeOptionsFactory:
@@ -25,6 +27,8 @@ class ClaudeOptionsFactory:
     to those an enabled agent may use. `allowed_tools` stays empty on purpose: every
     tool call goes through the permission gate, which knows which agent is calling.
 
+    Only what is available to the turn's user is there at all: its main agent (the
+    orchestrator is everyone's), the subagents offered, and the connectors passed.
     Connectors carry the sign-in of the turn's user (`ConnectorCatalog.servers`): a
     trigger's run is a turn of the trigger's user, so it uses their account too.
 
@@ -51,12 +55,14 @@ class ClaudeOptionsFactory:
         connectors: ConnectorCatalog,
         definitions: AgentDefinitionsBuilder,
         credentials: ClaudeCredentials,
+        audience: Audience,
     ) -> None:
         self._config = agent_config
         self._repo_dir = Path(repo_dir)
         self._prompts = prompts
         self._tool_server = tool_server
         self._gate = gate
+        self._audience = audience
         self._agents = agents
         self._connectors = connectors
         self._definitions = definitions
@@ -69,6 +75,16 @@ class ClaudeOptionsFactory:
             conversation_id=request.conversation.id, user=request.user, binding=request.binding
         )
         main = self._agents.main(request.conversation.agent)
+        user = request.user
+        if main.id != AgentCatalog.ORCHESTRATOR and not self._audience.includes(
+            user, main.available_to
+        ):
+            raise AgentUnavailableError(f"the agent {main.id} is not available to {user.name}")
+        servers = {
+            name: config
+            for name, config in self._connectors.servers(user).items()
+            if self._connectors.available_to(name, user, self._audience)
+        }
         delegating = self._definitions.delegates_work(main)
         tracker = AgentTracker(main.name)
         config = self._config()
@@ -78,10 +94,10 @@ class ClaudeOptionsFactory:
             setting_sources=["project"],
             tools=list(config.builtin_tools),
             allowed_tools=[],
-            agents=self._definitions.build() if delegating else {},
-            skills=self._definitions.skills(main, delegating),
+            agents=self._definitions.build(user) if delegating else {},
+            skills=self._definitions.skills(main, delegating, user),
             mcp_servers={
-                **self._connectors.servers(request.user),  # type: ignore[dict-item]
+                **servers,  # type: ignore[dict-item]
                 AiosToolServer.SERVER_NAME: self._tool_server.build(context),
             },
             # Only our servers: never MCP connectors of whichever account runs this.

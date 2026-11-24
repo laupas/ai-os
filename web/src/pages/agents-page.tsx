@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CheckRow } from "@/components/ui/checkbox";
 import { Hint, Input, Label, NativeSelect, Textarea } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { AudiencePicker } from "@/components/audience-picker";
 import { api, type Agent, type AgentsData } from "@/lib/api";
 import { useConfirm } from "@/lib/confirm";
 import { go, href } from "@/lib/router";
@@ -127,6 +128,7 @@ function AgentForm({ data, name }: { data: AgentsData; name: string }) {
     prompt: a?.prompt ?? "",
     model: a?.model ?? "",
     enabled: a?.enabled ?? true,
+    available: (a?.available_to ?? null) as string[] | null,
     builtin: new Set(a?.builtin_tools ?? []),
     skills: new Set(a?.skills ?? []),
     grants: Object.fromEntries(
@@ -164,6 +166,7 @@ function AgentForm({ data, name }: { data: AgentsData; name: string }) {
         builtin_tools: [...form.builtin].filter((t) => builtins.includes(t)).concat(a.builtin_tools.filter((t) => !builtins.includes(t))),
         skills: [...form.skills],
         connectors,
+        available_to: form.available && form.available.length ? form.available : null,
       };
       if (isNew) return api("POST", "/api/agents", { ...body, name: form.name.trim() });
       return api("PUT", `/api/agents/${encodeURIComponent(a.name)}`, body);
@@ -318,6 +321,19 @@ function AgentForm({ data, name }: { data: AgentsData; name: string }) {
               );
             })}
           </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Available to</CardTitle>
+            <CardDescription>
+              {isOrchestrator ? "The orchestrator is everyone's: it answers every message. Limit the agents it hands work to instead." : "Who may talk to this agent, or have it work for them."}
+            </CardDescription>
+          </CardHeader>
+          {isOrchestrator ? null : (
+            <CardContent>
+              <AudiencePicker value={form.available} onChange={(v) => setForm((f) => ({ ...f, available: v }))} what="this agent" />
+            </CardContent>
+          )}
         </Card>
         <Card>
           <CardHeader>

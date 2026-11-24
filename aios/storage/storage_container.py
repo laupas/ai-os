@@ -116,15 +116,9 @@ class StorageContainer(containers.DeclarativeContainer):
             )
         )
     )
+    # Older form of groups, read once to turn them into groups (`GroupsMigration`).
     roles_definition = providers.Singleton(
-        collection_overrides.provided.apply.call(
-            CollectionDefinition(
-                name="roles",
-                entity=Role,
-                agent_access=AgentAccess.WRITE,
-                approver_permission=Permission.MANAGE_USERS,
-            )
-        )
+        CollectionDefinition, name="roles", entity=Role, agent_access=AgentAccess.NONE
     )
     groups_definition = providers.Singleton(
         collection_overrides.provided.apply.call(

@@ -17,9 +17,9 @@ import { ClaudePanel } from "./settings-claude";
 import { LoginPanel } from "./settings-login";
 import { FilesPanel } from "./settings-files";
 import { AgentsSettingsPanel, ApprovalsSettingsPanel, DataAccessPanel, GeneralPanel } from "./settings-sections";
-import { GroupsPanel, RolesPanel, UsersPanel } from "./settings-people";
+import { GroupsPanel, UsersPanel } from "./settings-people";
 
-const TABS = ["claude", "channels", "general", "agents", "approvals", "login", "files", "access", "users", "groups", "roles", "repository", "git", "config"];
+const TABS = ["claude", "channels", "general", "agents", "approvals", "login", "files", "access", "users", "groups", "repository", "git", "config"];
 import { api, type Settings } from "@/lib/api";
 import { useConfirm } from "@/lib/confirm";
 
@@ -61,7 +61,6 @@ export function SettingsPage({ tab }: { tab?: string }) {
           <TabsTrigger value="access">Data access</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="groups">Groups</TabsTrigger>
-          <TabsTrigger value="roles">Roles</TabsTrigger>
           <TabsTrigger value="repository">Repository</TabsTrigger>
           <TabsTrigger value="git">Branches</TabsTrigger>
           <TabsTrigger value="config">aios.yaml</TabsTrigger>
@@ -104,9 +103,6 @@ export function SettingsPage({ tab }: { tab?: string }) {
         </TabsContent>
         <TabsContent value="groups">
           <GroupsPanel data={data} />
-        </TabsContent>
-        <TabsContent value="roles">
-          <RolesPanel data={data} />
         </TabsContent>
       </Tabs>
     </Page>

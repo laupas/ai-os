@@ -22,10 +22,17 @@ async def _connectors(c: Console) -> None:
             description="Mail",
             config={"type": "http", "url": url, "oauth": OAUTH},
             sign_in=SignInMode.PER_USER,
+            available_to=["everyone"],
         )
     )
-    await store.put(Connector(id="homey", config={"type": "http", "url": url, "oauth": OAUTH}))
-    await store.put(Connector(id="local", config={"command": "npx"}))
+    await store.put(
+        Connector(
+            id="homey",
+            config={"type": "http", "url": url, "oauth": OAUTH},
+            available_to=["everyone"],
+        )
+    )
+    await store.put(Connector(id="local", config={"command": "npx"}, available_to=["everyone"]))
 
 
 def _token(connector: str, user_id: str | None, by: str) -> ConnectorToken:

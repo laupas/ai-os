@@ -20,7 +20,7 @@ from aios.storage.collection_registry import CollectionRegistry
 from aios.storage.in_memory_append_log import InMemoryAppendLog
 from aios.storage.in_memory_document_store import InMemoryDocumentStore
 from aios.users.authorizer import Authorizer
-from aios.users.default_roles import DefaultRoles
+from aios.users.default_groups import DefaultGroups
 from tests.fakes.fake_channel import FakeChannel
 from tests.fakes.fake_clock import FakeClock
 from tests.fakes.fake_engine import FakeEngine
@@ -56,7 +56,7 @@ class World:
         self.registry = CollectionRegistry(
             [self.users, self.roles, self.groups, self.conversations, self.approvals]
         )
-        self.authorizer = Authorizer(self.roles, self.groups)
+        self.authorizer = Authorizer(self.groups)
         self.channel = FakeChannel()
         self.channels = ChannelDirectory({"fake": lambda: self.channel}, ["fake"])
         self.approval_service = ApprovalService(
@@ -89,7 +89,7 @@ class World:
                 ChannelAccount(channel="fake", address="alice"),
                 ChannelAccount(channel="signal", address="+41000000001"),
             ],
-            role_ids=[DefaultRoles.OWNER],
+            group_ids=[DefaultGroups.OWNER],
         )
         self.bob = User(
             id="bob",
@@ -102,8 +102,8 @@ class World:
         )
 
     async def setup(self) -> "World":
-        for role in DefaultRoles().all():
-            await self.roles.put(role)
+        for group in DefaultGroups().all():
+            await self.groups.put(group)
         await self.users.put(self.alice)
         await self.users.put(self.bob)
         return self

@@ -44,13 +44,13 @@ async def test_a_change_records_who_what_and_old_and_new_values() -> None:
     users: Collection[User] = Collection(CollectionDefinition(name="users", entity=User), store)
     CurrentAuthor.set(ALICE)
     await users.put(User(id="u1", name="Bob"))
-    await users.put(User(id="u1", name="Bob", role_ids=["member"]))
-    await users.put(User(id="u1", name="Bob", role_ids=["member"]))  # no change
+    await users.put(User(id="u1", name="Bob", group_ids=["member"]))
+    await users.put(User(id="u1", name="Bob", group_ids=["member"]))  # no change
     await users.delete("u1")
     created, changed, deleted = reversed(await trail.entries())
     assert (created.action, created.actor, created.item) == (AuditAction.CREATED, "Alice", "u1")
-    assert changed.fields == ["role_ids"]
-    assert changed.detail == 'role_ids: [] → ["member"]'
+    assert changed.fields == ["group_ids"]
+    assert changed.detail == 'group_ids: [] → ["member"]'
     assert deleted.action == AuditAction.DELETED
 
 

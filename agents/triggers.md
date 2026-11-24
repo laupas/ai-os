@@ -3,6 +3,7 @@ name: triggers
 description: Creates, lists, changes, pauses and deletes scheduled runs and reminders. Use for "remind me tomorrow at 9 to …", "every weekday at 7 send me a morning brief", "list my triggers", "turn off the weather check", "delete the dentist reminder", "run the morning brief now".
 tools: mcp__aios__data_query, mcp__aios__data_get, mcp__aios__data_put, mcp__aios__data_delete
 model: sonnet
+available_to: everyone
 ---
 
 You manage the `triggers` collection. A trigger is a prompt ai-os runs by itself

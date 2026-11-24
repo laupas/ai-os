@@ -34,7 +34,7 @@ async def test_rule_asks_for_an_untrusted_recipient() -> None:
 
 async def test_rule_allows_a_trusted_recipient() -> None:
     world = await World().setup()
-    await world.users.put(world.bob.model_copy(update={"role_ids": ["trusted_contact"]}))
+    await world.users.put(world.bob.model_copy(update={"group_ids": ["trusted_contact"]}))
     rule = SendMessageApprovalRule(world.users, world.authorizer)
     decision = rule.evaluate(_call(world, "Bob"))
     assert decision is not None and decision.verdict is PolicyVerdict.ALLOW

@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { KeyRound, Pencil, Plus, Shield, Trash2, User as UserIcon, Users, X } from "lucide-react";
+import { Globe, KeyRound, Pencil, Plus, Trash2, User as UserIcon, Users, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ListView } from "@/components/list-view";
@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { CheckRow } from "@/components/ui/checkbox";
 import { Hint, Input, Label, NativeSelect, Textarea } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { api, type ChannelAccount, type GroupDoc, type PasswordState, type RoleDoc, type Settings, type User } from "@/lib/api";
+import { api, type ChannelAccount, type GroupDoc, type PasswordState, type Settings, type User } from "@/lib/api";
 import { useConfirm } from "@/lib/confirm";
 import { useMe } from "@/lib/use-me";
 
@@ -32,8 +32,8 @@ function useRefresh() {
 
 export function UsersPanel({ data }: { data: Settings }) {
   const [editing, setEditing] = useState<User | "new" | null>(null);
-  const roleName = (id: string) => data.roles.find((r) => r.id === id)?.name ?? id;
   const groupName = (id: string) => data.groups.find((g) => g.id === id)?.name ?? id;
+  const chats = (u: User) => u.group_ids.some((g) => data.groups.find((x) => x.id === g)?.permissions.includes("chat"));
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-start gap-3">
@@ -49,8 +49,7 @@ export function UsersPanel({ data }: { data: Settings }) {
         keyOf={(u) => u.id}
         text={(u) => `${u.name} ${u.aliases.join(" ")} ${u.accounts.map((a) => a.address).join(" ")}`}
         facets={[
-          { label: "roles", value: (u) => (u.role_ids.length ? u.role_ids.map(roleName) : "no role") },
-          { label: "groups", value: (u) => ((u.group_ids ?? []).length ? (u.group_ids ?? []).map(groupName) : "no group") },
+          { label: "groups", value: (u) => (u.group_ids.length ? u.group_ids.map(groupName) : "no group") },
           { label: "channels", value: (u) => u.accounts.map((a) => a.channel) },
         ]}
         empty="No users yet."
@@ -64,17 +63,12 @@ export function UsersPanel({ data }: { data: Settings }) {
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{u.name}</span>
-                {u.role_ids.map((r) => (
-                  <Badge key={r} variant="outline">
-                    {roleName(r)}
+                {u.group_ids.map((g) => (
+                  <Badge key={g} variant="outline">
+                    {groupName(g)}
                   </Badge>
                 ))}
-                {(u.group_ids ?? []).map((g) => (
-                  <Badge key={g} variant="secondary">
-                    <Users /> {groupName(g)}
-                  </Badge>
-                ))}
-                {u.role_ids.length === 0 && !(u.group_ids ?? []).length ? <span className="text-xs text-muted-foreground">no role: cannot chat</span> : null}
+                {chats(u) ? null : <span className="text-xs text-muted-foreground">in no group that chats: cannot use ai-os</span>}
               </div>
               {u.aliases.length ? <p className="text-xs text-muted-foreground">also {u.aliases.join(", ")}</p> : null}
               <div className="mt-1 flex flex-wrap gap-1.5">
@@ -94,22 +88,22 @@ export function UsersPanel({ data }: { data: Settings }) {
       </ListView>
       <Sheet open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
         <SheetContent side="right" className="gap-0 p-0 sm:max-w-xl">
-          {editing !== null ? <UserForm user={editing === "new" ? null : editing} roles={data.roles} groups={data.groups} onDone={() => setEditing(null)} /> : null}
+          {editing !== null ? <UserForm user={editing === "new" ? null : editing} groups={data.groups} onDone={() => setEditing(null)} /> : null}
         </SheetContent>
       </Sheet>
     </div>
   );
 }
 
-function UserForm({ user: u, roles, groups, onDone }: { user: User | null; roles: RoleDoc[]; groups: GroupDoc[]; onDone: () => void }) {
+function UserForm({ user: u, groups, onDone }: { user: User | null; groups: GroupDoc[]; onDone: () => void }) {
   const refresh = useRefresh();
   const confirm = useConfirm();
   const { data: me } = useMe();
   const [name, setName] = useState(u?.name ?? "");
   const [aliases, setAliases] = useState((u?.aliases ?? []).join(", "));
   const [accounts, setAccounts] = useState<ChannelAccount[]>(u?.accounts ?? [{ channel: "web", address: "" }]);
-  const [roleIds, setRoleIds] = useState(new Set(u?.role_ids ?? ["member"]));
-  const [groupIds, setGroupIds] = useState(new Set(u?.group_ids ?? []));
+  // New people go into Members, the default group, unless changed here.
+  const [groupIds, setGroupIds] = useState(new Set(u?.group_ids ?? (groups.some((g) => g.id === "member") ? ["member"] : [])));
   const [notes, setNotes] = useState(u?.notes ?? "");
   const [busy, setBusy] = useState(false);
   const isMe = u !== null && me?.name === u.name;
@@ -123,7 +117,6 @@ function UserForm({ user: u, roles, groups, onDone }: { user: User | null; roles
         name: name.trim(),
         aliases: aliases.split(",").map((a) => a.trim()).filter(Boolean),
         accounts: accounts.map((a) => ({ channel: a.channel.trim(), address: a.address.trim() })).filter((a) => a.channel && a.address),
-        role_ids: [...roleIds],
         group_ids: [...groupIds],
         notes: notes.trim() || null,
       };
@@ -199,42 +192,23 @@ function UserForm({ user: u, roles, groups, onDone }: { user: User | null; roles
           <Hint>How ai-os recognises them when they write, and how it reaches them.</Hint>
         </div>
         <div>
-          <div className="mb-1 text-sm font-medium">Roles</div>
-          {roles.map((r) => (
+          <div className="mb-1 text-sm font-medium">Groups</div>
+          {groups.map((g) => (
             <CheckRow
-              key={r.id}
-              label={r.name}
-              hint={r.permissions.join(", ") || "no rights"}
-              checked={roleIds.has(r.id)}
+              key={g.id}
+              label={g.name}
+              hint={g.permissions.join(", ") || "no rights"}
+              checked={groupIds.has(g.id)}
               onChange={(on) => {
-                const next = new Set(roleIds);
-                if (on) next.add(r.id);
-                else next.delete(r.id);
-                setRoleIds(next);
+                const next = new Set(groupIds);
+                if (on) next.add(g.id);
+                else next.delete(g.id);
+                setGroupIds(next);
               }}
             />
           ))}
+          <Hint>Their rights, and the agents and connectors they may use, come from these groups. Everybody is in Everyone too.</Hint>
         </div>
-        {groups.length ? (
-          <div>
-            <div className="mb-1 text-sm font-medium">Groups</div>
-            {groups.map((g) => (
-              <CheckRow
-                key={g.id}
-                label={g.name}
-                hint={g.role_ids.length ? `gives ${g.role_ids.map((r) => roles.find((x) => x.id === r)?.name ?? r).join(", ")}` : "gives no role"}
-                checked={groupIds.has(g.id)}
-                onChange={(on) => {
-                  const next = new Set(groupIds);
-                  if (on) next.add(g.id);
-                  else next.delete(g.id);
-                  setGroupIds(next);
-                }}
-              />
-            ))}
-            <Hint>They have each group's roles on top of their own.</Hint>
-          </div>
-        ) : null}
         <Label>
           Notes
           <Textarea rows={3} className="font-sans" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Who they are, for the agents: relationship, language, …" />
@@ -317,184 +291,46 @@ function PasswordSection({ user, isMe }: { user: User; isMe: boolean }) {
   );
 }
 
-export function RolesPanel({ data }: { data: Settings }) {
-  const [editing, setEditing] = useState<RoleDoc | "new" | null>(null);
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-start gap-3">
-        <p className="min-w-0 flex-1 text-sm text-muted-foreground">
-          Sets of rights given to users. In the configuration repository, so they travel with a branch and to a new machine.
-        </p>
-        <Button onClick={() => setEditing("new")}>
-          <Plus /> New role
-        </Button>
-      </div>
-      <ListView
-        items={data.roles}
-        keyOf={(r) => r.id}
-        text={(r) => `${r.name} ${r.id}`}
-        facets={[{ label: "rights", value: (r) => r.permissions }]}
-        empty="No roles yet."
-      >
-        {(r) => {
-        const holders = [
-          ...data.users.filter((u) => u.role_ids.includes(r.id)).map((u) => u.name),
-          ...data.groups.filter((g) => g.role_ids.includes(r.id)).map((g) => `group ${g.name}`),
-        ];
-        return (
-          <Card className="p-4">
-            <div className="flex items-start gap-3">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
-                <Shield className="size-4" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">{r.name}</span>
-                  <code className="text-xs text-muted-foreground">{r.id}</code>
-                </div>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  {r.permissions.length ? (
-                    r.permissions.map((p) => (
-                      <Badge key={p} variant="secondary">
-                        {p}
-                      </Badge>
-                    ))
-                  ) : (
-                    <span className="text-xs text-muted-foreground">no rights</span>
-                  )}
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">{holders.length ? `Given to ${holders.join(", ")}` : "Given to nobody"}</p>
-              </div>
-              <Button size="sm" variant="outline" onClick={() => setEditing(r)}>
-                <Pencil /> Edit
-              </Button>
-            </div>
-          </Card>
-        );
-        }}
-      </ListView>
-      <Sheet open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
-        <SheetContent side="right" className="gap-0 p-0 sm:max-w-xl">
-          {editing !== null ? <RoleForm role={editing === "new" ? null : editing} data={data} onDone={() => setEditing(null)} /> : null}
-        </SheetContent>
-      </Sheet>
-    </div>
-  );
-}
-
-function RoleForm({ role: r, data, onDone }: { role: RoleDoc | null; data: Settings; onDone: () => void }) {
-  const refresh = useRefresh();
-  const confirm = useConfirm();
-  const [name, setName] = useState(r?.name ?? "");
-  const [permissions, setPermissions] = useState(new Set<string>(r?.permissions ?? ["chat"]));
-  const [busy, setBusy] = useState(false);
-  const holders = r
-    ? [...data.users.filter((u) => u.role_ids.includes(r.id)), ...data.groups.filter((g) => g.role_ids.includes(r.id)).map((g) => ({ name: `group ${g.name}` }))]
-    : [];
-  const save = async () => {
-    setBusy(true);
-    try {
-      const body = { id: r?.id ?? "new", name: name.trim(), permissions: [...permissions] };
-      if (r) await send("PUT", `/api/settings/roles/${encodeURIComponent(r.id)}`, body);
-      else await send("POST", "/api/settings/roles", body);
-      toast.success("Saved.");
-      refresh();
-      onDone();
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  const remove = async () => {
-    if (!r) return;
-    if (!(await confirm({ title: `Delete the role ${r.name}?`, action: "Delete", destructive: true }))) return;
-    try {
-      await api("DELETE", `/api/settings/roles/${encodeURIComponent(r.id)}`);
-      refresh();
-      onDone();
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
-  };
-  return (
-    <form
-      className="flex h-full flex-col"
-      onSubmit={(e) => {
-        e.preventDefault();
-        void save();
-      }}
-    >
-      <SheetHeader className="border-b">
-        <SheetTitle>{r ? r.name : "New role"}</SheetTitle>
-        <SheetDescription>{r ? `id ${r.id} · applies at once` : "Applies at once."}</SheetDescription>
-      </SheetHeader>
-      <div className="flex-1 space-y-4 overflow-y-auto p-4">
-        <Label>
-          Name
-          <Input required value={name} onChange={(e) => setName(e.target.value)} placeholder="Family" />
-          {r ? null : <Hint>The id is made from the name and cannot change later.</Hint>}
-        </Label>
-        <div>
-          <div className="mb-1 text-sm font-medium">Rights</div>
-          {data.permissions.map((p) => (
-            <CheckRow
-              key={p}
-              label={<code>{p}</code>}
-              hint={data.permission_descriptions?.[p]}
-              checked={permissions.has(p)}
-              onChange={(on) => {
-                const next = new Set(permissions);
-                if (on) next.add(p);
-                else next.delete(p);
-                setPermissions(next);
-              }}
-            />
-          ))}
-          <Hint>At least one user must keep a role with administer, or nobody could open these settings again.</Hint>
-        </div>
-      </div>
-      <div className="flex gap-2 border-t p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
-        <Button type="submit" disabled={busy || !name.trim()} className="flex-1 sm:flex-none">
-          {r ? "Save" : "Create"}
-        </Button>
-        <Button type="button" variant="outline" onClick={onDone}>
-          Cancel
-        </Button>
-        <span className="flex-1" />
-        {r ? (
-          <Button type="button" variant="ghost" className="text-destructive" onClick={remove} disabled={holders.length > 0} title={holders.length ? `Given to ${holders.map((u) => u.name).join(", ")}` : undefined}>
-            <Trash2 /> Delete
-          </Button>
-        ) : null}
-      </div>
-    </form>
-  );
-}
-
 export function GroupsPanel({ data }: { data: Settings }) {
   const [editing, setEditing] = useState<GroupDoc | "new" | null>(null);
-  const roleName = (id: string) => data.roles.find((r) => r.id === id)?.name ?? id;
+  const membersOf = (g: GroupDoc) => data.users.filter((u) => u.group_ids.includes(g.id));
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-start gap-3">
         <p className="min-w-0 flex-1 text-sm text-muted-foreground">
-          People who share roles: every member has the group's roles on top of their own. In the configuration repository, like roles; who is in a group is
-          kept with each user.
+          Groups are how people get rights: a group has permissions, every member has them, and agents and connectors are made available to groups. In
+          the configuration repository; who is in a group is kept with each user.
         </p>
         <Button onClick={() => setEditing("new")}>
           <Plus /> New group
         </Button>
       </div>
+      <Card className="p-4">
+        <div className="flex items-start gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+            <Globe className="size-4" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">Everyone</span>
+              <code className="text-xs text-muted-foreground">everyone</code>
+              <Badge variant="secondary">built in</Badge>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Everybody is in it, {data.users.length} people now. It grants no rights; make an agent or connector available to everyone with it.
+            </p>
+          </div>
+        </div>
+      </Card>
       <ListView
         items={data.groups}
         keyOf={(g) => g.id}
         text={(g) => `${g.name} ${g.id} ${g.description}`}
-        facets={[{ label: "roles", value: (g) => (g.role_ids.length ? g.role_ids.map(roleName) : "no role") }]}
+        facets={[{ label: "rights", value: (g) => (g.permissions.length ? g.permissions : "no rights") }]}
         empty="No groups yet."
       >
         {(g) => {
-          const members = data.users.filter((u) => (u.group_ids ?? []).includes(g.id)).map((u) => u.name);
+          const members = membersOf(g);
           return (
             <Card className="p-4">
               <div className="flex items-start gap-3">
@@ -505,14 +341,23 @@ export function GroupsPanel({ data }: { data: Settings }) {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{g.name}</span>
                     <code className="text-xs text-muted-foreground">{g.id}</code>
-                    {g.role_ids.map((r) => (
-                      <Badge key={r} variant="outline">
-                        {roleName(r)}
+                    {g.permissions.map((p) => (
+                      <Badge key={p} variant="secondary">
+                        {p}
                       </Badge>
                     ))}
                   </div>
                   {g.description ? <p className="text-xs text-muted-foreground">{g.description}</p> : null}
-                  <p className="mt-1 text-xs text-muted-foreground">{members.length ? `Members: ${members.join(", ")}` : "No members"}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {members.length === 0
+                      ? "No members"
+                      : members.length <= 5
+                        ? `Members: ${members.map((u) => u.name).join(", ")}`
+                        : `${members.length} members: ${members
+                            .slice(0, 3)
+                            .map((u) => u.name)
+                            .join(", ")} and ${members.length - 3} more`}
+                  </p>
                 </div>
                 <Button size="sm" variant="outline" onClick={() => setEditing(g)}>
                   <Pencil /> Edit
@@ -536,9 +381,10 @@ function GroupForm({ group: g, data, onDone }: { group: GroupDoc | null; data: S
   const confirm = useConfirm();
   const [name, setName] = useState(g?.name ?? "");
   const [description, setDescription] = useState(g?.description ?? "");
-  const [roleIds, setRoleIds] = useState(new Set(g?.role_ids ?? []));
-  const before = new Set(g ? data.users.filter((u) => (u.group_ids ?? []).includes(g.id)).map((u) => u.id) : []);
+  const [permissions, setPermissions] = useState(new Set<string>(g?.permissions ?? ["chat"]));
+  const before = new Set(g ? data.users.filter((u) => u.group_ids.includes(g.id)).map((u) => u.id) : []);
   const [members, setMembers] = useState(new Set(before));
+  const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const toggle = (set: Set<string>, id: string, on: boolean) => {
     const next = new Set(set);
@@ -546,19 +392,24 @@ function GroupForm({ group: g, data, onDone }: { group: GroupDoc | null; data: S
     else next.delete(id);
     return next;
   };
+  const wanted = search.trim().toLowerCase();
+  // Members first, then the rest; a search narrows both.
+  const people = [...data.users]
+    .filter((u) => !wanted || `${u.name} ${u.aliases.join(" ")} ${u.accounts.map((a) => a.address).join(" ")}`.toLowerCase().includes(wanted))
+    .sort((a, b) => Number(members.has(b.id)) - Number(members.has(a.id)) || a.name.localeCompare(b.name));
   const save = async () => {
     setBusy(true);
     try {
-      const body = { id: g?.id ?? "new", name: name.trim(), description: description.trim(), role_ids: [...roleIds] };
+      const body = { id: g?.id ?? "new", name: name.trim(), description: description.trim(), permissions: [...permissions] };
       let id = g?.id;
       if (g) await send("PUT", `/api/settings/groups/${encodeURIComponent(g.id)}`, body);
-      else id = (await send("POST", "/api/settings/groups", body) as GroupDoc).id;
+      else id = ((await send("POST", "/api/settings/groups", body)) as GroupDoc).id;
       // Membership is kept on each user: save those whose membership changed.
       for (const u of data.users) {
         const was = before.has(u.id);
         const is = members.has(u.id);
         if (was === is || !id) continue;
-        const groupIds = is ? [...(u.group_ids ?? []), id] : (u.group_ids ?? []).filter((x) => x !== id);
+        const groupIds = is ? [...u.group_ids, id] : u.group_ids.filter((x) => x !== id);
         await send("PUT", `/api/settings/users/${encodeURIComponent(u.id)}`, { ...u, group_ids: groupIds });
       }
       toast.success("Saved.");
@@ -605,17 +456,23 @@ function GroupForm({ group: g, data, onDone }: { group: GroupDoc | null; data: S
           <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Who is in it, and why" />
         </Label>
         <div>
-          <div className="mb-1 text-sm font-medium">Roles</div>
-          {data.roles.map((r) => (
-            <CheckRow key={r.id} label={r.name} hint={r.permissions.join(", ") || "no rights"} checked={roleIds.has(r.id)} onChange={(on) => setRoleIds(toggle(roleIds, r.id, on))} />
+          <div className="mb-1 text-sm font-medium">Rights</div>
+          {data.permissions.map((p) => (
+            <CheckRow key={p} label={<code>{p}</code>} hint={data.permission_descriptions?.[p]} checked={permissions.has(p)} onChange={(on) => setPermissions(toggle(permissions, p, on))} />
           ))}
-          <Hint>Every member has these on top of their own roles.</Hint>
+          <Hint>Every member has these. At least one person must stay in a group with administer.</Hint>
         </div>
-        <div>
-          <div className="mb-1 text-sm font-medium">Members</div>
-          {data.users.map((u) => (
-            <CheckRow key={u.id} label={u.name} checked={members.has(u.id)} onChange={(on) => setMembers(toggle(members, u.id, on))} />
-          ))}
+        <div className="space-y-2">
+          <div className="text-sm font-medium">
+            Members <span className="font-normal text-muted-foreground">({members.size})</span>
+          </div>
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name or address" />
+          <div className="max-h-80 overflow-y-auto rounded-md border px-2">
+            {people.map((u) => (
+              <CheckRow key={u.id} label={u.name} checked={members.has(u.id)} onChange={(on) => setMembers(toggle(members, u.id, on))} />
+            ))}
+            {people.length === 0 ? <p className="py-2 text-xs text-muted-foreground">Nobody matches.</p> : null}
+          </div>
         </div>
       </div>
       <div className="flex gap-2 border-t p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">

@@ -6,7 +6,7 @@ from aios.channels.channel_directory import ChannelDirectory
 from aios.common.clock import Clock
 from aios.entities.users.user import User
 from aios.storage.collection import Collection
-from aios.users.default_roles import DefaultRoles
+from aios.users.default_groups import DefaultGroups
 
 log = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ class StartupNotice:
             log.exception("startup notice failed")
 
     async def _post(self) -> None:
-        owners = self._users.filter(lambda u: DefaultRoles.OWNER in u.role_ids)
+        owners = self._users.filter(lambda u: DefaultGroups.OWNER in u.group_ids)
         for channel in self._channels.enabled():
             starter = self._channels.thread_starter_for(channel.name)
             if starter is None:

@@ -3,6 +3,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from aios.entities.connectors.sign_in_mode import SignInMode
+from aios.entities.users.audience_entry import AudienceEntry
 
 
 class ConnectorRequest(BaseModel):
@@ -15,5 +16,8 @@ class ConnectorRequest(BaseModel):
     sign_in: SignInMode | None = None
     """None keeps what the connector has (shared for a new one)."""
     shared_fallback: bool | None = None
+    available_to: list[AudienceEntry] | None = None
+    """Who it is there for; left out keeps what the connector has (None, so
+    administrators only, for a new one)."""
     variables: dict[str, str] = {}
     """Values typed for a code connector's declared variables; empty keeps one."""

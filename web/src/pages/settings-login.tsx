@@ -159,7 +159,7 @@ function LoginForm({ data }: { data: WebAuthState }) {
     if (PROXIES.includes(auth.mode) && auth.create_users === true) {
       out.create_users = true;
       out.domains = (auth.domains as string[] | undefined) ?? [];
-      if (auth.default_role && auth.default_role !== "member") out.default_role = auth.default_role;
+      if (auth.default_group && auth.default_group !== "member") out.default_group = auth.default_group;
     }
     return { auth: out, public_url: publicUrl.trim() || null };
   };
@@ -408,9 +408,9 @@ function ProvidersEditor({ providers, onChange, callback }: { providers: Provide
 
 /** Whether, and as what, someone a login vouches for and nobody has yet becomes a user. */
 function NewPeople({ value, set, hint, withDomains }: { value: Record<string, unknown>; set: (key: string, value: unknown) => void; hint: string; withDomains?: boolean }) {
-  // Roles such a user may get: those that chat and do not administer (the server checks it again).
+  // Groups such a user may go into: those that chat and do not administer (the server checks it again).
   const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: () => api<Settings>("GET", "/api/settings") });
-  const roles = (settings?.roles ?? []).filter((r) => r.permissions.includes("chat") && !r.permissions.includes("administer") && !r.permissions.includes("manage_users"));
+  const groups = (settings?.groups ?? []).filter((g) => g.permissions.includes("chat") && !g.permissions.includes("administer") && !g.permissions.includes("manage_users"));
   const on = value.create_users === true;
   return (
     <div className="space-y-2 rounded-lg bg-muted/40 p-3">
@@ -431,15 +431,15 @@ function NewPeople({ value, set, hint, withDomains }: { value: Record<string, un
       ) : null}
       {on ? (
         <Label>
-          Their role
-          <NativeSelect className="max-w-xs" value={String(value.default_role ?? "member")} onChange={(e) => set("default_role", e.target.value === "member" ? undefined : e.target.value)}>
-            {(roles.length ? roles : [{ id: "member", name: "Member" }]).map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
+          Their group
+          <NativeSelect className="max-w-xs" value={String(value.default_group ?? "member")} onChange={(e) => set("default_group", e.target.value === "member" ? undefined : e.target.value)}>
+            {(groups.length ? groups : [{ id: "member", name: "Members" }]).map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
               </option>
             ))}
           </NativeSelect>
-          <Hint>Only roles that can chat and do not administer ai-os. Change someone's role later under People.</Hint>
+          <Hint>Only groups that can chat and do not administer ai-os. Change someone's groups later under Users.</Hint>
         </Label>
       ) : null}
     </div>

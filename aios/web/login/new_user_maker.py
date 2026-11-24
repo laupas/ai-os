@@ -3,8 +3,8 @@ import logging
 
 from aios.common.id_generator import IdGenerator
 from aios.entities.users.channel_account import ChannelAccount
+from aios.entities.users.group import Group
 from aios.entities.users.permission import Permission
-from aios.entities.users.role import Role
 from aios.entities.users.user import User
 from aios.storage.collection import Collection
 
@@ -15,30 +15,35 @@ CHANNEL = "web"
 
 class NewUserMaker:
     """Makes the user for an address a login vouched for and nobody has yet: a web
-    account with that address and the given role. One at a time, and never a second
+    account with that address, in the given group. One at a time, and never a second
     user for an address someone has: a browser's first visit sends several requests
     at once."""
 
-    def __init__(self, users: Collection[User], roles: Collection[Role], ids: IdGenerator) -> None:
+    def __init__(
+        self, users: Collection[User], groups: Collection[Group], ids: IdGenerator
+    ) -> None:
         self._users = users
-        self._roles = roles
+        self._groups = groups
         self._ids = ids
         self._lock = asyncio.Lock()
 
-    def refusal(self, role_id: str) -> str | None:
-        """Why `role_id` may not be given to users made this way, or None."""
-        role = self._roles.get(role_id)
-        if role is None:
-            return f"there is no role {role_id}"
-        if Permission.ADMINISTER in role.permissions or Permission.MANAGE_USERS in role.permissions:
-            return f"role {role_id} administers ai-os; give new users a role without that"
-        if Permission.CHAT not in role.permissions:
-            return f"role {role_id} cannot chat, so its users could not use the console"
+    def refusal(self, group_id: str) -> str | None:
+        """Why users made this way may not be put in `group_id`, or None."""
+        group = self._groups.get(group_id)
+        if group is None:
+            return f"there is no group {group_id}"
+        if (
+            Permission.ADMINISTER in group.permissions
+            or Permission.MANAGE_USERS in group.permissions
+        ):
+            return f"group {group_id} administers ai-os; put new users in a group without that"
+        if Permission.CHAT not in group.permissions:
+            return f"group {group_id} cannot chat, so its members could not use the console"
         return None
 
-    async def make(self, email: str, name: str | None, role_id: str, source: str) -> User:
+    async def make(self, email: str, name: str | None, group_id: str, source: str) -> User:
         """The new user, or whoever has `email` already."""
-        reason = self.refusal(role_id)
+        reason = self.refusal(group_id)
         if reason:
             raise ValueError(reason)
         async with self._lock:
@@ -49,11 +54,13 @@ class NewUserMaker:
                 id=self._ids.new_id(),
                 name=name.strip() if name and name.strip() else email.split("@")[0],
                 accounts=[ChannelAccount(channel=CHANNEL, address=email)],
-                role_ids=[role_id],
+                group_ids=[group_id],
                 notes=f"Made on their first sign-in with {source}.",
             )
             await self._users.put(user)
-        log.info("web: made user %s (%s, role %s) on a %s sign-in", user.id, email, role_id, source)
+        log.info(
+            "web: made user %s (%s, group %s) on a %s sign-in", user.id, email, group_id, source
+        )
         return user
 
     def _owner_of(self, email: str) -> User | None:

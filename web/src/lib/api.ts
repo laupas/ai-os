@@ -156,9 +156,8 @@ export interface User {
   name: string;
   aliases: string[];
   accounts: ChannelAccount[];
-  role_ids: string[];
-  /** Groups whose roles they have too. */
-  group_ids?: string[];
+  /** The groups they are in: their only source of rights. */
+  group_ids: string[];
   notes: string | null;
 }
 
@@ -166,12 +165,6 @@ export interface GroupDoc {
   id: string;
   name: string;
   description: string;
-  role_ids: string[];
-}
-
-export interface RoleDoc {
-  id: string;
-  name: string;
   permissions: Permission[];
 }
 
@@ -266,7 +259,6 @@ export interface Settings {
   /** aios.yaml's model as JSON schema, for the reference beside the editor. */
   config_schema: Record<string, any>;
   users: User[];
-  roles: RoleDoc[];
   groups: GroupDoc[];
   permissions: Permission[];
   permission_descriptions?: Record<string, string>;
@@ -283,6 +275,8 @@ export interface Agent {
   builtin_tools: string[];
   skills: string[];
   connectors: Record<string, string[] | null>;
+  /** Who may use it: everyone, group:<id>, role:<id>, user:<id>; null for administrators only. */
+  available_to?: string[] | null;
   /** Always there and always on: ai-os depends on it. */
   fixed: boolean;
 }
@@ -420,6 +414,8 @@ export interface Connector {
   /** The connector's own setting; administrators only. */
   sign_in_mode?: SignInMode;
   shared_fallback?: boolean;
+  /** Whose conversations it is in: everyone, group:<id>, role:<id>, user:<id>; null for administrators only. */
+  available_to?: string[] | null;
 }
 
 export type SignInMode = "shared" | "per_user";

@@ -25,6 +25,8 @@ from aios.tools.tools_container import ToolsContainer
 from aios.transcription.transcription_container import TranscriptionContainer
 from aios.triggers.triggers_container import TriggersContainer
 from aios.triggers.triggers_migration import TriggersMigration
+from aios.users.access_lists_migration import AccessListsMigration
+from aios.users.groups_migration import GroupsMigration
 from aios.users.users_container import UsersContainer
 from aios.variables.variables_container import VariablesContainer
 from aios.web.web_container import WebContainer
@@ -47,7 +49,6 @@ class ApplicationContainer(containers.DeclarativeContainer):
     users = providers.Container(
         UsersContainer,
         users=storage.users,
-        roles=storage.roles,
         groups=storage.groups,
         owner=app_config.provided.owner,
         ids=common.ids,
@@ -132,6 +133,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         agents=storage.agents,
         skills=storage.skills,
         connectors=connectors.catalog,
+        audience=users.audience,
     )
     approval_policy = providers.Container(
         ApprovalPolicyContainer,
@@ -166,6 +168,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         approvals=approvals.service,
         clock=common.clock,
         variable_resolver=variables.resolver,
+        audience=users.audience,
     )
     gateway = providers.Container(
         GatewayContainer,
@@ -234,8 +237,8 @@ class ApplicationContainer(containers.DeclarativeContainer):
         agent_config=config.agent,
         config_file=config.settings.provided.resolved_config_file.call(),
         users=storage.users,
-        roles=storage.roles,
         groups=storage.groups,
+        audience=users.audience,
         conversations=storage.conversations,
         approvals=storage.approvals,
         memories=storage.memories,
@@ -328,6 +331,20 @@ class ApplicationContainer(containers.DeclarativeContainer):
                 store=storage.config_store,
                 state=storage.document_store,
                 collections=config_collections,
+                config=web.aios_yaml,
+            ),
+            providers.Singleton(
+                AccessListsMigration,
+                store=storage.config_store,
+                agents=storage.agents,
+                connectors=storage.connectors,
+            ),
+            providers.Singleton(
+                GroupsMigration,
+                store=storage.config_store,
+                users=storage.users,
+                roles=storage.roles,
+                groups=storage.groups,
                 config=web.aios_yaml,
             ),
             users.bootstrapper,

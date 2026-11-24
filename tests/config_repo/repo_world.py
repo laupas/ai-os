@@ -30,6 +30,7 @@ class RepoWorld:
                 "connectors": YamlLayout("connectors"),
                 "triggers": YamlLayout("triggers"),
                 "roles": YamlLayout("roles"),
+                "groups": YamlLayout("groups"),
             },
             self.legacy,
             {"triggers": ["last_fired_at"]},

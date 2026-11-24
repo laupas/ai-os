@@ -4,10 +4,10 @@ from aios.bootstrap.startup_step import StartupStep
 from aios.common.id_generator import IdGenerator
 from aios.config.owner_config import OwnerConfig
 from aios.entities.users.channel_account import ChannelAccount
-from aios.entities.users.role import Role
+from aios.entities.users.group import Group
 from aios.entities.users.user import User
 from aios.storage.collection import Collection
-from aios.users.default_roles import DefaultRoles
+from aios.users.default_groups import DefaultGroups
 
 log = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ DEFAULT_OWNER = OwnerConfig(name="Owner", accounts=[ChannelAccount(channel="web"
 
 
 class OwnerBootstrapper(StartupStep):
-    """Makes a fresh data dir usable: default roles, and the owner from config.
+    """Makes a fresh data dir usable: default groups, and the owner from config.
 
     Without `owner` in the config the owner is "Owner" with a web account, so a
     fresh ai-os can be signed in to on the console's login page (`pick`, the
@@ -27,22 +27,22 @@ class OwnerBootstrapper(StartupStep):
     def __init__(
         self,
         users: Collection[User],
-        roles: Collection[Role],
-        default_roles: DefaultRoles,
+        groups: Collection[Group],
+        default_groups: DefaultGroups,
         owner: OwnerConfig | None,
         ids: IdGenerator,
     ) -> None:
         self._users = users
-        self._roles = roles
-        self._default_roles = default_roles
+        self._groups = groups
+        self._default_groups = default_groups
         self._owner = owner
         self._ids = ids
 
     async def run(self) -> None:
-        if self._roles.is_empty():
-            for role in self._default_roles.all():
-                await self._roles.put(role)
-            log.info("created default roles")
+        if self._groups.is_empty():
+            for group in self._default_groups.all():
+                await self._groups.put(group)
+            log.info("created default groups")
         if self._users.is_empty():
             await self._create_owner()
 
@@ -54,7 +54,7 @@ class OwnerBootstrapper(StartupStep):
             id=self._ids.new_id(),
             name=config.name,
             accounts=list(config.accounts),
-            role_ids=[DefaultRoles.OWNER],
+            group_ids=[DefaultGroups.OWNER],
         )
         await self._users.put(owner)
         log.info("created owner %s", owner.name)

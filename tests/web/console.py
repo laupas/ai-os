@@ -57,6 +57,7 @@ from aios.store.store_source_reader import StoreSourceReader
 from aios.store.store_sources import StoreSources
 from aios.triggers.trigger_runner import TriggerRunner
 from aios.triggers.trigger_timing import TriggerTiming
+from aios.users.permission_audience import PermissionAudience
 from aios.variables.secret_box import SecretBox
 from aios.variables.secret_extractor import SecretExtractor
 from aios.variables.variable_catalog import VariableCatalog
@@ -149,7 +150,7 @@ class Console:
         self.tmp_path = tmp_path
         self.auth = auth
         self.new_users = new_users
-        """Behind the test proxy: (role, domains) for addresses nobody has yet."""
+        """Behind the test proxy: (group, domains) for addresses nobody has yet."""
         self.transcriber = transcriber or FakeTranscriber()
         self.voice = VoiceRoutes(self.transcriber, max_audio_bytes)
         self.world = World(engine=engine)
@@ -178,7 +179,7 @@ class Console:
             w.bob.model_copy(
                 update={
                     "accounts": [*w.bob.accounts, ChannelAccount(channel="web", address=BOB)],
-                    "role_ids": ["member"],
+                    "group_ids": ["member"],
                 }
             )
         )
@@ -273,13 +274,14 @@ class Console:
         )
         self.repo_world.repo.init()
         console_users = ConsoleUsers(w.users, w.authorizer)
+        self.audience = PermissionAudience(w.authorizer)
         self.passwords = WebPasswords(
             Collection(CollectionDefinition(name="web-passwords", entity=WebPassword), w.store),
             PasswordHasher(),
             w.clock,
         )
         self.sessions = WebSessions(box.derive_key("web-session"), w.clock)
-        maker = NewUserMaker(w.users, w.roles, w.ids)
+        maker = NewUserMaker(w.users, w.groups, w.ids)
         self.identities = WebIdentityFactory(
             self.sessions,
             console_users,
@@ -329,6 +331,7 @@ class Console:
                     deleter,
                     aw.agents,
                     w.approvals,
+                    self.audience,
                 ),
                 AgentRoutes(
                     aw.agents,
@@ -340,12 +343,13 @@ class Console:
                 SkillRoutes(self.skills, aw.agents),
                 HistoryRoutes(self.repo_world.store, self.repo_world.collections),
                 VariableRoutes(self.variables, self.variable_resolver, aw.connectors),
-                ConnectorAuthRoutes(authorizer, aw.connectors, None),
+                ConnectorAuthRoutes(authorizer, aw.connectors, None, self.audience),
                 ConnectorRoutes(
                     aw.connector_store,
                     aw.connectors,
                     board,
                     aw.agents,
+                    self.audience,
                     authorizer=authorizer,
                     tokens=self.tokens,
                     resolver=self.variable_resolver,
@@ -363,7 +367,6 @@ class Console:
                     AiosYamlFile(self.config_file, live=self.live_config),
                     self.live_config,
                     w.users,
-                    w.roles,
                     w.groups,
                     w.ids,
                     self.restart,
@@ -426,6 +429,7 @@ class Console:
                     w.ids,
                     w.users,
                     aw.agents,
+                    self.audience,
                 ),
                 TriggerHookRoutes(
                     self.triggers,

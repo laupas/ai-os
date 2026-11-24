@@ -11,7 +11,10 @@ class AgentsContainer(containers.DeclarativeContainer):
     agents = providers.Dependency()
     skills = providers.Dependency()
     connectors = providers.Dependency()
+    audience = providers.Dependency()
 
     catalog = providers.Singleton(AgentCatalog, agents=agents)
     skill_catalog = providers.Singleton(SkillCatalog, skills=skills)
-    grant_rule = providers.Singleton(AgentGrantRule, agents=catalog, connectors=connectors)
+    grant_rule = providers.Singleton(
+        AgentGrantRule, agents=catalog, connectors=connectors, audience=audience
+    )

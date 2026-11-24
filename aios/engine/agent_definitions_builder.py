@@ -5,6 +5,8 @@ from aios.agents.agent_grant_rule import DELEGATE_TOOLS
 from aios.connectors.connector_catalog import ConnectorCatalog
 from aios.connectors.connector_status_board import ConnectorStatusBoard
 from aios.entities.agents.agent import Agent
+from aios.entities.users.user import User
+from aios.users.audience import Audience
 
 
 class AgentDefinitionsBuilder:
@@ -14,42 +16,59 @@ class AgentDefinitionsBuilder:
     may *do*. A connector granted whole whose tools are not known yet (it has not
     been started since ai-os did) leaves `tools` unset, so the subagent sees every
     tool and the rule refuses the ones it was not granted.
+
+    Only the agents available to the turn's user are offered, and only with the
+    connectors available to them.
     """
 
     def __init__(
-        self, agents: AgentCatalog, connectors: ConnectorCatalog, board: ConnectorStatusBoard
+        self,
+        agents: AgentCatalog,
+        connectors: ConnectorCatalog,
+        board: ConnectorStatusBoard,
+        audience: Audience,
     ) -> None:
         self._agents = agents
         self._connectors = connectors
         self._board = board
+        self._audience = audience
 
-    def build(self) -> dict[str, AgentDefinition]:
+    def delegates_for(self, user: User) -> list[Agent]:
+        return [
+            a for a in self._agents.delegates() if self._audience.includes(user, a.available_to)
+        ]
+
+    def build(self, user: User) -> dict[str, AgentDefinition]:
         return {
             spec.name: AgentDefinition(
                 description=spec.description,
                 prompt=self._agents.prompt_of(spec),
-                tools=self._tools(spec),
+                tools=self._tools(spec, user),
                 skills=spec.skills or None,
                 model=spec.model,
             )
-            for spec in self._agents.delegates()
+            for spec in self.delegates_for(user)
         }
 
-    def skills(self, main: Agent, delegating: bool) -> list[str]:
+    def skills(self, main: Agent, delegating: bool, user: User) -> list[str]:
         """Every skill the turn's agents may use: the session loads only these."""
-        specs = [main, *(self._agents.delegates() if delegating else [])]
+        specs = [main, *(self.delegates_for(user) if delegating else [])]
         return sorted({skill for spec in specs for skill in spec.skills})
 
     @staticmethod
     def delegates_work(spec: Agent) -> bool:
         return any(t in spec.builtin_tools for t in DELEGATE_TOOLS)
 
-    def _tools(self, spec: Agent) -> list[str] | None:
+    def _tools(self, spec: Agent, user: User) -> list[str] | None:
         tools = [t for t in spec.builtin_tools if t not in DELEGATE_TOOLS]
         if spec.skills:
             tools.append("Skill")
         for server, granted in spec.connectors.items():
             if not self._connectors.is_enabled(server):
+                continue
+            if server != ConnectorCatalog.BUILTIN and not self._connectors.available_to(
+                server, user, self._audience
+            ):
                 continue
             names = granted if granted is not None else self._known_tools(server)
             if names is None:

@@ -60,9 +60,16 @@ Read `README.md` for what ai-os is. This file is the rules for changing it.
   required: there, an address is not checked by anyone ai-os trusts.
 - `create_users` (`NewUserMaker`, for SSO per provider and behind a login proxy
   through `NewUserPolicy`) needs `domains` (or, for SSO, a Microsoft tenant of
-  one's own), never gives a role that administers or manages users, and never
+  one's own), never puts anyone in a group that administers or manages users, and never
   makes a second user for an address someone already has.
-- Who may chat, approve or be messaged is decided from users and roles in code
+- Who may use an agent or connector is `available_to`, decided by `Audience`
+  (`PermissionAudience`): administrators always, no list means administrators
+  only. Keep all three checks: the main agent and the subagents and connectors of a
+  turn (`ClaudeOptionsFactory`, `AgentDefinitionsBuilder`), and per tool call
+  (`AgentGrantRule`). The orchestrator is everyone's; what it may hand work to is
+  not. Never let a missing list mean everyone. Lists name groups only (and the
+  built-in `everyone`), never single people; rights come only from groups.
+- Who may chat, approve or be messaged is decided from users and their groups in code
   (`Authorizer`), never by a prompt.
 - A `per_user` connector carries only the turn user's own sign-in
   (`ConnectorTokens.for_turn`); without one it is left out of the turn, and the

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from aios.entities.users.channel_account import ChannelAccount
 
@@ -10,9 +10,11 @@ class User(BaseModel):
     name: str
     aliases: list[str] = []
     accounts: list[ChannelAccount] = []
-    role_ids: list[str] = []
     group_ids: list[str] = []
-    """Groups whose roles the user has too."""
+    """The groups the user is in: their only source of permissions."""
+    role_ids: list[str] = Field(default=[], exclude=True)
+    """Read, never written. Older form: roles, which became groups of the same id. Moved into
+    `group_ids` at the next start (`GroupsMigration`)."""
     notes: str | None = None
 
     def has_account(self, channel: str, address: str) -> bool:

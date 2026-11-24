@@ -4,7 +4,8 @@ from aios.entities.users.permission import Permission
 
 
 class Role(BaseModel):
-    """A named set of permissions. Stored, so roles can change without code."""
+    """Older form of a group: a named set of permissions. Read only to turn each
+    into a group of the same id (`GroupsMigration`)."""
 
     id: str
     name: str

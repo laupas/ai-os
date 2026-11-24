@@ -14,9 +14,10 @@ MCP_PREFIX = "mcp__"
 class RepoAgentReader:
     """Reads the agents that ship with ai-os from `agents/*.md`, to seed the store.
 
-    Each file is YAML front matter (name, description, tools, skills, model) and the
-    prompt. `tools` names built-in tools and connector tools alike; a connector tool
-    (`mcp__<connector>__<tool>`) becomes a grant on that connector.
+    Each file is YAML front matter (name, description, tools, skills, model,
+    available_to) and the prompt. `tools` names built-in tools and connector tools
+    alike; a connector tool (`mcp__<connector>__<tool>`) becomes a grant on that
+    connector.
     """
 
     def __init__(self, agents_dir: Path) -> None:
@@ -55,6 +56,7 @@ class RepoAgentReader:
             builtin_tools=builtin,
             skills=self._names(meta.get("skills")),
             connectors=connectors,
+            available_to=self._names(meta.get("available_to")) or None,
         )
 
     @staticmethod

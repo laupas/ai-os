@@ -14,6 +14,7 @@ from aios.storage.collection import Collection
 from aios.triggers.trigger_runner import TriggerRunner
 from aios.triggers.trigger_timing import TriggerTiming
 from aios.triggers.webhook_token import WebhookToken
+from aios.users.audience import Audience
 from aios.web.request_body import RequestBody
 from aios.web.trigger_request import TriggerRequest
 from aios.web.trigger_update import TriggerUpdate
@@ -42,6 +43,7 @@ class TriggerRoutes(WebRoutes):
         ids: IdGenerator,
         users: Collection[User],
         agents: AgentCatalog,
+        audience: Audience,
     ) -> None:
         self._triggers = triggers
         self._timing = timing
@@ -50,6 +52,7 @@ class TriggerRoutes(WebRoutes):
         self._ids = ids
         self._users = users
         self._agents = agents
+        self._audience = audience
         self._tasks: set[asyncio.Task[None]] = set()
 
     def register(self, app: web.Application) -> None:
@@ -131,14 +134,20 @@ class TriggerRoutes(WebRoutes):
         return web.json_response({"token": token})
 
     def _build(self, data: dict[str, object]) -> Trigger:
-        if self._users.get(str(data["user_id"])) is None:
+        user = self._users.get(str(data["user_id"]))
+        if user is None:
             raise web.HTTPBadRequest(text="no such user")
         if data.get("agent") == AgentCatalog.ORCHESTRATOR:
             data = {**data, "agent": None}
         try:
-            self._agents.main(data.get("agent"))  # type: ignore[arg-type]
+            main = self._agents.main(data.get("agent"))  # type: ignore[arg-type]
         except AgentUnavailableError as exc:
             raise web.HTTPBadRequest(text=str(exc)) from exc
+        if data.get("agent") is not None and not self._audience.includes(user, main.available_to):
+            raise web.HTTPBadRequest(
+                text=f"the agent {main.id} is not available to {user.name}, "
+                "who the trigger runs for"
+            )
         try:
             return Trigger.model_validate(data)
         except (ValueError, KeyError, ValidationError) as exc:  # KeyError: unknown zone

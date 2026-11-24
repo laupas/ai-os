@@ -9,6 +9,7 @@ from aios.entities.connectors.connector import Connector
 from aios.storage.collection import Collection
 from aios.storage.collection_definition import CollectionDefinition
 from aios.storage.in_memory_document_store import InMemoryDocumentStore
+from tests.fakes.open_audience import OpenAudience
 
 ORCHESTRATOR = """---
 name: orchestrator
@@ -61,7 +62,7 @@ class AgentWorld:
         self.connectors = ConnectorCatalog(
             self.connector_store, ["ask_human", "send_message", "data_query"]
         )
-        self.rule = AgentGrantRule(self.agents, self.connectors)
+        self.rule = AgentGrantRule(self.agents, self.connectors, OpenAudience())
 
     async def add_gcal(self, enabled: bool = True) -> None:
         await self.connector_store.put(

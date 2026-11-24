@@ -10,9 +10,9 @@ from aios.common.id_generator import IdGenerator
 from aios.config.app_config import AppConfig
 from aios.config.config_yaml_editor import ConfigYamlEditor
 from aios.config.live_app_config import LiveAppConfig
+from aios.entities.users.audience_entry import EVERYONE
 from aios.entities.users.group import Group
 from aios.entities.users.permission import Permission
-from aios.entities.users.role import Role
 from aios.entities.users.user import User
 from aios.storage.collection import Collection
 from aios.web.aios_yaml_file import AiosYamlFile
@@ -24,16 +24,16 @@ from aios.web.web_auth import WebAuth
 from aios.web.web_routes import WebRoutes
 
 RESTART_DELAY_SECONDS = 0.5
-ROLE_ID = re.compile(r"^[a-z][a-z0-9_-]{0,40}$")
-ROLE_ID_CHARS = re.compile(r"[^a-z0-9_-]+")
+GROUP_ID = re.compile(r"^[a-z][a-z0-9_-]{0,40}$")
+GROUP_ID_CHARS = re.compile(r"[^a-z0-9_-]+")
 
 
 class SettingsRoutes(WebRoutes):
-    """aios.yaml, users, roles and groups, and the restart that applies what needs one.
+    """aios.yaml, users and groups, and the restart that applies what needs one.
 
     Administrators only. Every save is validated against the same model ai-os reads
     it with, so a typo is refused here rather than found at the next start. Users
-    and roles take effect at once, and so does aios.yaml within seconds, except
+    and groups take effect at once, and so does aios.yaml within seconds, except
     the sections read only at startup (`LiveAppConfig`). With a configuration
     repository, aios.yaml lives there and every save is a commit; a branch switch
     can change it too, so "restart needed" compares the file with what this
@@ -45,7 +45,6 @@ class SettingsRoutes(WebRoutes):
         config: AiosYamlFile,
         live: LiveAppConfig,
         users: Collection[User],
-        roles: Collection[Role],
         groups: Collection[Group],
         ids: IdGenerator,
         restart: RestartRequest,
@@ -53,7 +52,6 @@ class SettingsRoutes(WebRoutes):
         self._config = config
         self._live = live
         self._users = users
-        self._roles = roles
         self._groups = groups
         self._ids = ids
         self._restart = restart
@@ -66,9 +64,6 @@ class SettingsRoutes(WebRoutes):
         app.router.add_post("/api/settings/users", self._create_user)
         app.router.add_put("/api/settings/users/{id}", self._save_user)
         app.router.add_delete("/api/settings/users/{id}", self._delete_user)
-        app.router.add_put("/api/settings/roles/{id}", self._save_role)
-        app.router.add_post("/api/settings/roles", self._create_role)
-        app.router.add_delete("/api/settings/roles/{id}", self._delete_role)
         app.router.add_post("/api/settings/groups", self._create_group)
         app.router.add_put("/api/settings/groups/{id}", self._save_group)
         app.router.add_delete("/api/settings/groups/{id}", self._delete_group)
@@ -85,7 +80,6 @@ class SettingsRoutes(WebRoutes):
                 "restart_needed": self._live.restart_needed(text),
                 "in_repository": self._config.in_repository(),
                 "users": [u.model_dump(mode="json") for u in self._users.all()],
-                "roles": [r.model_dump(mode="json") for r in self._roles.all()],
                 "groups": [g.model_dump(mode="json") for g in self._groups.all()],
                 "permissions": [p.value for p in Permission],
                 "permission_descriptions": {p.value: p.description for p in Permission},
@@ -124,7 +118,7 @@ class SettingsRoutes(WebRoutes):
     async def _create_user(self, request: web.Request) -> web.Response:
         WebAuth.caller(request, Permission.ADMINISTER)
         user = self._document(await RequestBody.parse(request, TextRequest), User)
-        user = user.model_copy(update={"id": self._ids.new_id()})
+        user = user.model_copy(update={"id": self._ids.new_id(), "role_ids": []})
         self._check_user(user)
         await self._users.put(user)
         return web.json_response(user.model_dump(mode="json"), status=201)
@@ -135,7 +129,7 @@ class SettingsRoutes(WebRoutes):
         if self._users.get(user_id) is None:
             raise web.HTTPNotFound(text="no such user")
         user = self._document(await RequestBody.parse(request, TextRequest), User)
-        user = user.model_copy(update={"id": user_id})
+        user = user.model_copy(update={"id": user_id, "role_ids": []})
         self._check_user(user)
         self._keep_an_administrator(users={user_id: user})
         await self._users.put(user)
@@ -151,53 +145,19 @@ class SettingsRoutes(WebRoutes):
         await self._users.delete(user_id)
         return web.json_response({"ok": True})
 
-    async def _save_role(self, request: web.Request) -> web.Response:
-        WebAuth.caller(request, Permission.ADMINISTER)
-        role_id = request.match_info["id"]
-        if self._roles.get(role_id) is None:
-            raise web.HTTPNotFound(text="no such role")
-        role = self._document(await RequestBody.parse(request, TextRequest), Role)
-        role = role.model_copy(update={"id": role_id})
-        self._keep_an_administrator(roles={role_id: role})
-        await self._roles.put(role)
-        return web.json_response({"ok": True})
-
-    async def _create_role(self, request: web.Request) -> web.Response:
-        WebAuth.caller(request, Permission.ADMINISTER)
-        role = self._document(await RequestBody.parse(request, TextRequest), Role)
-        role_id = role.id if role.id != "new" else ROLE_ID_CHARS.sub("_", role.name.strip().lower())
-        if not ROLE_ID.match(role_id):
-            raise web.HTTPBadRequest(text="a role id is lower-case letters, digits, _ and -")
-        if self._roles.get(role_id) is not None:
-            raise web.HTTPConflict(text=f"there is already a role {role_id}")
-        role = role.model_copy(update={"id": role_id})
-        await self._roles.put(role)
-        return web.json_response(role.model_dump(mode="json"), status=201)
-
-    async def _delete_role(self, request: web.Request) -> web.Response:
-        WebAuth.caller(request, Permission.ADMINISTER)
-        role_id = request.match_info["id"]
-        if self._roles.get(role_id) is None:
-            raise web.HTTPNotFound(text="no such role")
-        holders = [u.name for u in self._users.all() if role_id in u.role_ids]
-        holders += [f"group {g.name}" for g in self._groups.all() if role_id in g.role_ids]
-        if holders:
-            raise web.HTTPConflict(text=f"still given to {', '.join(holders)}; take it away first")
-        await self._roles.delete(role_id)
-        return web.json_response({"ok": True})
-
     async def _create_group(self, request: web.Request) -> web.Response:
         WebAuth.caller(request, Permission.ADMINISTER)
         group = self._document(await RequestBody.parse(request, TextRequest), Group)
         group_id = (
-            group.id if group.id != "new" else ROLE_ID_CHARS.sub("_", group.name.strip().lower())
+            group.id if group.id != "new" else GROUP_ID_CHARS.sub("_", group.name.strip().lower())
         )
-        if not ROLE_ID.match(group_id):
+        if not GROUP_ID.match(group_id):
             raise web.HTTPBadRequest(text="a group id is lower-case letters, digits, _ and -")
+        if group_id == EVERYONE:
+            raise web.HTTPConflict(text="everyone is built in: everybody is in it")
         if self._groups.get(group_id) is not None:
             raise web.HTTPConflict(text=f"there is already a group {group_id}")
-        group = group.model_copy(update={"id": group_id})
-        self._check_roles(group.role_ids)
+        group = group.model_copy(update={"id": group_id, "role_ids": []})
         await self._groups.put(group)
         return web.json_response(group.model_dump(mode="json"), status=201)
 
@@ -207,8 +167,7 @@ class SettingsRoutes(WebRoutes):
         if self._groups.get(group_id) is None:
             raise web.HTTPNotFound(text="no such group")
         group = self._document(await RequestBody.parse(request, TextRequest), Group)
-        group = group.model_copy(update={"id": group_id})
-        self._check_roles(group.role_ids)
+        group = group.model_copy(update={"id": group_id, "role_ids": []})
         self._keep_an_administrator(groups={group_id: group})
         await self._groups.put(group)
         return web.json_response({"ok": True})
@@ -225,36 +184,21 @@ class SettingsRoutes(WebRoutes):
         return web.json_response({"ok": True})
 
     def _check_user(self, user: User) -> None:
-        self._check_roles(user.role_ids)
         unknown = [g for g in user.group_ids if self._groups.get(g) is None]
         if unknown:
             raise web.HTTPBadRequest(text=f"no such group: {', '.join(unknown)}")
 
-    def _check_roles(self, role_ids: list[str]) -> None:
-        unknown = [r for r in role_ids if self._roles.get(r) is None]
-        if unknown:
-            raise web.HTTPBadRequest(text=f"no such role: {', '.join(unknown)}")
-
     def _keep_an_administrator(
-        self,
-        users: dict[str, User] | None = None,
-        roles: dict[str, Role] | None = None,
-        groups: dict[str, Group] | None = None,
+        self, users: dict[str, User] | None = None, groups: dict[str, Group] | None = None
     ) -> None:
-        """Refuses a change after which nobody could administer ai-os any more,
-        through their own roles or a group's: that would lock everyone out of the
-        console that could undo it."""
-        all_roles = {r.id: r for r in self._roles.all()} | (roles or {})
+        """Refuses a change after which nobody could administer ai-os any more:
+        that would lock everyone out of the console that could undo it."""
         all_groups = {g.id: g for g in self._groups.all()} | (groups or {})
         all_users = {u.id: u for u in self._users.all()} | (users or {})
         for user in all_users.values():
-            role_ids = list(user.role_ids)
             for group_id in user.group_ids:
                 group = all_groups.get(group_id)
-                role_ids += group.role_ids if group is not None else []
-            for role_id in role_ids:
-                role = all_roles.get(role_id)
-                if role is not None and Permission.ADMINISTER in role.permissions:
+                if group is not None and Permission.ADMINISTER in group.permissions:
                     return
         raise web.HTTPConflict(text="nobody could administer ai-os after this; keep at least one")
 
@@ -265,7 +209,7 @@ class SettingsRoutes(WebRoutes):
         return web.json_response({"ok": True}, status=202)
 
     @staticmethod
-    def _document[M: (User, Role, Group)](body: TextRequest, model: type[M]) -> M:
+    def _document[M: (User, Group)](body: TextRequest, model: type[M]) -> M:
         try:
             data = json.loads(body.text)
             if isinstance(data, dict):

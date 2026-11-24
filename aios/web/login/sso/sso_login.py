@@ -99,7 +99,7 @@ class SsoLogin(RedirectLogin):
             name = claims.get("name")
             try:
                 await self._maker.make(
-                    email, name if isinstance(name, str) else None, p.default_role, p.name
+                    email, name if isinstance(name, str) else None, p.default_group, p.name
                 )
             except ValueError as exc:
                 raise LoginRefused(f"{email} could not be added: {exc}") from exc
@@ -119,7 +119,7 @@ class SsoLogin(RedirectLogin):
                     f"the Variable {p.client_secret_variable} ({p.name}'s client secret) is not set"
                 )
             if p.create_users:
-                reason = self._maker.refusal(p.default_role)
+                reason = self._maker.refusal(p.default_group)
                 if reason:
                     return f"{p.name}: {reason}"
             try:

@@ -3,7 +3,7 @@ import logging
 from aios.bootstrap.startup_step import StartupStep
 from aios.entities.users.user import User
 from aios.storage.collection import Collection
-from aios.users.default_roles import DefaultRoles
+from aios.users.default_groups import DefaultGroups
 from aios.web.login.web_passwords import WebPasswords
 
 log = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ class OwnerPasswordSeed(StartupStep):
         if not self._password or self._passwords.user_ids():
             return
         users = self._users.all()
-        if len(users) != 1 or DefaultRoles.OWNER not in users[0].role_ids:
+        if len(users) != 1 or DefaultGroups.OWNER not in users[0].group_ids:
             return
         try:
             await self._passwords.set(users[0].id, self._password, "AIOS_OWNER_PASSWORD")

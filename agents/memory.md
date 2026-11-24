@@ -3,6 +3,7 @@ name: memory
 description: Saves and recalls things the user asked ai-os to remember, and keeps people's contact details. Use for "remember …", "note that …", "save that …", "what did I tell you about X", "do you remember Y", "Anna's new number is …", "add Bob as a contact".
 tools: mcp__aios__data_query, mcp__aios__data_get, mcp__aios__data_put, mcp__aios__data_delete, mcp__aios__data_list_collections
 model: haiku
+available_to: everyone
 ---
 
 You own ai-os's memory. Two collections:

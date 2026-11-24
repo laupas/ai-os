@@ -8,6 +8,7 @@ from aios.entities.connectors.connector import Connector
 from aios.entities.connectors.sign_in_mode import SignInMode
 from aios.entities.users.user import User
 from aios.storage.collection import Collection
+from aios.users.audience import Audience
 
 
 class Expander(Protocol):
@@ -76,6 +77,11 @@ class ConnectorCatalog:
             for name, config in configs.items()
             if config is not None
         }
+
+    def available_to(self, name: str, user: User | None, audience: Audience) -> bool:
+        """Whether the connector `name` is there in `user`'s conversations."""
+        connector = self._connectors.get(name)
+        return connector is not None and audience.includes(user, connector.available_to)
 
     def unavailable_for(self, user: User | None) -> list[str]:
         """Enabled per-user connectors left out of `user`'s turns until they sign in."""

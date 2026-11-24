@@ -7,6 +7,7 @@ from aios.connectors.connector_catalog import ConnectorCatalog
 from aios.connectors.oauth_error import OAuthError
 from aios.entities.connectors.sign_in_mode import SignInMode
 from aios.entities.users.permission import Permission
+from aios.users.audience import Audience
 from aios.web.public_address import PublicAddress
 from aios.web.web_auth import WebAuth
 from aios.web.web_caller import WebCaller
@@ -33,10 +34,15 @@ class ConnectorAuthRoutes(WebRoutes):
     """
 
     def __init__(
-        self, authorizer: ConnectorAuthorizer, catalog: ConnectorCatalog, public_url: str | None
+        self,
+        authorizer: ConnectorAuthorizer,
+        catalog: ConnectorCatalog,
+        public_url: str | None,
+        audience: Audience,
     ) -> None:
         self._authorizer = authorizer
         self._catalog = catalog
+        self._audience = audience
         self._public_url = public_url
 
     def register(self, app: web.Application) -> None:
@@ -83,7 +89,7 @@ class ConnectorAuthRoutes(WebRoutes):
         """Whether the request is about the caller's own account; refuses what the
         caller may not do."""
         connector = self._catalog.get(request.match_info["name"])
-        if connector is None:
+        if connector is None or not self._audience.includes(caller.user, connector.available_to):
             raise web.HTTPNotFound(text="no such connector")
         per_user = connector.sign_in is SignInMode.PER_USER
         account = request.query.get("account") or (MINE if per_user else SHARED)

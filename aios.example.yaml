@@ -7,7 +7,7 @@ channels: [web]          # web, slack
 senders: []              # signal, mail
 timezone: Europe/Zurich
 
-# Created once, while there are no users. Gets the owner role. Without this, the
+# Created once, while there are no users. Goes into the owner group. Without this, the
 # first user is "Owner" with a web account, to sign in with and rename.
 owner:
   name: Alex

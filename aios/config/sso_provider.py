@@ -1,7 +1,7 @@
 import re
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
 MICROSOFT = "https://login.microsoftonline.com/{tenant}/v2.0"
 GOOGLE = "https://accounts.google.com"
@@ -40,9 +40,12 @@ class SsoProvider(BaseModel):
     """Make a user on the first sign-in of an address nobody has yet, instead of
     refusing it. Needs `domains`, unless a Microsoft tenant of your own bounds who
     can sign in at all."""
-    default_role: str = "member"
-    """The role a user made by `create_users` gets. It must let them chat and must
-    not administer: whoever the provider vouches for is not made an administrator."""
+    default_group: str = Field(
+        "member", validation_alias=AliasChoices("default_group", "default_role")
+    )
+    """The group a user made by `create_users` goes into (`default_role` is the
+    older name). It must chat and must not administer: whoever the provider
+    vouches for is not made an administrator."""
     email_claim: str = "email"
     scopes: list[str] = ["openid", "email", "profile"]
 

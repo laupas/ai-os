@@ -26,6 +26,7 @@ class EngineContainer(containers.DeclarativeContainer):
     approvals = providers.Dependency()
     clock = providers.Dependency()
     variable_resolver = providers.Dependency()
+    audience = providers.Dependency()
 
     credentials = providers.Singleton(
         ClaudeCredentials,
@@ -45,7 +46,11 @@ class EngineContainer(containers.DeclarativeContainer):
         connectors=connectors,
     )
     definitions = providers.Singleton(
-        AgentDefinitionsBuilder, agents=agents, connectors=connectors, board=board
+        AgentDefinitionsBuilder,
+        agents=agents,
+        connectors=connectors,
+        board=board,
+        audience=audience,
     )
     options_factory = providers.Singleton(
         ClaudeOptionsFactory,
@@ -58,6 +63,7 @@ class EngineContainer(containers.DeclarativeContainer):
         connectors=connectors,
         definitions=definitions,
         credentials=credentials,
+        audience=audience,
     )
     connector_probe = providers.Singleton(
         ClaudeConnectorProbe,

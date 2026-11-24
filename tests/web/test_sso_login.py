@@ -208,7 +208,7 @@ async def test_create_users_makes_a_member_on_the_first_sign_in(tmp_path) -> Non
             assert await _me(c) == 200
             made = [u for u in c.world.users.all() if u.name == "Carol Example"]
             assert len(made) == 1
-            assert made[0].role_ids == ["member"]
+            assert made[0].group_ids == ["member"]
             assert made[0].account_for("web").address == "Carol@Example.org"  # type: ignore[union-attr]
             await c.client.post("/api/logout", headers=W)
             assert await _sign_in(c, idp) == "/"
@@ -231,16 +231,16 @@ async def test_create_users_never_makes_a_second_user_for_a_known_address(tmp_pa
         async with Console(tmp_path, auth=auth) as c:
             alice = c.world.users.get("alice")
             assert alice is not None
-            await c.world.users.put(alice.model_copy(update={"role_ids": []}))  # cannot chat now
+            await c.world.users.put(alice.model_copy(update={"group_ids": []}))  # cannot chat now
             before = len(c.world.users.all())
             idp.claims = {"email": ALICE}
             assert "not a web account" in _error(await _sign_in(c, idp))
             assert len(c.world.users.all()) == before
 
 
-async def test_settings_refuse_a_default_role_that_administers(tmp_path) -> None:
+async def test_settings_refuse_a_default_group_that_administers(tmp_path) -> None:
     async with FakeOidcProvider() as idp, Console(tmp_path) as c:
-        auth = _auth(idp.issuer, domains=["example.com"], create_users=True, default_role="owner")
+        auth = _auth(idp.issuer, domains=["example.com"], create_users=True, default_group="owner")
         body = {"auth": auth.model_dump(exclude_defaults=True)}
         save = await c.client.put(
             "/api/settings/web-auth", json=body, headers=c.headers(ALICE, write=True)

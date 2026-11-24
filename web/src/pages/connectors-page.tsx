@@ -14,6 +14,7 @@ import { Hint, Input, Label, NativeSelect, Textarea } from "@/components/ui/inpu
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AudiencePicker } from "@/components/audience-picker";
 import { api, type CodeConnectorOffer, type Connector, type ProbeResult, type SignInMode, type SignInState } from "@/lib/api";
 import { useConfirm } from "@/lib/confirm";
 import { href } from "@/lib/router";
@@ -163,6 +164,7 @@ function ConnectorCard({ connector: c, onEdit }: { connector: Connector; onEdit:
         enabled,
         sign_in: c.sign_in_mode,
         shared_fallback: c.shared_fallback,
+        available_to: c.available_to ?? null,
       });
       void queryClient.invalidateQueries({ queryKey: ["connectors"] });
     } catch (e) {
@@ -316,6 +318,7 @@ function ConnectorForm({ connector: c, library, onDone }: { connector: Connector
   const [params, setParams] = useState(toLines(oauth.params, "="));
   const [signInMode, setSignInMode] = useState<SignInMode>(c?.sign_in_mode ?? "shared");
   const [fallback, setFallback] = useState(c?.shared_fallback ?? false);
+  const [available, setAvailable] = useState<string[] | null>(c?.available_to ?? null);
   const useGoogle = () => {
     setAuthUrl(GOOGLE.authorization_endpoint);
     setTokenUrl(GOOGLE.token_endpoint);
@@ -390,6 +393,7 @@ function ConnectorForm({ connector: c, library, onDone }: { connector: Connector
         enabled,
         sign_in: signInMode,
         shared_fallback: signInMode === "per_user" && fallback,
+        available_to: available && available.length ? available : null,
         variables: kind === "code" ? typed : {},
       };
       type Saved = { moved_secrets?: string[]; added_agents?: string[] };
@@ -457,6 +461,10 @@ function ConnectorForm({ connector: c, library, onDone }: { connector: Connector
         <label className="flex items-center gap-3 text-sm font-medium">
           <Switch checked={enabled} onCheckedChange={setEnabled} /> Enabled
         </label>
+        <div className="space-y-1">
+          <div className="text-sm font-medium">Available to</div>
+          <AudiencePicker value={available} onChange={setAvailable} what="this connector" />
+        </div>
         <div className="flex items-center gap-2">
           <Tabs
             value={raw ? "json" : kind}

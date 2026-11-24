@@ -75,6 +75,8 @@ async def test_connectors_are_created_changed_and_deleted(tmp_path) -> None:
 
 async def test_a_web_conversation_can_go_straight_to_an_agent(tmp_path) -> None:
     async with Console(tmp_path) as c:
+        for name in ("calendar", "messenger"):
+            await c.agent_world.update(name, available_to=["everyone"])
         listed = await (await c.client.get("/api/chat/agents", headers=c.headers(BOB))).json()
         assert [a["name"] for a in listed["agents"]] == ["orchestrator", "calendar", "messenger"]
         h = c.headers(BOB, write=True)
@@ -231,3 +233,32 @@ async def test_a_connector_can_be_started_to_see_whether_it_comes_up(tmp_path) -
         assert (
             await c.client.post("/api/connectors/gmail/start", headers=c.headers(BOB, write=True))
         ).status == 403
+
+
+async def test_a_member_sees_and_starts_only_the_agents_available_to_them(tmp_path) -> None:
+    async with Console(tmp_path) as c:
+        await c.agent_world.update("messenger", available_to=["group:member"])
+        listed = await (await c.client.get("/api/chat/agents", headers=c.headers(BOB))).json()
+        assert [a["name"] for a in listed["agents"]] == ["orchestrator", "messenger"]
+        h = c.headers(BOB, write=True)
+        refused = await c.client.post(
+            "/api/conversations", json={"text": "hi", "agent": "calendar"}, headers=h
+        )
+        assert refused.status == 403
+        mine = await c.client.post(
+            "/api/conversations", json={"text": "hi", "agent": "messenger"}, headers=h
+        )
+        assert mine.status == 201
+
+
+async def test_a_trigger_cannot_run_an_agent_its_user_may_not_use(tmp_path) -> None:
+    async with Console(tmp_path) as c:
+        h = c.headers(ALICE, write=True)
+        body = {"name": "b", "prompt": "p", "cron": ["0 7 * * *"], "user_id": "bob"}
+        refused = await c.client.post(
+            "/api/triggers", json={**body, "agent": "calendar"}, headers=h
+        )
+        assert refused.status == 400 and "not available" in await refused.text()
+        await c.agent_world.update("calendar", available_to=["everyone"])
+        ok = await c.client.post("/api/triggers", json={**body, "agent": "calendar"}, headers=h)
+        assert ok.status == 201

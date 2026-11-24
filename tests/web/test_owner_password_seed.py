@@ -2,7 +2,7 @@ from aios.common.id_generator import IdGenerator
 from aios.entities.users.web_password import WebPassword
 from aios.storage.collection import Collection
 from aios.storage.collection_definition import CollectionDefinition
-from aios.users.default_roles import DefaultRoles
+from aios.users.default_groups import DefaultGroups
 from aios.users.owner_bootstrapper import OwnerBootstrapper
 from aios.web.login.owner_password_seed import OwnerPasswordSeed
 from aios.web.login.password_hasher import PasswordHasher
@@ -17,7 +17,7 @@ def _passwords(world: World) -> WebPasswords:
 
 async def _fresh() -> tuple[World, WebPasswords]:
     world = World()
-    await OwnerBootstrapper(world.users, world.roles, DefaultRoles(), None, IdGenerator()).run()
+    await OwnerBootstrapper(world.users, world.groups, DefaultGroups(), None, IdGenerator()).run()
     return world, _passwords(world)
 
 

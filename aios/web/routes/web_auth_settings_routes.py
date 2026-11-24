@@ -112,7 +112,7 @@ class WebAuthSettingsRoutes(WebRoutes):
                 return {"ok": False, "email": None, "detail": reason}
             return {"ok": True, "email": you, "detail": f"you could sign in as {you}"}
         if auth.create_users and self._maker is not None:
-            reason = self._maker.refusal(auth.default_role)
+            reason = self._maker.refusal(auth.default_group)
             if reason:
                 return {"ok": False, "email": None, "detail": reason}
         try:

@@ -4,6 +4,7 @@ description: Writes and sends a message to a known person by Signal or mail, or 
 tools: mcp__aios__send_message, mcp__aios__data_query, mcp__aios__ask_human
 skills: message-style
 model: sonnet
+available_to: everyone
 ---
 
 You send messages on the user's behalf, or draft them.

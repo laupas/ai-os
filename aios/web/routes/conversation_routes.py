@@ -18,6 +18,7 @@ from aios.entities.conversations.conversation import Conversation
 from aios.entities.users.permission import Permission
 from aios.entities.users.user import User
 from aios.storage.collection import Collection
+from aios.users.audience import Audience
 from aios.web.message_request import MessageRequest
 from aios.web.prune_request import PruneRequest
 from aios.web.request_body import RequestBody
@@ -53,6 +54,7 @@ class ConversationRoutes(WebRoutes):
         deleter: ConversationDeleter,
         agents: AgentCatalog,
         approvals: Collection[Approval],
+        audience: Audience,
     ) -> None:
         self._conversations = conversations
         self._users = users
@@ -63,6 +65,7 @@ class ConversationRoutes(WebRoutes):
         self._deleter = deleter
         self._agents = agents
         self._approvals = approvals
+        self._audience = audience
 
     def register(self, app: web.Application) -> None:
         app.router.add_get("/api/conversations", self._list)
@@ -138,18 +141,28 @@ class ConversationRoutes(WebRoutes):
         body = await RequestBody.parse(request, StartConversationRequest)
         agent = None if body.agent in (None, AgentCatalog.ORCHESTRATOR) else body.agent
         try:
-            self._agents.main(agent)
+            main = self._agents.main(agent)
         except AgentUnavailableError as exc:
             raise web.HTTPBadRequest(text=str(exc)) from exc
+        if agent is not None and not self._audience.includes(caller.user, main.available_to):
+            raise web.HTTPForbidden(text=f"the agent {agent} is not available to you")
         binding = self._channel.new_binding(caller.account)
         conversation = await self._resolver.resolve(binding, caller.user, agent)
         self._channel.submit(binding, caller.account, body.text, body.voice)
         return web.json_response({"id": conversation.id}, status=201)
 
     async def _chat_agents(self, request: web.Request) -> web.Response:
-        """Who a new conversation can be started with."""
-        WebAuth.caller(request)
-        agents = [self._agents.orchestrator(), *self._agents.delegates()]
+        """Who a new conversation can be started with: the agents available to the
+        caller."""
+        caller = WebAuth.caller(request)
+        agents = [
+            self._agents.orchestrator(),
+            *(
+                a
+                for a in self._agents.delegates()
+                if self._audience.includes(caller.user, a.available_to)
+            ),
+        ]
         return web.json_response(
             {"agents": [{"name": a.name, "description": a.description} for a in agents]}
         )

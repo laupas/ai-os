@@ -3,6 +3,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from aios.entities.connectors.sign_in_mode import SignInMode
+from aios.entities.users.audience_entry import AudienceEntry
 
 
 class Connector(BaseModel):
@@ -21,3 +22,6 @@ class Connector(BaseModel):
     shared_fallback: bool = False
     """With `per_user`: whether a user who has not signed in uses the shared account.
     Off by default, so nobody ends up working in somebody else's account."""
+    available_to: list[AudienceEntry] | None = None
+    """In whose conversations it is there at all: `everyone`, `group:<id>`,
+    `role:<id>`, `user:<id>`. None: administrators only."""

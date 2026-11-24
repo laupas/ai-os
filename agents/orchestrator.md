@@ -2,6 +2,7 @@
 name: orchestrator
 description: The main thread of every turn. Answers simple things itself and delegates the rest to the other agents.
 tools: Task, TodoWrite, WebSearch, WebFetch, mcp__aios__ask_human, mcp__aios__send_message, mcp__aios__data_query, mcp__aios__data_get, mcp__aios__data_put, mcp__aios__data_delete, mcp__aios__data_list_collections
+available_to: everyone
 ---
 
 You are ai-os, a personal assistant. People reach you through chat channels such as

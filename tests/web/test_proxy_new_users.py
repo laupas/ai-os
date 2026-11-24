@@ -17,7 +17,7 @@ async def test_an_address_the_proxy_vouches_for_becomes_a_member(tmp_path) -> No
     async with Console(tmp_path, new_users=("member", ["example.org"])) as c:
         assert (await c.client.get("/api/conversations", headers=c.headers(NEW))).status == 200
         [carol] = _carols(c)
-        assert carol.role_ids == ["member"] and carol.name == "carol"
+        assert carol.group_ids == ["member"] and carol.name == "carol"
         assert (await c.client.get("/api/conversations", headers=c.headers(NEW))).status == 200
         assert len(_carols(c)) == 1
 
@@ -41,13 +41,13 @@ async def test_nobody_is_made_outside_the_domains_or_without_create_users(tmp_pa
         assert _carols(c) == []
 
 
-async def test_a_role_that_administers_is_never_given(tmp_path) -> None:
+async def test_a_group_that_administers_is_never_given(tmp_path) -> None:
     async with Console(tmp_path, new_users=("owner", ["example.org"])) as c:
         assert (await c.client.get("/api/conversations", headers=c.headers(NEW))).status == 403
         assert _carols(c) == []
 
 
-async def test_settings_refuse_a_default_role_that_administers(tmp_path) -> None:
+async def test_settings_refuse_a_default_group_that_administers(tmp_path) -> None:
     async with Console(tmp_path) as c:
         auth = {
             "mode": "header",
@@ -55,7 +55,7 @@ async def test_settings_refuse_a_default_role_that_administers(tmp_path) -> None
             "trusted_proxies": ["127.0.0.1"],
             "create_users": True,
             "domains": ["example.org"],
-            "default_role": "owner",
+            "default_group": "owner",
         }
         tried = await c.client.post(
             "/api/settings/web-auth/check",

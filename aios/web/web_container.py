@@ -65,8 +65,8 @@ class WebContainer(containers.DeclarativeContainer):
     agent_config = providers.Dependency()  # a getter: `agent` as it is now
     config_file = providers.Dependency()
     users = providers.Dependency()
-    roles = providers.Dependency()
     groups = providers.Dependency()
+    audience = providers.Dependency()
     conversations = providers.Dependency()
     approvals = providers.Dependency()
     memories = providers.Dependency()
@@ -134,7 +134,7 @@ class WebContainer(containers.DeclarativeContainer):
     sessions = providers.Singleton(
         WebSessions, key=secret_box.provided.derive_key.call("web-session"), clock=clock
     )
-    new_user_maker = providers.Singleton(NewUserMaker, users=users, roles=roles, ids=ids)
+    new_user_maker = providers.Singleton(NewUserMaker, users=users, groups=groups, ids=ids)
     logins = providers.List(
         providers.Singleton(PickLogin, users=console_users),
         providers.Singleton(
@@ -240,6 +240,7 @@ class WebContainer(containers.DeclarativeContainer):
             deleter=deleter,
             agents=agents,
             approvals=approvals,
+            audience=audience,
         ),
         providers.Singleton(ApprovalRoutes, approvals=approvals, service=approval_service),
         providers.Singleton(VoiceRoutes, transcriber=transcriber),
@@ -259,6 +260,7 @@ class WebContainer(containers.DeclarativeContainer):
             ids=ids,
             users=users,
             agents=agents,
+            audience=audience,
         ),
         providers.Singleton(
             TriggerHookRoutes,
@@ -290,6 +292,7 @@ class WebContainer(containers.DeclarativeContainer):
             catalog=connector_catalog,
             board=connector_board,
             agents=agents,
+            audience=audience,
             authorizer=connector_authorizer,
             tokens=connector_tokens,
             resolver=variable_resolver,
@@ -309,13 +312,13 @@ class WebContainer(containers.DeclarativeContainer):
             authorizer=connector_authorizer,
             catalog=connector_catalog,
             public_url=app_config.provided.web.public_url,
+            audience=audience,
         ),
         providers.Singleton(
             SettingsRoutes,
             config=aios_yaml,
             live=live_config,
             users=users,
-            roles=roles,
             groups=groups,
             ids=ids,
             restart=restart,

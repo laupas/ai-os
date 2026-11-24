@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
 from aios.config.sso_provider import SsoProvider
 
@@ -56,8 +56,11 @@ class WebAuthConfig(BaseModel):
     """cloudflare, jwt, header: make a user for an address the proxy vouches for
     and nobody has yet, instead of refusing it. Needs `domains`. (For sso, each
     provider has its own.)"""
-    default_role: str = "member"
-    """The role such a user gets; it must chat and must not administer."""
+    default_group: str = Field(
+        "member", validation_alias=AliasChoices("default_group", "default_role")
+    )
+    """The group such a user goes into (`default_role` is the older name); it must
+    chat and must not administer."""
     domains: list[str] = []
     """cloudflare, jwt, header with `create_users`: only addresses in these get a user."""
     providers: list[SsoProvider] = []

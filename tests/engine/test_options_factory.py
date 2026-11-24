@@ -19,6 +19,7 @@ from aios.storage.in_memory_document_store import InMemoryDocumentStore
 from aios.tools.aios_tool_server import AiosToolServer
 from tests.agents.agent_world import AgentWorld
 from tests.fakes.fake_clock import FakeClock
+from tests.fakes.open_audience import OpenAudience
 from tests.fakes.world import World
 
 
@@ -46,11 +47,14 @@ async def _options(tmp_path, agent: str | None, auth: str = "subscription"):  # 
         ToolPermissionGate(RuleBasedApprovalPolicy([]), world.approval_service),
         w.agents,
         w.connectors,
-        AgentDefinitionsBuilder(w.agents, w.connectors, ConnectorStatusBoard(FakeClock())),
+        AgentDefinitionsBuilder(
+            w.agents, w.connectors, ConnectorStatusBoard(FakeClock()), OpenAudience()
+        ),
         ClaudeCredentials(
             lambda: auth,  # type: ignore[arg-type]
             FixedResolver({"CLAUDE_CODE_OAUTH_TOKEN": "oauth", "ANTHROPIC_API_KEY": "key"}),  # type: ignore[arg-type]
         ),
+        OpenAudience(),
     )
     now = datetime.now(UTC)
     conversation = Conversation(id="c", agent=agent, created_at=now, updated_at=now)

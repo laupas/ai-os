@@ -27,7 +27,7 @@ channel (web, Slack, Teams) ──► Gateway ──► Engine (Claude Agent SDK
   and signed in to from the console.
 - **Approvals** are enforced in code: every tool call passes the approval policy
   through the SDK's `can_use_tool`; nothing is pre-allowed.
-- **Users and roles** decide who may chat, who may approve, and who can be messaged
+- **Users and groups** decide who may chat, who may approve, and who can be messaged
   without asking.
 - **Triggers** run stored prompts on cron times, once, or when a program calls
   the trigger's webhook, as a user, opening the conversation wherever that user
@@ -145,7 +145,7 @@ update anything on its own.
 | Where | What |
 |---|---|
 | environment | secrets and paths: `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN`, `AIOS_SECRETS_KEY`, `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `TEAMS_APP_ID`, `TEAMS_APP_PASSWORD`, `TEAMS_TENANT_ID`, `RESEND_API_KEY`, `AIOS_MAIL_FROM`, `SIGNAL_API_URL`, `SIGNAL_SENDER`, `OPENAI_API_KEY` (voice notes), `AIOS_DATA_DIR`, `AIOS_VARIABLE_FILES_DIR` (best a tmpfs), `AIOS_INITIAL_CONFIG` and `AIOS_OWNER_PASSWORD` (first start only), `AIOS_LOG_LEVEL`; see `.env.example` |
-| `<data>/config` | the configuration repository (git): `aios.yaml`, agents, skills, connectors, triggers, roles, groups, webhooks |
+| `<data>/config` | the configuration repository (git): `aios.yaml`, agents, skills, connectors, triggers, groups, webhooks |
 | `<data>/users` | who is who, with their accounts on each channel |
 | `<data>/variables` | values and secrets for connectors, set in the console; secrets encrypted |
 | `<data>/…` | runtime: conversations, approvals, memories, logs |
@@ -170,27 +170,32 @@ moves it into the configuration repository. Afterwards edit it on the console's
 Settings page. It is read at start; a banner offers a restart when it changed.
 
 Users have accounts (one per channel: a Slack id, an Entra object id, a phone
-number, a mail address, a web address) and roles. A role is a set of permissions:
+number, a mail address, a web address) and are in **groups**. Groups are the only
+way to give rights: a group has permissions, and every member has them.
 
 | Permission | Allows |
 |---|---|
 | `chat` | talking to ai-os on a channel |
 | `approve` | answering approval requests |
 | `receive_unapproved` | being sent a message without an approval first |
-| `manage_users` | approving an agent's changes to users, roles and groups |
+| `manage_users` | approving an agent's changes to users and groups |
 | `administer` | the console's controls: settings, agents, connectors, logs, every conversation, restart |
 
-Default roles (created on the first start): `owner` (everything), `member` (may
-chat), `trusted_contact` (may be messaged without approval). Edit them, or add
-your own, under Settings → Roles. On every start the owners get a "started and
-ready" message on a channel that can reach them.
+Default groups (created on the first start): `owner` (Administrators: everything),
+`member` (Members: may chat; where new people go), `trusted_contact` (Trusted
+contacts: may be messaged without approval). Edit them, or add your own, under
+Settings -> Groups, where you also pick the members. Groups live in the
+configuration repository (`groups/<id>.yaml`); who is in one is kept on each user
+(`group_ids`). A group is not deleted while it has members, and no change is
+accepted that would leave nobody able to administer ai-os. On every start the
+members of `owner` get a "started and ready" message on a channel that can reach
+them.
 
-**Groups** give roles to several people at once: a member of a group has the
-group's roles on top of their own (Settings → Groups, where you also pick its
-members). Groups live in the configuration repository like roles; who is in a
-group is kept on each user (`group_ids`). A role is not deleted while a group
-gives it, a group not while it has members, and no change is accepted that would
-leave nobody able to administer ai-os, through a role or a group.
+`everyone` is a built-in group everybody is in. It grants no permission; it is
+there for [who may use what](#who-may-use-what).
+
+Earlier versions had roles instead; on the first start of this one each role
+becomes a group of the same id, with its permissions and holders (one commit).
 
 ## Web console and login
 
@@ -209,7 +214,7 @@ by the Dockerfile. What each person sees depends on their permissions:
 | Variables | values and secrets for connectors, channels and webhooks |
 | Audit | who changed what when, settings and configuration commits together |
 | Logs, Health | the instance's log, and what is running (channels, connectors, Claude sign-in) |
-| Settings | Claude, Channels (with Webhooks), General, Agents, Approvals, Login, Files, Data access, Users, Groups, Roles, Repository (the configuration files, editable), Branches, aios.yaml |
+| Settings | Claude, Channels (with Webhooks), General, Agents, Approvals, Login, Files, Data access, Users, Groups, Repository (the configuration files, editable), Branches, aios.yaml |
 
 The console either signs people in itself, or trusts a **login proxy** in front of
 it and checks again who is asking, since anything on the same network may reach the
@@ -236,9 +241,9 @@ minute; the login page answers the same whether or not a name is known.
 
 Behind a proxy (`cloudflare`, `jwt`, `header`), `create_users: true` makes a user
 for an address the proxy vouches for and nobody has yet, instead of refusing it:
-named after the address, with it as web account and `default_role` (`member`
+named after the address, with it as web account, in `default_group` (`member`
 unless set). It needs `domains`, since ai-os cannot see whom the proxy lets
-through, and the role must chat and must not administer or manage users. Single
+through, and the group must chat and must not administer or manage users. Single
 sign-on has the same, per provider (below).
 
 ```yaml
@@ -249,7 +254,7 @@ web:
     audience: 0123abcd...
     create_users: true
     domains: [example.com]
-    default_role: member
+    default_group: member
 ```
 
 A person gets in with a `web` account (the address the proxy reports) on a user with
@@ -317,7 +322,7 @@ web:
 **New people on their first sign-in**: with `create_users: true`, an address the
 provider vouches for and nobody has yet becomes a new user (named as the provider
 names them, with that address as web account) instead of being refused. They get
-`default_role` (`member` unless set), which must be able to chat and must not
+`default_group` (`member` unless set), which must be able to chat and must not
 administer or manage users: a sign-in never makes an administrator. It needs
 `domains`, so not everyone with a Google or Microsoft account becomes a user;
 only a Microsoft tenant of your own (not `consumers`) limits it without them.
@@ -328,7 +333,7 @@ only a Microsoft tenant of your own (not `consumers`) limits it without them.
         client_secret_variable: AIOS_SSO_GOOGLE_SECRET
         domains: [example.com]
         create_users: true
-        default_role: member
+        default_group: member
 ```
 
 `domains` keeps out every address outside them; `label` changes the button's
@@ -382,6 +387,34 @@ delegation the calling agent was not granted, before any approval is asked.
 
 A conversation can skip the orchestrator: a new web chat has a **Talk to** picker,
 and a trigger an **Agent** field.
+
+### Who may use what
+
+Every agent and connector has an **Available to** list (on its page): groups,
+written `group:<id>`, or `everyone`. Never single people: give them a group.
+Administrators may use everything. Without a list, or with an empty
+one, only administrators may: that is how a new agent or connector, or one installed
+from the Store, starts.
+
+```yaml
+# agents/calendar.md (front matter) or connectors/google-calendar.yaml
+available_to: [group:family, group:work]
+```
+
+It is enforced in code on every turn, never by a prompt:
+
+- a conversation or trigger whose agent is not available to its user is refused;
+- the orchestrator (everyone's) is offered only the agents available to the turn's
+  user, and the turn holds only the connectors available to them, so a connector
+  signed in with a shared account is not there for anyone else;
+- `AgentGrantRule` refuses any call that slipped past that, per tool call;
+- the chat's **Talk to** picker, the trigger editor and a member's Connectors page
+  offer only what is available to them.
+
+Upgrading from a version without lists, every agent and connector that existed is
+made available to everyone once (one commit, recorded in `.aios-migrations.yaml`),
+so nothing changes until you narrow it. Of the core agents, `ai-os-configurator`
+and `log-checker` start as administrators-only on a new installation.
 
 A new installation starts with the core agents (a seed: edit them freely; the
 fixed ones cannot be switched off or deleted). Everything else comes from the
@@ -718,7 +751,7 @@ it. A connector does nothing until an agent is granted it.
 ## The configuration repository
 
 Everything that says how ai-os behaves (`aios.yaml`, agents, skills, connectors,
-triggers, roles, webhooks, code connectors) is one git repository at `<data>/config`, one file per thing:
+triggers, groups, webhooks, code connectors) is one git repository at `<data>/config`, one file per thing:
 
 | File | What |
 |---|---|
@@ -727,8 +760,7 @@ triggers, roles, webhooks, code connectors) is one git repository at `<data>/con
 | `skills/<name>/SKILL.md` | front matter (name, description), then the instructions |
 | `connectors/<name>.yaml` | description, enabled, and the MCP config (`${VAR}` for secrets) |
 | `triggers/<id>.yaml` | the trigger; when it last fired is runtime state, outside git |
-| `roles/<id>.yaml` | a role's name and permissions |
-| `groups/<id>.yaml` | a group's name, description and roles |
+| `groups/<id>.yaml` | a group's name, description and permissions |
 | `webhooks/<name>.yaml` | a webhook destination (`${VAR}` for secrets) |
 | `code/<name>/` | a code connector: `connector.yaml`, `server.py`, its agents |
 
@@ -758,7 +790,7 @@ nothing in a running installation.
   nothing bypasses it. Unknown tools are denied; built-in tools are opt-in and never
   Bash, since the process environment holds secrets.
 - The file tools reach only `files.read_roots` / `files.write_roots`.
-- Who may chat, approve or be messaged is decided from users and roles in code, never
+- Who may chat, approve or be messaged is decided from users and groups in code, never
   by a prompt. Agents cannot read or change agents, skills, connectors, webhook
   destinations, variables or sign-ins; only the configurator changes the first
   three, and only with an administrator's yes.

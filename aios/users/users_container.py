@@ -1,24 +1,25 @@
 from dependency_injector import containers, providers
 
 from aios.users.authorizer import Authorizer
-from aios.users.default_roles import DefaultRoles
+from aios.users.default_groups import DefaultGroups
 from aios.users.owner_bootstrapper import OwnerBootstrapper
+from aios.users.permission_audience import PermissionAudience
 
 
 class UsersContainer(containers.DeclarativeContainer):
     users = providers.Dependency()
-    roles = providers.Dependency()
     groups = providers.Dependency()
     owner = providers.Dependency(default=None)
     ids = providers.Dependency()
 
-    authorizer = providers.Singleton(Authorizer, roles=roles, groups=groups)
-    default_roles = providers.Singleton(DefaultRoles)
+    authorizer = providers.Singleton(Authorizer, groups=groups)
+    audience = providers.Singleton(PermissionAudience, authorizer=authorizer)
+    default_groups = providers.Singleton(DefaultGroups)
     bootstrapper = providers.Singleton(
         OwnerBootstrapper,
         users=users,
-        roles=roles,
-        default_roles=default_roles,
+        groups=groups,
+        default_groups=default_groups,
         owner=owner,
         ids=ids,
     )

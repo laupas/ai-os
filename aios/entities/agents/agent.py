@@ -1,5 +1,7 @@
 from pydantic import BaseModel
 
+from aios.entities.users.audience_entry import AudienceEntry
+
 
 class Agent(BaseModel):
     """An agent: what it is for, its prompt, and what it may use. `id` is its name.
@@ -18,6 +20,10 @@ class Agent(BaseModel):
     skills: list[str] = []
     connectors: dict[str, list[str] | None] = {}
     """Connector name to the tools granted on it; `None` as a value grants all."""
+    available_to: list[AudienceEntry] | None = None
+    """Who may talk to it or have it work for them: `everyone`, `group:<id>`,
+    `role:<id>`, `user:<id>`. None: administrators only. The orchestrator is
+    everyone's."""
 
     @property
     def name(self) -> str:

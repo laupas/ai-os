@@ -17,6 +17,7 @@ from aios.entities.connectors.connector_token import ConnectorToken
 from aios.entities.connectors.sign_in_mode import SignInMode
 from aios.entities.users.permission import Permission
 from aios.storage.collection import Collection
+from aios.users.audience import Audience
 from aios.variables.secret_extractor import SecretExtractor
 from aios.variables.variable_catalog import VariableCatalog
 from aios.variables.variable_field_state import VariableFieldState
@@ -48,6 +49,7 @@ class ConnectorRoutes(WebRoutes):
         catalog: ConnectorCatalog,
         board: ConnectorStatusBoard,
         agents: AgentCatalog,
+        audience: Audience,
         authorizer: ConnectorAuthorizer | None = None,
         tokens: ConnectorTokens | None = None,
         resolver: VariableResolver | None = None,
@@ -57,6 +59,7 @@ class ConnectorRoutes(WebRoutes):
         variables: VariableCatalog | None = None,
     ) -> None:
         self._variables = variables
+        self._audience = audience
         self._fields = VariableFieldState(resolver) if resolver else None
         self._code = code
         self._secrets = secrets
@@ -84,7 +87,9 @@ class ConnectorRoutes(WebRoutes):
             rows = [
                 self._member_row(c, caller)
                 for c in self._catalog.all()
-                if c.enabled and self._sign_in(c, caller) is not None
+                if c.enabled
+                and self._audience.includes(caller.user, c.available_to)
+                and self._sign_in(c, caller) is not None
             ]
             return web.json_response({"connectors": rows})
         builtin = {
@@ -213,6 +218,9 @@ class ConnectorRoutes(WebRoutes):
             shared_fallback=body.shared_fallback
             if body.shared_fallback is not None
             else bool(existing and existing.shared_fallback),
+            available_to=body.available_to
+            if "available_to" in body.model_fields_set
+            else (existing.available_to if existing else None),
         )
 
     def _manifest(self, connector: Connector) -> CodeConnectorManifest | None:
