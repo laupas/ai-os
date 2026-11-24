@@ -1,6 +1,8 @@
 # Tests every push and pull request; from main and from version tags (v2.1.0) it
 # also builds the image for amd64 and arm64 and pushes it to the GitHub Container
-# Registry as ghcr.io/<owner>/ai-os.
+# Registry as ghcr.io/<owner>/ai-os, with an SBOM and build provenance attached.
+# The image is scanned with Trivy before it is pushed: a critical vulnerability
+# that has a fix stops the push; everything from high up shows under Security.
 #
 #   main      -> :latest, :main, :sha-<commit>
 #   v2.1.0    -> :2.1.0, :2.1
@@ -49,6 +51,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      security-events: write
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
@@ -69,6 +72,39 @@ jobs:
             type=sha
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+      # One platform, loaded locally, to scan before anything is pushed; the
+      # multi-platform build below reuses its cache.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: ai-os:scan
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Scan the image (report)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0, pinned to its commit
+        with:
+          image-ref: ai-os:scan
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: sarif
+          output: trivy.sarif
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always() && github.event_name != 'pull_request'
+        with:
+          sarif_file: trivy.sarif
+          category: trivy-image
+      - name: Scan the image (gate)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0, pinned to its commit
+        with:
+          image-ref: ai-os:scan
+          scanners: vuln
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -76,5 +112,7 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          sbom: true
+          provenance: mode=max
           cache-from: type=gha
           cache-to: type=gha,mode=max

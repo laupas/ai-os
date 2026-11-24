@@ -25,6 +25,18 @@ class WebConfig(BaseModel):
     public_url: str | None = None
     """Where browsers reach the console, e.g. https://ai-os.example.com; used for
     OAuth redirects. Unset, it is taken from the request's host."""
+    trusted_proxies: list[str] = [
+        "127.0.0.0/8",
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        "::1/128",
+        "fc00::/7",
+    ]
+    """Addresses or networks (CIDR) of the proxies in front (Traefik, a tunnel).
+    Only from these is the client's address in `CF-Connecting-IP`, `X-Real-IP` or
+    `X-Forwarded-For` believed; from anywhere else the connection's own address
+    counts, so nobody can pose as another address. Default: private networks."""
     dev_email: str | None = None
     """Only for running locally: treat every request as this address. Never set it
     on a deployed instance."""

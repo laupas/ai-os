@@ -67,6 +67,9 @@ Read `README.md` for what ai-os is. This file is the rules for changing it.
 - Every response gets `SecurityHeaders` (CSP with `script-src 'self'`, no
   framing, HSTS over https). Keep the console free of inline scripts; a page that
   needs more (the API docs) sets its own CSP, never a looser global one.
+- `RateLimiter` runs before auth (per address: login routes, webhooks) and after
+  it (per user). A client address comes from a proxy header only via
+  `ClientAddress` and `web.trusted_proxies`; never read those headers directly.
 - Console sessions (`WebSessions`) live on the server; the cookie holds a random
   token and only its SHA-256 is stored. Never store the token, and keep the
   places that end sessions: sign-out, a new password, a deleted user.

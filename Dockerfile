@@ -27,7 +27,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # MCP servers in config.yaml, which start through `npx`; they can be slow to start
 # the first time, hence the longer MCP timeout.
 ENV MCP_TIMEOUT=120000
+# The upgrade brings Debian's security fixes the base image does not have yet.
 RUN apt-get update \
+ && apt-get upgrade -y --no-install-recommends \
  && apt-get install -y --no-install-recommends nodejs npm ca-certificates git openssh-client \
  && rm -rf /var/lib/apt/lists/* \
  # A network share (Azure Files on App Service) mounts /data as root, not as the

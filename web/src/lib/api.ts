@@ -166,6 +166,8 @@ export interface GroupDoc {
   name: string;
   description: string;
   permissions: Permission[];
+  /** Messages, voice notes and trigger runs a member may start a minute; null: the general limit. */
+  messages_per_minute?: number | null;
 }
 
 export type ClaudeAuth = "subscription" | "api_key";

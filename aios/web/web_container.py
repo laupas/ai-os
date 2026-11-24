@@ -2,9 +2,11 @@ from dependency_injector import containers, providers
 
 from aios.audit.audit_feed import AuditFeed
 from aios.audit.config_history import ConfigHistory
+from aios.users.group_limits import GroupLimits
 from aios.web.aios_yaml_file import AiosYamlFile
 from aios.web.api_docs.openapi_builder import OpenApiBuilder
 from aios.web.audit_middleware import AuditMiddleware
+from aios.web.client_address import ClientAddress
 from aios.web.login.chat_code_login import ChatCodeLogin
 from aios.web.login.code_messenger import CodeMessenger
 from aios.web.login.console_users import ConsoleUsers
@@ -23,6 +25,7 @@ from aios.web.login.sso.sso_attempts import SsoAttempts
 from aios.web.login.sso.sso_login import SsoLogin
 from aios.web.login.web_passwords import WebPasswords
 from aios.web.login.web_sessions import WebSessions
+from aios.web.rate.rate_limiter import RateLimiter
 from aios.web.restart_request import RestartRequest
 from aios.web.routes.agent_routes import AgentRoutes
 from aios.web.routes.api_docs_routes import ApiDocsRoutes
@@ -136,7 +139,12 @@ class WebContainer(containers.DeclarativeContainer):
     owner_password_seed = providers.Singleton(
         OwnerPasswordSeed, users=users, passwords=passwords, password=owner_password
     )
-    sessions = providers.Singleton(WebSessions, sessions=web_sessions, clock=clock)
+    client_address = providers.Singleton(
+        ClientAddress, trusted_proxies=app_config.provided.web.trusted_proxies
+    )
+    sessions = providers.Singleton(
+        WebSessions, sessions=web_sessions, clock=clock, address=client_address
+    )
     new_user_maker = providers.Singleton(NewUserMaker, users=users, groups=groups, ids=ids)
     group_sync = providers.Singleton(GroupSync, users=users, groups=groups)
     group_values_seen = providers.Singleton(GroupValuesSeen)
@@ -393,5 +401,11 @@ class WebContainer(containers.DeclarativeContainer):
         audit=audit,
         security=providers.Singleton(
             SecurityHeaders, public_url=app_config.provided.web.public_url
+        ),
+        limiter=providers.Singleton(
+            RateLimiter,
+            config=providers.Callable(lambda live: lambda: live.current().rate_limits, live_config),
+            address=client_address,
+            groups=providers.Singleton(GroupLimits, groups=groups),
         ),
     )

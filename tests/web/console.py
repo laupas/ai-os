@@ -16,6 +16,7 @@ from aios.channels.web.web_event_hub import WebEventHub
 from aios.config.app_config_loader import AppConfigLoader
 from aios.config.channel_config import ChannelConfig
 from aios.config.live_app_config import LiveAppConfig
+from aios.config.rate_limit_config import RateLimitConfig
 from aios.config.store_config import TEMPLATES
 from aios.config.triggers_config import TriggersConfig
 from aios.config.web_auth_config import WebAuthConfig
@@ -58,6 +59,7 @@ from aios.store.store_source_reader import StoreSourceReader
 from aios.store.store_sources import StoreSources
 from aios.triggers.trigger_runner import TriggerRunner
 from aios.triggers.trigger_timing import TriggerTiming
+from aios.users.group_limits import GroupLimits
 from aios.users.permission_audience import PermissionAudience
 from aios.variables.secret_box import SecretBox
 from aios.variables.secret_extractor import SecretExtractor
@@ -65,6 +67,7 @@ from aios.variables.variable_catalog import VariableCatalog
 from aios.variables.variable_resolver import VariableResolver
 from aios.web.aios_yaml_file import AiosYamlFile
 from aios.web.api_docs.openapi_builder import OpenApiBuilder
+from aios.web.client_address import ClientAddress
 from aios.web.login.chat_code_login import ChatCodeLogin
 from aios.web.login.code_messenger import CodeMessenger
 from aios.web.login.console_users import ConsoleUsers
@@ -82,6 +85,7 @@ from aios.web.login.sso.sso_attempts import SsoAttempts
 from aios.web.login.sso.sso_login import SsoLogin
 from aios.web.login.web_passwords import WebPasswords
 from aios.web.login.web_sessions import WebSessions
+from aios.web.rate.rate_limiter import RateLimiter
 from aios.web.restart_request import RestartRequest
 from aios.web.routes.agent_routes import AgentRoutes
 from aios.web.routes.api_docs_routes import ApiDocsRoutes
@@ -150,10 +154,14 @@ class Console:
         max_audio_bytes: int = MAX_AUDIO_BYTES,
         auth: WebAuthConfig | None = None,
         new_users: tuple[str, list[str]] | None = None,
+        rate_limits: RateLimitConfig | None = None,
     ) -> None:
         self.tmp_path = tmp_path
         self.auth = auth
         self.new_users = new_users
+        self.rate_limits = rate_limits
+        self.now = 0.0
+        """The rate limiter's clock, in seconds; tests move it."""
         """Behind the test proxy: (group, domains) for addresses nobody has yet."""
         self.transcriber = transcriber or FakeTranscriber()
         self.voice = VoiceRoutes(self.transcriber, max_audio_bytes)
@@ -460,6 +468,14 @@ class Console:
             self.restart,
             port=0,
             static_dir=self._built_page(),
+            limiter=RateLimiter(
+                lambda: self.rate_limits,  # type: ignore[arg-type, return-value]
+                ClientAddress(["127.0.0.0/8"]),
+                GroupLimits(w.groups),
+                now=lambda: self.now,
+            )
+            if self.rate_limits
+            else None,
         )
         # The limits as in WebServer.run; TestServer drops what its constructor gets.
         test_server = TestServer(server.build())

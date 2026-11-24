@@ -7,6 +7,7 @@ from aiohttp import web
 from aios.common.clock import Clock
 from aios.entities.users.web_session import WebSession
 from aios.storage.collection import Collection
+from aios.web.client_address import ClientAddress
 
 COOKIE = "aios_session"
 CURRENT = web.RequestKey("aios.session", str)
@@ -24,9 +25,15 @@ class WebSessions:
     `expires_at`, after `idle_minutes` without a request, when its mode is no longer
     the login in use, or when its stamp no longer holds."""
 
-    def __init__(self, sessions: Collection[WebSession], clock: Clock) -> None:
+    def __init__(
+        self,
+        sessions: Collection[WebSession],
+        clock: Clock,
+        address: ClientAddress | None = None,
+    ) -> None:
         self._sessions = sessions
         self._clock = clock
+        self._client = address or ClientAddress([])
 
     async def issue(
         self,
@@ -51,7 +58,7 @@ class WebSessions:
                 last_seen_at=now,
                 idle_minutes=idle_minutes,
                 user_agent=(request.headers.get("User-Agent", "")[:300] if request else ""),
-                address=self._address(request) if request else "",
+                address=self._client.of(request) if request else "",
             )
         )
         return token
@@ -135,8 +142,3 @@ class WebSessions:
     @staticmethod
     def _hash(token: str) -> str:
         return hashlib.sha256(token.encode()).hexdigest()
-
-    @staticmethod
-    def _address(request: web.Request) -> str:
-        forwarded = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
-        return (forwarded or request.remote or "")[:64]

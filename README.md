@@ -276,6 +276,19 @@ web:
     default_group: member
 ```
 
+**Rate limits** answer 429 (with `Retry-After`) to whoever asks too often, counted
+in memory: per client address for what anyone can reach without signing in (the
+login routes 20 a minute, webhooks 30, and an address is blocked for 15 minutes
+after 10 wrong webhook tokens), and per user after signing in (20 messages, voice
+notes or trigger runs a minute, 600 reads, 120 other changes). Change them under
+Settings -> General -> Rate limits, or `rate_limits` in `aios.yaml` (`enabled:
+false` turns them off); they apply at once. The limit on messages, what costs
+tokens, can also be set per group (Settings -> Groups, "Messages per minute"); a
+user in several groups gets the most generous one set, a user in none that sets
+one the general limit. The client's address is taken from `CF-Connecting-IP`, `X-Real-IP` or
+`X-Forwarded-For` only on a connection from `web.trusted_proxies` (private
+networks by default), so nobody can choose their own.
+
 Every answer carries security headers: a Content-Security-Policy that allows only
 the console's own scripts, `X-Frame-Options: DENY` (no embedding in another site),
 `nosniff`, `Referrer-Policy: same-origin`, a Permissions-Policy that allows only the
@@ -913,6 +926,22 @@ GitHub Actions (`.github/workflows/docker.yml`) runs ruff and the tests on every
 and pull request. From `main` and from `v*` tags it then builds the image for amd64
 and arm64 and pushes it to `ghcr.io/<owner>/ai-os`. A release is a tag:
 `git tag v2.1.0 && git push origin v2.1.0`.
+
+The supply chain is checked on GitHub:
+
+- **Trivy** scans the image before it is pushed: a critical vulnerability with a
+  fix available stops the push; high and critical findings show under Security,
+  Code scanning. The Dockerfile upgrades Debian's packages, so fixes released
+  after the base image come along.
+- Every pushed image carries an **SBOM** (its parts list) and **build provenance**
+  as attestations: `docker buildx imagetools inspect ghcr.io/<owner>/ai-os:latest
+  --format '{{ json .SBOM }}'`.
+- **CodeQL** (`.github/workflows/codeql.yml`) analyses the Python and TypeScript
+  code on every push, pull request and weekly.
+- **Dependabot** (`.github/dependabot.yml`) opens update pull requests weekly for
+  Python (uv), the console (npm), the GitHub Actions and the Docker base images,
+  minor and patch versions grouped, and security updates at once. Third-party
+  actions are pinned to a commit.
 
 `CLAUDE.md` has the code conventions. To extend:
 

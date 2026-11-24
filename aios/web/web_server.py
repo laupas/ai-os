@@ -5,6 +5,7 @@ from aiohttp import web
 
 from aios.bootstrap.background_service import BackgroundService
 from aios.web.audit_middleware import AuditMiddleware
+from aios.web.rate.rate_limiter import RateLimiter
 from aios.web.restart_request import RestartRequest
 from aios.web.security_headers import SecurityHeaders
 from aios.web.web_auth import WebAuth
@@ -43,7 +44,9 @@ class WebServer(BackgroundService):
         static_dir: Path = STATIC_DIR,
         audit: AuditMiddleware | None = None,
         security: SecurityHeaders | None = None,
+        limiter: RateLimiter | None = None,
     ) -> None:
+        self._limiter = limiter
         self._security = security or SecurityHeaders()
         self._auth = auth
         self._routes = routes
@@ -53,8 +56,11 @@ class WebServer(BackgroundService):
         self._audit = audit
 
     def build(self) -> web.Application:
-        # Audit inside auth: it records only what an identified caller did.
+        # Audit inside auth: it records only what an identified caller did. Rate
+        # limits around auth: per address before it, per user after it.
         middlewares = [self._auth.middleware]
+        if self._limiter is not None:
+            middlewares = [self._limiter.before_auth, *middlewares, self._limiter.after_auth]
         if self._audit is not None:
             middlewares.append(self._audit.middleware)
         app = web.Application(middlewares=middlewares, client_max_size=1024**2)

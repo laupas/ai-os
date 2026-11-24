@@ -105,6 +105,7 @@ export function GeneralPanel() {
   return (
     <div className="space-y-3">
       <Loaded>{(s) => <GeneralForm key={JSON.stringify([s.timezone.value, s.triggers.value])} timezone={s.timezone} triggers={s.triggers} />}</Loaded>
+      <Loaded>{(s) => <RateLimitsCard key={JSON.stringify(s.rate_limits.value)} section={s.rate_limits} />}</Loaded>
       <Loaded>{(s) => <ApiDocsCard section={s.api_docs} />}</Loaded>
       <VoiceCard />
     </div>
@@ -155,6 +156,67 @@ function GeneralForm({ timezone, triggers }: { timezone: Section; triggers: Sect
         <div className="text-sm font-medium">Triggers</div>
         <SettingsFields schema={only(triggers.schema, ["enabled", "tick_seconds"])} values={trig} onChange={setTrig} />
       </div>
+    </SectionCard>
+  );
+}
+
+const LIMITS: { key: string; label: string; hint: string }[] = [
+  { key: "messages_per_minute", label: "Messages a minute", hint: "Per person: messages, voice notes and trigger runs, what costs tokens. A group can set its own under Groups." },
+  { key: "reads_per_minute", label: "Reads a minute", hint: "Per person: everything else that only reads." },
+  { key: "writes_per_minute", label: "Changes a minute", hint: "Per person: everything else that changes something." },
+  { key: "login_per_minute", label: "Sign-in requests a minute", hint: "Per address, before signing in: the login page, single sign-on, OAuth returns." },
+  { key: "hooks_per_minute", label: "Webhook calls a minute", hint: "Per address: trigger webhooks." },
+  { key: "hook_failures", label: "Wrong webhook tokens before blocking", hint: "Per address." },
+  { key: "hook_block_minutes", label: "Block for (minutes)", hint: "How long an address that kept sending wrong tokens is refused." },
+];
+
+/** How often the console answers before "too many requests" (429). Applies at once. */
+function RateLimitsCard({ section }: { section: Section }) {
+  const queryClient = useQueryClient();
+  const initial: Values = isPlain(section.value) ? section.value : {};
+  const [values, setValues] = useState<Values>(initial);
+  const target = section.schema.$ref ? section.schema.$defs[String(section.schema.$ref).split("/").pop()!] : section.schema;
+  const defaults = (key: string) => String(target.properties?.[key]?.default ?? "");
+  const enabled = values.enabled !== false;
+  const dirty = JSON.stringify(values) !== JSON.stringify(initial);
+  const save = async () => {
+    try {
+      const clean = Object.fromEntries(Object.entries(values).filter(([, v]) => v !== undefined && v !== ""));
+      await api("PUT", "/api/settings/sections/rate_limits", { value: Object.keys(clean).length ? clean : null });
+      await queryClient.invalidateQueries({ queryKey: ["settings-sections"] });
+      toast.success("Rate limits saved. They apply at once.");
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+  return (
+    <SectionCard
+      title="Rate limits"
+      description="Who asks too often gets 'too many requests' (429) until the minute has passed. Counted per person after signing in, per address before. Applies at once."
+      dirty={dirty}
+      onSave={() => void save()}
+    >
+      <label className="flex items-center gap-3 text-sm font-medium">
+        <Switch checked={enabled} onCheckedChange={(on) => setValues((v) => ({ ...v, enabled: on ? undefined : false }))} /> Limit requests
+      </label>
+      {enabled ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {LIMITS.map((l) => (
+            <Label key={l.key}>
+              {l.label}
+              <Input
+                type="number"
+                min={1}
+                className="w-32"
+                placeholder={defaults(l.key)}
+                value={values[l.key] === undefined ? "" : String(values[l.key])}
+                onChange={(e) => setValues((v) => ({ ...v, [l.key]: e.target.value === "" ? undefined : Number(e.target.value) }))}
+              />
+              <Hint>{l.hint}</Hint>
+            </Label>
+          ))}
+        </div>
+      ) : null}
     </SectionCard>
   );
 }

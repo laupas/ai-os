@@ -353,6 +353,7 @@ export function GroupsPanel({ data }: { data: Settings }) {
                         {p}
                       </Badge>
                     ))}
+                    {g.messages_per_minute ? <Badge variant="outline">{g.messages_per_minute} messages/min</Badge> : null}
                   </div>
                   {g.description ? <p className="text-xs text-muted-foreground">{g.description}</p> : null}
                   <p className="mt-1 text-xs text-muted-foreground">
@@ -389,6 +390,7 @@ function GroupForm({ group: g, data, onDone }: { group: GroupDoc | null; data: S
   const [name, setName] = useState(g?.name ?? "");
   const [description, setDescription] = useState(g?.description ?? "");
   const [permissions, setPermissions] = useState(new Set<string>(g?.permissions ?? ["chat"]));
+  const [perMinute, setPerMinute] = useState(g?.messages_per_minute ? String(g.messages_per_minute) : "");
   const before = new Set(g ? data.users.filter((u) => u.group_ids.includes(g.id)).map((u) => u.id) : []);
   const [members, setMembers] = useState(new Set(before));
   const [search, setSearch] = useState("");
@@ -407,7 +409,13 @@ function GroupForm({ group: g, data, onDone }: { group: GroupDoc | null; data: S
   const save = async () => {
     setBusy(true);
     try {
-      const body = { id: g?.id ?? "new", name: name.trim(), description: description.trim(), permissions: [...permissions] };
+      const body = {
+        id: g?.id ?? "new",
+        name: name.trim(),
+        description: description.trim(),
+        permissions: [...permissions],
+        messages_per_minute: perMinute.trim() ? Number(perMinute) : null,
+      };
       let id = g?.id;
       if (g) await send("PUT", `/api/settings/groups/${encodeURIComponent(g.id)}`, body);
       else id = ((await send("POST", "/api/settings/groups", body)) as GroupDoc).id;
@@ -469,6 +477,14 @@ function GroupForm({ group: g, data, onDone }: { group: GroupDoc | null; data: S
           ))}
           <Hint>Every member has these. At least one person must stay in a group with administer.</Hint>
         </div>
+        <Label>
+          Messages per minute
+          <Input type="number" min={1} className="w-32" placeholder="general" value={perMinute} onChange={(e) => setPerMinute(e.target.value)} />
+          <Hint>
+            How many messages, voice notes and trigger runs a member may start a minute: what costs tokens. Empty: the general limit under Settings,
+            General. In several groups, the most generous one counts.
+          </Hint>
+        </Label>
         <div className="space-y-2">
           <div className="text-sm font-medium">
             Members <span className="font-normal text-muted-foreground">({members.size})</span>

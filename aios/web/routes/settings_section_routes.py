@@ -14,7 +14,15 @@ from aios.web.section_request import SectionRequest
 from aios.web.web_auth import WebAuth
 from aios.web.web_routes import WebRoutes
 
-EDITABLE = ["timezone", "triggers", "agent", "approval", "collection_access", "api_docs"]
+EDITABLE = [
+    "timezone",
+    "triggers",
+    "agent",
+    "approval",
+    "collection_access",
+    "api_docs",
+    "rate_limits",
+]
 """The sections the console's generic forms edit. `web`, `files` and `channels` have
 routes of their own, with their own checks; the rest stays on the aios.yaml tab."""
 

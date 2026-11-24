@@ -14,6 +14,10 @@ class Group(BaseModel):
     name: str
     description: str = ""
     permissions: set[Permission] = set()
+    messages_per_minute: int | None = Field(None, ge=1)
+    """How many messages, voice notes and trigger runs a member may start a minute
+    (they cost tokens); None: the general `rate_limits.messages_per_minute`. A user
+    in several groups gets the most generous one set."""
     role_ids: list[str] = Field(default=[], exclude=True)
     """Read, never written. Older form: roles whose permissions the group gave.
     Moved into `permissions` at the next start (`GroupsMigration`)."""
