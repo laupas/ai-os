@@ -4,28 +4,28 @@ version = "2.0.0"
 description = "Personal assistant core: pluggable chat channels and senders, human-in-the-loop approvals, Claude agents."
 requires-python = ">=3.12"
 dependencies = [
-    "claude-agent-sdk>=0.1.81",
+    "claude-agent-sdk>=0.2.187",
     "dependency-injector>=4.46",
-    "pydantic>=2.10",
-    "pydantic-settings>=2.7",
-    "pyyaml>=6.0",
-    "aiohttp>=3.11",
+    "pydantic>=2.14.4",
+    "pydantic-settings>=2.16.3",
+    "pyyaml>=6.0.4",
+    "aiohttp>=3.14.5",
     "slack-bolt>=1.21",
     # Teams Socket Mode is a preview whose API may change: kept to one minor version.
     "microsoft-teams-apps>=2.2.1,<2.3",
     "croniter>=7.0.0",
     "pyjwt[crypto]>=2.10",
     "cryptography>=44",
-    "tzdata>=2026.5",
+    "tzdata>=2026.6",
     "ruamel-yaml>=0.18",
     "jsonschema>=4.23",
 ]
 
 [dependency-groups]
 dev = [
-    "pytest>=8.3",
-    "pytest-asyncio>=0.25",
-    "ruff>=0.9",
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.5.0",
+    "ruff>=0.17.6",
 ]
 
 [project.scripts]
