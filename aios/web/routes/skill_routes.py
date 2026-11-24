@@ -12,7 +12,7 @@ from aios.web.web_routes import WebRoutes
 
 
 class SkillRoutes(WebRoutes):
-    """Skills: add, edit, delete. Administrators only. Which agent may use a skill
+    """Skills: add, edit, delete. For `manage_skills`. Which agent may use a skill
     is set on the agent; deleting a skill takes it off every agent.
 
     A change is a file in the configuration repository, which the CLI reads, so it
@@ -29,7 +29,7 @@ class SkillRoutes(WebRoutes):
         app.router.add_delete("/api/skills/{name}", self._delete)
 
     async def _create(self, request: web.Request) -> web.Response:
-        WebAuth.caller(request, Permission.ADMINISTER)
+        WebAuth.caller(request, Permission.MANAGE_SKILLS)
         body = await RequestBody.parse(request, SkillRequest)
         if not body.name:
             raise web.HTTPBadRequest(text="a new skill needs a name")
@@ -38,14 +38,14 @@ class SkillRoutes(WebRoutes):
         return web.json_response(await self._store(body.name, body), status=201)
 
     async def _save(self, request: web.Request) -> web.Response:
-        WebAuth.caller(request, Permission.ADMINISTER)
+        WebAuth.caller(request, Permission.MANAGE_SKILLS)
         name = self._existing(request)
         return web.json_response(
             await self._store(name, await RequestBody.parse(request, SkillRequest))
         )
 
     async def _delete(self, request: web.Request) -> web.Response:
-        WebAuth.caller(request, Permission.ADMINISTER)
+        WebAuth.caller(request, Permission.MANAGE_SKILLS)
         name = self._existing(request)
         await self._skills.delete(name)
         for agent in self._agents.all():

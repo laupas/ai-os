@@ -24,7 +24,27 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
   return (await response.json()) as T;
 }
 
-export type Permission = "chat" | "approve" | "receive_unapproved" | "manage_users" | "administer";
+export type Permission =
+  | "chat"
+  | "approve"
+  | "receive_unapproved"
+  | "manage_agents"
+  | "manage_skills"
+  | "manage_connectors"
+  | "manage_variables"
+  | "manage_triggers"
+  | "manage_shared_memories"
+  | "view_logs"
+  | "manage_users"
+  | "administer";
+
+/** Rights whose holder controls ai-os: a group with one is never filled automatically
+ * (new users, a sign-in provider's groups). The server's `Permission.powerful`. */
+export const POWERFUL: Permission[] = ["administer", "manage_users", "manage_connectors"];
+
+export function isPowerful(permissions: Permission[]): boolean {
+  return permissions.some((p) => POWERFUL.includes(p));
+}
 
 export interface Me {
   name: string;
@@ -125,6 +145,8 @@ export interface Memory {
   text: string;
   user_id: string | null;
   created_at: string;
+  /** Whether the caller may change it: their own, or shared with manage_shared_memories. */
+  editable?: boolean;
 }
 
 export interface MemoryOwner {
@@ -292,6 +314,13 @@ export interface Skill {
   agents: string[];
 }
 
+/** A group as a list of who something is available to shows it. */
+export interface AudienceGroup {
+  id: string;
+  name: string;
+  description?: string;
+}
+
 export interface AgentsData {
   agents: Agent[];
   skills: Skill[];
@@ -304,6 +333,8 @@ export interface AgentsData {
     locked?: string[];
   }[];
   builtin_tools: string[];
+  /** The groups the caller may make an agent available to. */
+  groups: AudienceGroup[];
   orchestrator: string;
 }
 

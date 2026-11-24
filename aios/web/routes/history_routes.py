@@ -12,10 +12,22 @@ from aios.web.restore_request import RestoreRequest
 from aios.web.web_auth import WebAuth
 from aios.web.web_routes import WebRoutes
 
+READ = {
+    "agents": Permission.MANAGE_AGENTS,
+    "skills": Permission.MANAGE_SKILLS,
+    "connectors": Permission.MANAGE_CONNECTORS,
+}
+RESTORE = {
+    "skills": Permission.MANAGE_SKILLS,
+    "connectors": Permission.MANAGE_CONNECTORS,
+}
+
 
 class HistoryRoutes(WebRoutes):
     """The git history of one agent, skill, connector or trigger: its commits, what
-    each changed, and bringing an earlier version back. Administrators only.
+    each changed, and bringing an earlier version back. Reading it takes the right
+    that manages the collection (`READ`); everything else, and bringing back an
+    earlier agent, which would skip `AgentEditScope`, takes `administer`.
 
     A restore is a new commit with the old content, never a rewrite of history, and
     goes through the entity model like any save, so a version that no longer
@@ -33,19 +45,19 @@ class HistoryRoutes(WebRoutes):
         app.router.add_post(base + "/restore", self._restore)
 
     async def _log(self, request: web.Request) -> web.Response:
-        WebAuth.caller(request, Permission.ADMINISTER)
+        self._allow(request, READ)
         path = self._path(request)
         entries = await asyncio.to_thread(self._store.repo.log, path)
         return web.json_response({"path": path, "commits": entries})
 
     async def _diff(self, request: web.Request) -> web.Response:
-        WebAuth.caller(request, Permission.ADMINISTER)
+        self._allow(request, READ)
         commit = self._commit(request.match_info["commit"])
         diff = await asyncio.to_thread(self._store.repo.diff, commit, self._path(request))
         return web.json_response({"diff": diff})
 
     async def _restore(self, request: web.Request) -> web.Response:
-        WebAuth.caller(request, Permission.ADMINISTER)
+        self._allow(request, RESTORE)
         collection, doc_id = self._collection(request), request.match_info["id"]
         body = await RequestBody.parse(request, RestoreRequest)
         path = self._path(request)
@@ -59,6 +71,11 @@ class HistoryRoutes(WebRoutes):
             raise web.HTTPBadRequest(text=f"that version no longer loads: {exc}") from exc
         await collection.put(item)
         return web.json_response({"ok": True})
+
+    @staticmethod
+    def _allow(request: web.Request, rights: dict[str, Permission]) -> None:
+        name = request.match_info["collection"]
+        WebAuth.caller(request, rights.get(name, Permission.ADMINISTER))
 
     def _collection(self, request: web.Request) -> Collection[Any]:
         collection = self._collections.get(request.match_info["collection"])

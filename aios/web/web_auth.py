@@ -95,6 +95,14 @@ class WebAuth:
         return caller
 
     @staticmethod
+    def caller_any(request: web.Request, *permissions: Permission) -> WebCaller:
+        """The caller, who must have at least one of `permissions`."""
+        caller = request[CALLER]
+        if not any(caller.can(p) for p in permissions):
+            raise web.HTTPForbidden(text=f"needs one of: {', '.join(permissions)}")
+        return caller
+
+    @staticmethod
     def _open(path: str) -> bool:
         return path in LOGIN_PATHS or path.startswith(LOGIN_PREFIXES)
 

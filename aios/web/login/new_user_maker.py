@@ -32,10 +32,7 @@ class NewUserMaker:
         group = self._groups.get(group_id)
         if group is None:
             return f"there is no group {group_id}"
-        if (
-            Permission.ADMINISTER in group.permissions
-            or Permission.MANAGE_USERS in group.permissions
-        ):
+        if any(p.powerful for p in group.permissions):
             return f"group {group_id} administers ai-os; put new users in a group without that"
         if Permission.CHAT not in group.permissions:
             return f"group {group_id} cannot chat, so its members could not use the console"

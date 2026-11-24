@@ -1,3 +1,4 @@
+from aios.entities.users.permission import Permission
 from tests.web.console import ALICE, BOB, Console
 
 
@@ -31,6 +32,49 @@ async def test_a_memory_can_be_moved_between_owners(tmp_path) -> None:
         assert c.memories.get(memory_id).user_id is None  # type: ignore[union-attr]
 
 
-async def test_only_administrators_see_memories(tmp_path) -> None:
+async def test_a_member_sees_their_own_and_the_shared_memories_only(tmp_path) -> None:
     async with Console(tmp_path) as c:
-        assert (await c.client.get("/api/memories", headers=c.headers(BOB))).status == 403
+        await _create(c, text="shared")
+        await _create(c, text="alice's", user_id="alice")
+        await _create(c, text="bob's", user_id="bob")
+        listed = await (await c.client.get("/api/memories", headers=c.headers(BOB))).json()
+        assert sorted(m["text"] for m in listed["memories"]) == ["bob's", "shared"]
+        assert {m["text"]: m["editable"] for m in listed["memories"]} == {
+            "bob's": True,
+            "shared": False,
+        }
+        assert listed["users"] == [{"id": "bob", "name": "Bob"}]
+
+
+async def test_a_member_writes_only_their_own_memories(tmp_path) -> None:
+    async with Console(tmp_path) as c:
+        h = c.headers(BOB, write=True)
+        own = await c.client.post("/api/memories", json={"text": "x", "user_id": "bob"}, headers=h)
+        assert own.status == 201
+        theirs = await c.client.post(
+            "/api/memories", json={"text": "x", "user_id": "alice"}, headers=h
+        )
+        assert theirs.status == 403
+        shared = await c.client.post("/api/memories", json={"text": "x"}, headers=h)
+        assert shared.status == 403
+        alices = (await (await _create(c, user_id="alice")).json())["id"]
+        assert (await c.client.delete(f"/api/memories/{alices}", headers=h)).status == 404
+        # Nor may they hand their own memory to someone else.
+        moved = await c.client.put(
+            f"/api/memories/{(await own.json())['id']}",
+            json={"text": "x", "user_id": "alice"},
+            headers=h,
+        )
+        assert moved.status == 403
+
+
+async def test_shared_memories_need_their_own_right(tmp_path) -> None:
+    async with Console(tmp_path) as c:
+        await c.grant("member", Permission.MANAGE_SHARED_MEMORIES)
+        h = c.headers(BOB, write=True)
+        shared = await c.client.post("/api/memories", json={"text": "x"}, headers=h)
+        assert shared.status == 201
+        theirs = await c.client.post(
+            "/api/memories", json={"text": "x", "user_id": "alice"}, headers=h
+        )
+        assert theirs.status == 403

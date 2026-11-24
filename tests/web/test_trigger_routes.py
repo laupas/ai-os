@@ -1,3 +1,4 @@
+from aios.entities.users.permission import Permission
 from tests.web.console import ALICE, BOB, Console
 
 SCHEDULE = {
@@ -78,9 +79,29 @@ async def test_turning_a_trigger_into_a_one_off(tmp_path) -> None:
         assert trigger is not None and trigger.cron == [] and trigger.last_fired_at is None
 
 
-async def test_triggers_are_for_administrators_only(tmp_path) -> None:
+async def test_triggers_need_the_right_to_manage_them(tmp_path) -> None:
     async with Console(tmp_path) as c:
         response = await c.client.post(
-            "/api/triggers", json=SCHEDULE, headers=c.headers(BOB, write=True)
+            "/api/triggers", json={**SCHEDULE, "user_id": "bob"}, headers=c.headers(BOB, write=True)
         )
         assert response.status == 403
+
+
+async def test_without_administer_only_your_own_triggers(tmp_path) -> None:
+    async with Console(tmp_path) as c:
+        await c.grant("member", Permission.MANAGE_TRIGGERS)
+        alices = (await (await _create(c)).json())["id"]
+        h = c.headers(BOB, write=True)
+        mine = await c.client.post("/api/triggers", json={**SCHEDULE, "user_id": "bob"}, headers=h)
+        assert mine.status == 201
+        # A run acts with its user's rights: never for someone else.
+        assert (await c.client.post("/api/triggers", json=SCHEDULE, headers=h)).status == 403
+        listed = await (await c.client.get("/api/triggers", headers=c.headers(BOB))).json()
+        assert [t["user_id"] for t in listed["triggers"]] == ["bob"]
+        assert listed["users"] == [{"id": "bob", "name": "Bob"}]
+        assert (await c.client.post(f"/api/triggers/{alices}/run", headers=h)).status == 404
+        assert (await c.client.delete(f"/api/triggers/{alices}", headers=h)).status == 404
+        handed = await c.client.put(
+            f"/api/triggers/{(await mine.json())['id']}", json=SCHEDULE, headers=h
+        )
+        assert handed.status == 403

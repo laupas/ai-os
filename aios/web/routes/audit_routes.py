@@ -14,7 +14,7 @@ COMMIT = re.compile(r"^[0-9a-f]{7,40}$")
 
 class AuditRoutes(WebRoutes):
     """Who changed which setting when, from the audit trail and the configuration
-    history together. Administrators only."""
+    history together. For `view_logs`."""
 
     def __init__(self, feed: AuditFeed) -> None:
         self._feed = feed
@@ -24,7 +24,7 @@ class AuditRoutes(WebRoutes):
         app.router.add_get("/api/audit/commits/{commit}", self._diff)
 
     async def _list(self, request: web.Request) -> web.Response:
-        WebAuth.caller(request, Permission.ADMINISTER)
+        WebAuth.caller(request, Permission.VIEW_LOGS)
         try:
             limit = max(1, min(int(request.query.get("limit", DEFAULT_LIMIT)), MAX_LIMIT))
         except ValueError as exc:
@@ -33,7 +33,7 @@ class AuditRoutes(WebRoutes):
         return web.json_response({"entries": [e.model_dump(mode="json") for e in entries]})
 
     async def _diff(self, request: web.Request) -> web.Response:
-        WebAuth.caller(request, Permission.ADMINISTER)
+        WebAuth.caller(request, Permission.VIEW_LOGS)
         commit = request.match_info["commit"]
         if not COMMIT.match(commit):
             raise web.HTTPBadRequest(text="not a commit id")

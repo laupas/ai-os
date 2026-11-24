@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api, type Trigger, type UserRef } from "@/lib/api";
 import { useConfirm } from "@/lib/confirm";
-import { useMe } from "@/lib/use-me";
+import { can, useMe } from "@/lib/use-me";
 import { when } from "@/lib/utils";
 
 interface TriggersData {
@@ -350,7 +350,8 @@ function TriggerForm({
         <Button type="button" variant="outline" onClick={() => onDone()}>
           Cancel
         </Button>
-        {s ? <HistoryButton kind="triggers" id={s.id} label={s.name} onRestored={onDone} /> : null}
+        {/* A trigger's history is everyone's triggers' history: for administrators. */}
+        {s && can(me, "administer") ? <HistoryButton kind="triggers" id={s.id} label={s.name} onRestored={onDone} /> : null}
       </div>
     </form>
   );

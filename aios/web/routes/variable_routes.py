@@ -13,7 +13,7 @@ from aios.web.web_routes import WebRoutes
 
 
 class VariableRoutes(WebRoutes):
-    """Variables and secrets for connectors. Administrators only.
+    """Variables and secrets for connectors. For `manage_variables`.
 
     A secret's value goes in and never comes back out: the list says that it is
     set, by whom and when. A change applies to the next turn.
@@ -36,12 +36,12 @@ class VariableRoutes(WebRoutes):
         app.router.add_delete("/api/variables/{name}", self._delete)
 
     async def _list(self, request: web.Request) -> web.Response:
-        WebAuth.caller(request, Permission.ADMINISTER)
+        WebAuth.caller(request, Permission.MANAGE_VARIABLES)
         uses = {c.id: self._resolver.references(c.config) for c in self._connectors.all()}
         return web.json_response({"variables": [self._row(v, uses) for v in self._variables.all()]})
 
     async def _create(self, request: web.Request) -> web.Response:
-        caller = WebAuth.caller(request, Permission.ADMINISTER)
+        caller = WebAuth.caller(request, Permission.MANAGE_VARIABLES)
         body = await RequestBody.parse(request, VariableRequest)
         if not body.name:
             raise web.HTTPBadRequest(text="a new variable needs a name")
@@ -51,7 +51,7 @@ class VariableRoutes(WebRoutes):
         return web.json_response({"ok": True}, status=201)
 
     async def _save(self, request: web.Request) -> web.Response:
-        caller = WebAuth.caller(request, Permission.ADMINISTER)
+        caller = WebAuth.caller(request, Permission.MANAGE_VARIABLES)
         name = request.match_info["name"]
         if self._variables.get(name) is None:
             raise web.HTTPNotFound(text="no such variable")
@@ -59,7 +59,7 @@ class VariableRoutes(WebRoutes):
         return web.json_response({"ok": True})
 
     async def _delete(self, request: web.Request) -> web.Response:
-        WebAuth.caller(request, Permission.ADMINISTER)
+        WebAuth.caller(request, Permission.MANAGE_VARIABLES)
         name = request.match_info["name"]
         if self._variables.get(name) is None:
             raise web.HTTPNotFound(text="no such variable")

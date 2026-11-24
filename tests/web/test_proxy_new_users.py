@@ -4,6 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from aios.config.web_auth_config import WebAuthConfig
+from aios.entities.users.permission import Permission
 from tests.web.console import ALICE, Console
 
 NEW = "carol@example.org"
@@ -43,6 +44,14 @@ async def test_nobody_is_made_outside_the_domains_or_without_create_users(tmp_pa
 
 async def test_a_group_that_administers_is_never_given(tmp_path) -> None:
     async with Console(tmp_path, new_users=("owner", ["example.org"])) as c:
+        assert (await c.client.get("/api/conversations", headers=c.headers(NEW))).status == 403
+        assert _carols(c) == []
+
+
+async def test_a_group_that_manages_connectors_is_never_given(tmp_path) -> None:
+    # A connector runs programs and reads secrets: as good as administering.
+    async with Console(tmp_path, new_users=("member", ["example.org"])) as c:
+        await c.grant("member", Permission.MANAGE_CONNECTORS)
         assert (await c.client.get("/api/conversations", headers=c.headers(NEW))).status == 403
         assert _carols(c) == []
 

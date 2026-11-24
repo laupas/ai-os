@@ -1,13 +1,22 @@
-import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { CheckRow } from "@/components/ui/checkbox";
 import { Hint } from "@/components/ui/input";
-import { api, type Settings } from "@/lib/api";
+import type { AudienceGroup } from "@/lib/api";
 
 /** Which groups an agent or connector is available to: administrators only (null), everyone, or chosen groups.
- * Administrators always are; the server enforces it on every turn and tool call. */
-export function AudiencePicker({ value, onChange, what }: { value: string[] | null; onChange: (v: string[] | null) => void; what: string }) {
-  const { data } = useQuery({ queryKey: ["settings"], queryFn: () => api<Settings>("GET", "/api/settings") });
+ * Administrators always are; the server enforces it on every turn and tool call. `groups` are the ones the
+ * caller may choose (the server says which, and checks it again on save). */
+export function AudiencePicker({
+  value,
+  onChange,
+  what,
+  groups: offered,
+}: {
+  value: string[] | null;
+  onChange: (v: string[] | null) => void;
+  what: string;
+  groups: AudienceGroup[];
+}) {
   const everyone = value?.includes("everyone") ?? false;
   // An empty choice means administrators only too, but stays on "chosen" while picking.
   const [picking, setPicking] = useState(Boolean(value?.length) && !everyone);
@@ -22,7 +31,7 @@ export function AudiencePicker({ value, onChange, what }: { value: string[] | nu
   };
   const [search, setSearch] = useState("");
   const wanted = search.trim().toLowerCase();
-  const groups = (data?.groups ?? []).filter((g) => !wanted || `${g.name} ${g.id}`.toLowerCase().includes(wanted));
+  const groups = offered.filter((g) => !wanted || `${g.name} ${g.id}`.toLowerCase().includes(wanted));
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
@@ -62,13 +71,13 @@ export function AudiencePicker({ value, onChange, what }: { value: string[] | nu
       </div>
       {mode === "chosen" ? (
         <div className="space-y-2">
-          {(data?.groups.length ?? 0) > 8 ? <input className="w-full rounded-md border bg-transparent px-2 py-1 text-sm" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search groups" /> : null}
+          {offered.length > 8 ? <input className="w-full rounded-md border bg-transparent px-2 py-1 text-sm" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search groups" /> : null}
           <div className="grid gap-x-4 sm:grid-cols-2">
             {groups.map((g) => (
               <CheckRow key={g.id} label={g.name} hint={g.description || undefined} checked={chosen.has(`group:${g.id}`)} onChange={(on) => toggle(`group:${g.id}`, on)} />
             ))}
           </div>
-          {data && data.groups.length === 0 ? <p className="text-xs text-muted-foreground">No groups yet: make them under Settings, Groups.</p> : null}
+          {offered.length === 0 ? <p className="text-xs text-muted-foreground">No groups to choose: make them under Settings, Groups.</p> : null}
         </div>
       ) : null}
       <Hint>

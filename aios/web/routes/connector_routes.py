@@ -15,6 +15,7 @@ from aios.connectors.connector_tokens import ConnectorTokens
 from aios.entities.connectors.connector import Connector
 from aios.entities.connectors.connector_token import ConnectorToken
 from aios.entities.connectors.sign_in_mode import SignInMode
+from aios.entities.users.group import Group
 from aios.entities.users.permission import Permission
 from aios.storage.collection import Collection
 from aios.users.audience import Audience
@@ -33,7 +34,7 @@ NAME = re.compile(r"^[a-z][a-z0-9_-]{0,40}$")
 
 
 class ConnectorRoutes(WebRoutes):
-    """The MCP servers agents can be granted. Administrators only, except the list:
+    """The MCP servers agents can be granted. For `manage_connectors`, except the list:
     anyone who may chat sees the connectors they can sign in to, with their own
     sign-in and, for a shared one, who signed it in; never a token, a config or
     somebody else's sign-in.
@@ -57,6 +58,7 @@ class ConnectorRoutes(WebRoutes):
         secrets: SecretExtractor | None = None,
         code: CodeConnectors | None = None,
         variables: VariableCatalog | None = None,
+        groups: Collection[Group] | None = None,
     ) -> None:
         self._variables = variables
         self._audience = audience
@@ -71,6 +73,7 @@ class ConnectorRoutes(WebRoutes):
         self._catalog = catalog
         self._board = board
         self._agents = agents
+        self._groups = groups
 
     def register(self, app: web.Application) -> None:
         app.router.add_get("/api/connectors", self._list)
@@ -83,7 +86,7 @@ class ConnectorRoutes(WebRoutes):
 
     async def _list(self, request: web.Request) -> web.Response:
         caller = WebAuth.caller(request, Permission.CHAT)
-        if not caller.can(Permission.ADMINISTER):
+        if not caller.can(Permission.MANAGE_CONNECTORS):
             rows = [
                 self._member_row(c, caller)
                 for c in self._catalog.all()
@@ -106,10 +109,20 @@ class ConnectorRoutes(WebRoutes):
         agents = self._agents.all()
         for row in rows:
             row["used_by"] = [a.name for a in agents if row["id"] in a.connectors]
-        return web.json_response({"connectors": rows, "library": self._library()})
+        groups = sorted(self._groups.all(), key=lambda g: g.name.casefold()) if self._groups else []
+        return web.json_response(
+            {
+                "connectors": rows,
+                "library": self._library(),
+                # Whom a connector can be made available to (the editor's choice).
+                "groups": [
+                    {"id": g.id, "name": g.name, "description": g.description} for g in groups
+                ],
+            }
+        )
 
     async def _create(self, request: web.Request) -> web.Response:
-        caller = WebAuth.caller(request, Permission.ADMINISTER)
+        caller = WebAuth.caller(request, Permission.MANAGE_CONNECTORS)
         body = await RequestBody.parse(request, ConnectorRequest)
         name = body.name or ""
         if not NAME.match(name) or name == ConnectorCatalog.BUILTIN:
@@ -127,7 +140,7 @@ class ConnectorRoutes(WebRoutes):
         return web.json_response(row, status=201)
 
     async def _save(self, request: web.Request) -> web.Response:
-        caller = WebAuth.caller(request, Permission.ADMINISTER)
+        caller = WebAuth.caller(request, Permission.MANAGE_CONNECTORS)
         existing = self._existing(request)
         body = await RequestBody.parse(request, ConnectorRequest)
         connector, moved = await self._without_secrets(
@@ -138,13 +151,13 @@ class ConnectorRoutes(WebRoutes):
         return web.json_response({**self._row(connector, caller), "moved_secrets": moved})
 
     async def _delete(self, request: web.Request) -> web.Response:
-        WebAuth.caller(request, Permission.ADMINISTER)
+        WebAuth.caller(request, Permission.MANAGE_CONNECTORS)
         await self._connectors.delete(self._existing(request).id)
         return web.json_response({"ok": True})
 
     async def _start(self, request: web.Request) -> web.Response:
         """Starts the connector on its own, as a turn would, and says how it went."""
-        caller = WebAuth.caller(request, Permission.ADMINISTER)
+        caller = WebAuth.caller(request, Permission.MANAGE_CONNECTORS)
         connector = self._existing(request)
         if self._probe is None:
             raise web.HTTPServiceUnavailable(text="starting a connector is not available here")
@@ -154,7 +167,7 @@ class ConnectorRoutes(WebRoutes):
     async def _check(self, request: web.Request) -> web.Response:
         """A code connector's own check, with the settings and variable values typed
         but not saved yet; nothing is stored."""
-        WebAuth.caller(request, Permission.ADMINISTER)
+        WebAuth.caller(request, Permission.MANAGE_CONNECTORS)
         connector = self._existing(request)
         manifest = self._manifest(connector)
         if self._code is None or manifest is None or not manifest.check:
@@ -166,7 +179,7 @@ class ConnectorRoutes(WebRoutes):
     async def _options(self, request: web.Request) -> web.Response:
         """The choices a code connector offers for one of its settings, asked with
         the settings and variable values typed but not saved yet."""
-        WebAuth.caller(request, Permission.ADMINISTER)
+        WebAuth.caller(request, Permission.MANAGE_CONNECTORS)
         connector = self._existing(request)
         manifest = self._manifest(connector)
         name = request.match_info["list"]
@@ -298,7 +311,7 @@ class ConnectorRoutes(WebRoutes):
         }
 
     def _member_row(self, connector: Connector, caller: WebCaller) -> dict:
-        """What somebody who is not an administrator sees of a connector."""
+        """What somebody who does not manage connectors sees of one."""
         return {
             "id": connector.id,
             "description": connector.description,
@@ -344,12 +357,12 @@ class ConnectorRoutes(WebRoutes):
 
     def _sign_in(self, connector: Connector, caller: WebCaller) -> dict | None:
         """Whether it can be signed in to, and how: the caller's own sign-in for a
-        per-user connector, the shared one where it is used (and always for an
-        administrator), and how many users signed in (administrators only). Never a
+        per-user connector, the shared one where it is used (and always for whoever
+        manages connectors), and how many users signed in (for them only). Never a
         token, and never another user's sign-in."""
         if self._authorizer is None or self._authorizer.url_of(connector.id) is None:
             return None
-        admin = caller.can(Permission.ADMINISTER)
+        admin = caller.can(Permission.MANAGE_CONNECTORS)
         per_user = connector.sign_in is SignInMode.PER_USER
         tokens = self._tokens
         mine = tokens.of_user(connector.id, caller.user.id) if tokens and per_user else None

@@ -15,7 +15,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AudiencePicker } from "@/components/audience-picker";
-import { api, type CodeConnectorOffer, type Connector, type ProbeResult, type SignInMode, type SignInState } from "@/lib/api";
+import { api, type AudienceGroup, type CodeConnectorOffer, type Connector, type ProbeResult, type SignInMode, type SignInState } from "@/lib/api";
 import { useConfirm } from "@/lib/confirm";
 import { href } from "@/lib/router";
 import { can, useMe } from "@/lib/use-me";
@@ -32,10 +32,11 @@ const GOOGLE = {
 
 export function ConnectorsPage() {
   const { data: me } = useMe();
-  const admin = can(me, "administer");
+  // Whoever manages connectors sees and changes them all; everyone else only signs in.
+  const admin = can(me, "manage_connectors");
   const { data, isLoading, error } = useQuery({
     queryKey: ["connectors"],
-    queryFn: () => api<{ connectors: Connector[]; library?: CodeConnectorOffer[] }>("GET", "/api/connectors"),
+    queryFn: () => api<{ connectors: Connector[]; library?: CodeConnectorOffer[]; groups?: AudienceGroup[] }>("GET", "/api/connectors"),
   });
   const [editing, setEditing] = useState<Connector | "new" | null>(null);
   useSignInResult();
@@ -80,7 +81,7 @@ export function ConnectorsPage() {
       <Sheet open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
         <SheetContent side="right" className="gap-0 p-0 sm:max-w-xl">
           {editing !== null ? (
-            <ConnectorForm connector={editing === "new" ? null : editing} library={data?.library ?? []} onDone={() => setEditing(null)} />
+            <ConnectorForm connector={editing === "new" ? null : editing} library={data?.library ?? []} groups={data?.groups ?? []} onDone={() => setEditing(null)} />
           ) : null}
         </SheetContent>
       </Sheet>
@@ -288,7 +289,17 @@ function fromLines(text: string, sep: string): Record<string, string> {
   return out;
 }
 
-function ConnectorForm({ connector: c, library, onDone }: { connector: Connector | null; library: CodeConnectorOffer[]; onDone: () => void }) {
+function ConnectorForm({
+  connector: c,
+  library,
+  groups,
+  onDone,
+}: {
+  connector: Connector | null;
+  library: CodeConnectorOffer[];
+  groups: AudienceGroup[];
+  onDone: () => void;
+}) {
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const original: Config = c?.config ?? {};
@@ -463,7 +474,7 @@ function ConnectorForm({ connector: c, library, onDone }: { connector: Connector
         </label>
         <div className="space-y-1">
           <div className="text-sm font-medium">Available to</div>
-          <AudiencePicker value={available} onChange={setAvailable} what="this connector" />
+          <AudiencePicker value={available} onChange={setAvailable} what="this connector" groups={groups} />
         </div>
         <div className="flex items-center gap-2">
           <Tabs

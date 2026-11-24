@@ -38,17 +38,18 @@ export const NAV: NavItem[] = [
   { id: "chat", label: "Chat", icon: MessagesSquare },
   { id: "voice", label: "Voice", icon: Mic, needs: "chat" },
   { id: "approvals", label: "Approvals", icon: ShieldCheck, needs: "approve" },
-  { id: "triggers", label: "Triggers", icon: CalendarClock, needs: "administer" },
-  { id: "memories", label: "Memories", icon: Brain, needs: "administer" },
-  { id: "agents", label: "Agents", icon: Bot, needs: "administer" },
-  { id: "skills", label: "Skills", icon: Sparkles, needs: "administer" },
-  // Everyone who may chat signs in to per-user connectors here; the rest is for administrators.
+  { id: "triggers", label: "Triggers", icon: CalendarClock, needs: "manage_triggers" },
+  // Everyone keeps their own memories; shared and other people's need more.
+  { id: "memories", label: "Memories", icon: Brain, needs: "chat" },
+  { id: "agents", label: "Agents", icon: Bot, needs: "manage_agents" },
+  { id: "skills", label: "Skills", icon: Sparkles, needs: "manage_skills" },
+  // Everyone who may chat signs in to per-user connectors here; the rest is for manage_connectors.
   { id: "connectors", label: "Connectors", icon: Plug, needs: "chat" },
   { id: "store", label: "Store", icon: Store, needs: "administer" },
-  { id: "variables", label: "Variables", icon: KeyRound, needs: "administer" },
-  { id: "audit", label: "Audit", icon: ClipboardList, needs: "administer" },
-  { id: "logs", label: "Logs", icon: ScrollText, needs: "administer" },
-  { id: "health", label: "Health", icon: Activity, needs: "administer" },
+  { id: "variables", label: "Variables", icon: KeyRound, needs: "manage_variables" },
+  { id: "audit", label: "Audit", icon: ClipboardList, needs: "view_logs" },
+  { id: "logs", label: "Logs", icon: ScrollText, needs: "view_logs" },
+  { id: "health", label: "Health", icon: Activity, needs: "view_logs" },
   { id: "settings", label: "Settings", icon: Settings, needs: "administer" },
 ];
 

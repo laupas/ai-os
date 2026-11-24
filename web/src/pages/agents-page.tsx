@@ -15,6 +15,7 @@ import { AudiencePicker } from "@/components/audience-picker";
 import { api, type Agent, type AgentsData } from "@/lib/api";
 import { useConfirm } from "@/lib/confirm";
 import { go, href } from "@/lib/router";
+import { can, useMe } from "@/lib/use-me";
 
 // Which agent may use which built-in tool, skill and connector. ai-os enforces it in
 // code on every tool call; a change applies to the next turn, no restart.
@@ -112,6 +113,10 @@ function AgentForm({ data, name }: { data: AgentsData; name: string }) {
     ? { name: "", description: "", prompt: "", model: null, enabled: true, builtin_tools: [], skills: [], connectors: {}, fixed: false }
     : data.agents.find((x) => x.name === name);
   const isOrchestrator = a?.name === data.orchestrator;
+  // Without administer, a fixed agent is read only, and grants that are not the caller's to give are kept as they are.
+  const { data: me } = useMe();
+  const admin = can(me, "administer");
+  const readOnly = Boolean(a?.fixed) && !admin;
   // Delegating is the orchestrator's job; Skill is granted by naming skills below.
   const builtins = data.builtin_tools.filter((t) => t !== "Skill" && (isOrchestrator || (t !== "Task" && t !== "Agent")));
   // A grant on a connector that is not configured stays visible, or saving would drop it.
@@ -282,7 +287,7 @@ function AgentForm({ data, name }: { data: AgentsData; name: string }) {
                     label={<span className="font-medium">{c.name}</span>}
                     checked={g.on}
                     onChange={(on) => setGrant(c.name, { on })}
-                    hint={c.missing ? "not configured" : c.enabled ? undefined : "switched off"}
+                    hint={c.missing ? (admin ? "not configured" : "granted by an administrator; kept") : c.enabled ? undefined : "switched off"}
                   />
                   {g.on ? (
                     <div className="mt-2 space-y-2 pl-6">
@@ -331,7 +336,7 @@ function AgentForm({ data, name }: { data: AgentsData; name: string }) {
           </CardHeader>
           {isOrchestrator ? null : (
             <CardContent>
-              <AudiencePicker value={form.available} onChange={(v) => setForm((f) => ({ ...f, available: v }))} what="this agent" />
+              <AudiencePicker value={form.available} onChange={(v) => setForm((f) => ({ ...f, available: v }))} what="this agent" groups={data.groups} />
             </CardContent>
           )}
         </Card>
@@ -344,9 +349,13 @@ function AgentForm({ data, name }: { data: AgentsData; name: string }) {
           </CardContent>
         </Card>
         <div className="sticky bottom-0 -mx-4 flex flex-wrap items-center gap-2 border-t bg-background/95 px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:p-0">
-          <Button type="submit" disabled={save.isPending}>
-            {isNew ? "Create" : "Save"}
-          </Button>
+          {readOnly ? (
+            <span className="text-sm text-muted-foreground">A fixed agent: only an administrator changes it.</span>
+          ) : (
+            <Button type="submit" disabled={save.isPending}>
+              {isNew ? "Create" : "Save"}
+            </Button>
+          )}
           {!isNew && !a.fixed ? (
             <Button type="button" variant="ghost" className="text-destructive" onClick={remove}>
               Delete

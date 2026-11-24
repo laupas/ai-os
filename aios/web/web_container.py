@@ -3,6 +3,7 @@ from dependency_injector import containers, providers
 from aios.audit.audit_feed import AuditFeed
 from aios.audit.config_history import ConfigHistory
 from aios.users.group_limits import GroupLimits
+from aios.web.agent_edit_scope import AgentEditScope
 from aios.web.aios_yaml_file import AiosYamlFile
 from aios.web.api_docs.openapi_builder import OpenApiBuilder
 from aios.web.audit_middleware import AuditMiddleware
@@ -307,6 +308,13 @@ class WebContainer(containers.DeclarativeContainer):
             builtin_tools=providers.Callable(
                 lambda agent: lambda: agent().builtin_tools, agent_config
             ),
+            scope=providers.Singleton(
+                AgentEditScope,
+                agents=agents,
+                connectors=connector_catalog,
+                groups=groups,
+                audience=audience,
+            ),
         ),
         providers.Singleton(SkillRoutes, skills=skills, agents=agents),
         providers.Singleton(HistoryRoutes, store=config_store, collections=config_collections),
@@ -328,6 +336,7 @@ class WebContainer(containers.DeclarativeContainer):
             secrets=secret_extractor,
             code=code_connectors,
             variables=variable_catalog,
+            groups=groups,
         ),
         providers.Singleton(
             VariableRoutes,

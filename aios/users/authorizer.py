@@ -5,7 +5,8 @@ from aios.storage.collection import Collection
 
 
 class Authorizer:
-    """Answers whether a user's groups grant a permission."""
+    """Answers whether a user's groups grant a permission, with the rights a
+    permission brings along (`Permission.implied`)."""
 
     def __init__(self, groups: Collection[Group]) -> None:
         self._groups = groups
@@ -16,6 +17,8 @@ class Authorizer:
             group = self._groups.get(group_id)
             if group is not None:
                 granted |= group.permissions
+        for permission in list(granted):
+            granted |= permission.implied
         return granted
 
     def has(self, user: User | None, permission: Permission) -> bool:

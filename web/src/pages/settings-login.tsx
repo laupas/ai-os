@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckRow } from "@/components/ui/checkbox";
 import { Hint, Input, Label, NativeSelect, Textarea } from "@/components/ui/input";
-import { api, type Settings } from "@/lib/api";
+import { api, isPowerful, type Settings } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 type Mode = "cloudflare" | "jwt" | "header" | "pick" | "password" | "code" | "sso" | "dev";
@@ -413,9 +413,9 @@ function ProvidersEditor({ providers, seen, onChange, callback }: { providers: P
 
 /** Whether, and as what, someone a login vouches for and nobody has yet becomes a user. */
 function NewPeople({ value, set, hint, withDomains }: { value: Record<string, unknown>; set: (key: string, value: unknown) => void; hint: string; withDomains?: boolean }) {
-  // Groups such a user may go into: those that chat and do not administer (the server checks it again).
+  // Groups such a user may go into: those that chat and hold no powerful right (the server checks it again).
   const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: () => api<Settings>("GET", "/api/settings") });
-  const groups = (settings?.groups ?? []).filter((g) => g.permissions.includes("chat") && !g.permissions.includes("administer") && !g.permissions.includes("manage_users"));
+  const groups = (settings?.groups ?? []).filter((g) => g.permissions.includes("chat") && !isPowerful(g.permissions));
   const on = value.create_users === true;
   return (
     <div className="space-y-2 rounded-lg bg-muted/40 p-3">
@@ -444,7 +444,7 @@ function NewPeople({ value, set, hint, withDomains }: { value: Record<string, un
               </option>
             ))}
           </NativeSelect>
-          <Hint>Only groups that can chat and do not administer ai-os. Change someone's groups later under Users.</Hint>
+          <Hint>Only groups that can chat and hold no powerful right (administer, manage users, manage connectors). Change someone's groups later under Users.</Hint>
         </Label>
       ) : null}
     </div>
@@ -454,8 +454,8 @@ function NewPeople({ value, set, hint, withDomains }: { value: Record<string, un
 /** Which ai-os group a value of the provider's groups claim puts someone in, kept in step on every sign-in. */
 function GroupMap({ provider: p, seen, set }: { provider: Provider; seen: string[]; set: (key: string, value: unknown) => void }) {
   const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: () => api<Settings>("GET", "/api/settings") });
-  // Groups that administer are never filled from a token (the server refuses them too).
-  const groups = (settings?.groups ?? []).filter((g) => !g.permissions.includes("administer") && !g.permissions.includes("manage_users"));
+  // Groups with a powerful right are never filled from a token (the server refuses them too).
+  const groups = (settings?.groups ?? []).filter((g) => !isPowerful(g.permissions));
   const map = Object.entries((p.group_map as Record<string, string> | undefined) ?? {});
   const write = (entries: [string, string][]) => set("group_map", entries.length ? Object.fromEntries(entries) : undefined);
   const listId = `seen-${String(p.id ?? p.kind)}`;
@@ -507,7 +507,7 @@ function GroupMap({ provider: p, seen, set }: { provider: Provider; seen: string
       <Hint>
         {seen.length ? `Seen lately: ${seen.join(", ")}. ` : "Values appear here once someone has signed in. "}
         On every sign-in a mapped group is added when the token has its value and taken away when it has not; groups given by hand under Users stay.
-        Groups that administer ai-os are never filled this way.
+        Groups that administer ai-os, manage users or manage connectors are never filled this way.
       </Hint>
     </div>
   );

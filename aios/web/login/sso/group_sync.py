@@ -1,13 +1,10 @@
 import logging
 
 from aios.entities.users.group import Group
-from aios.entities.users.permission import Permission
 from aios.entities.users.user import User
 from aios.storage.collection import Collection
 
 log = logging.getLogger(__name__)
-
-POWERS = (Permission.ADMINISTER, Permission.MANAGE_USERS)
 
 
 class GroupSync:
@@ -15,7 +12,7 @@ class GroupSync:
     names is added when the provider sent its value and taken away when it did not.
     Groups the map does not name (given by hand in the console) are never touched.
 
-    A group that administers ai-os or manages users is never filled from a token,
+    A group with a powerful right (`Permission.powerful`) is never filled from a token,
     or whoever controls the provider's groups would control ai-os."""
 
     def __init__(self, users: Collection[User], groups: Collection[Group]) -> None:
@@ -27,7 +24,7 @@ class GroupSync:
         group = self._groups.get(group_id)
         if group is None:
             return f"there is no group {group_id}"
-        if any(p in group.permissions for p in POWERS):
+        if any(p.powerful for p in group.permissions):
             return f"group {group_id} administers ai-os; it is never filled from a sign-in"
         return None
 

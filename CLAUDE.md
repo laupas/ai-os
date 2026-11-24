@@ -60,10 +60,10 @@ Read `README.md` for what ai-os is. This file is the rules for changing it.
   required: there, an address is not checked by anyone ai-os trusts.
 - `create_users` (`NewUserMaker`, for SSO per provider and behind a login proxy
   through `NewUserPolicy`) needs `domains` (or, for SSO, a Microsoft tenant of
-  one's own), never puts anyone in a group that administers or manages users, and never
-  makes a second user for an address someone already has. `group_map` (`GroupSync`)
-  touches only the groups the map names and never fills a group that administers
-  or manages users.
+  one's own), never puts anyone in a group with a `Permission.powerful` right
+  (administer, manage users, manage connectors), and never makes a second user for
+  an address someone already has. `group_map` (`GroupSync`) touches only the groups
+  the map names and never fills such a group either.
 - Every response gets `SecurityHeaders` (CSP with `script-src 'self'`, no
   framing, HSTS over https). Keep the console free of inline scripts; a page that
   needs more (the API docs) sets its own CSP, never a looser global one.
@@ -81,7 +81,17 @@ Read `README.md` for what ai-os is. This file is the rules for changing it.
   not. Never let a missing list mean everyone. Lists name groups only (and the
   built-in `everyone`), never single people; rights come only from groups.
 - Who may chat, approve or be messaged is decided from users and their groups in code
-  (`Authorizer`), never by a prompt.
+  (`Authorizer`), never by a prompt. `administer` brings the managing rights
+  (`Permission.implied`); each console area checks its own right, not `administer`.
+- A right that manages something must not reach further than its holder. Without
+  `administer`: `manage_agents` goes through `AgentEditScope` (no fixed agents, no
+  built-in or ai-os tools, only connectors available to the caller, only their own
+  groups or `everyone`; only what a save adds is checked), and restoring an agent's
+  history stays with administrators since it would skip that check; `manage_triggers`
+  covers only triggers whose `user_id` is the caller (a run acts with its user's
+  rights); memories are one's own, shared ones need `manage_shared_memories`.
+  `manage_connectors` is as good as `administer` (a connector runs programs and
+  reads secrets): keep it `powerful`.
 - A `per_user` connector carries only the turn user's own sign-in
   (`ConnectorTokens.for_turn`); without one it is left out of the turn, and the
   shared account is used only with `shared_fallback`. Never hand one user's token

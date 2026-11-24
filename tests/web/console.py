@@ -38,6 +38,7 @@ from aios.entities.memories.memory import Memory
 from aios.entities.skills.skill import Skill
 from aios.entities.triggers.trigger import Trigger
 from aios.entities.users.channel_account import ChannelAccount
+from aios.entities.users.permission import Permission
 from aios.entities.users.web_password import WebPassword
 from aios.entities.users.web_session import WebSession
 from aios.entities.variables.variable import Variable
@@ -65,6 +66,7 @@ from aios.variables.secret_box import SecretBox
 from aios.variables.secret_extractor import SecretExtractor
 from aios.variables.variable_catalog import VariableCatalog
 from aios.variables.variable_resolver import VariableResolver
+from aios.web.agent_edit_scope import AgentEditScope
 from aios.web.aios_yaml_file import AiosYamlFile
 from aios.web.api_docs.openapi_builder import OpenApiBuilder
 from aios.web.client_address import ClientAddress
@@ -176,6 +178,14 @@ class Console:
         self.restart = RestartRequest()
         self.sign_in_check = FakeClaudeSignInCheck({"sk-ant-good"})
         self.triggers_config = TriggersConfig()
+
+    async def grant(self, group_id: str, *permissions: Permission) -> None:
+        """Gives a group more rights, as the console's group editor would."""
+        group = self.world.groups.get(group_id)
+        assert group is not None
+        await self.world.groups.put(
+            group.model_copy(update={"permissions": group.permissions | set(permissions)})
+        )
 
     async def __aenter__(self) -> "Console":
         w = self.world
@@ -363,6 +373,9 @@ class Console:
                     aw.connectors,
                     board,
                     lambda: ["Task", "WebSearch", "WebFetch"],
+                    AgentEditScope(
+                        aw.agents, aw.connectors, w.groups, PermissionAudience(w.authorizer)
+                    ),
                 ),
                 SkillRoutes(self.skills, aw.agents),
                 HistoryRoutes(self.repo_world.store, self.repo_world.collections),
@@ -386,6 +399,7 @@ class Console:
                         self.variable_resolver,
                     ),
                     variables=self.variables,
+                    groups=w.groups,
                 ),
                 SettingsRoutes(
                     AiosYamlFile(self.config_file, live=self.live_config),

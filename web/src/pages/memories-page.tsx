@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { api, type Memory, type MemoryKind, type MemoryOwner } from "@/lib/api";
 import { useConfirm } from "@/lib/confirm";
+import { can, useMe } from "@/lib/use-me";
 import { when } from "@/lib/utils";
 
 const KINDS: MemoryKind[] = ["preference", "person", "project", "note"];
@@ -31,7 +32,7 @@ export function MemoriesPage() {
     <Page className="max-w-3xl">
       <PageHeader
         title="Memories"
-        description="What ai-os remembers. A memory is one user's or shared with every user; preferences go into the prompt of their owner's turns, shared ones into every turn."
+        description="What ai-os remembers. A memory is one user's or shared with every user; preferences go into the prompt of their owner's turns, shared ones into every turn. You see your own and the shared ones."
         actions={
           <Button onClick={() => setAdding(true)}>
             <Plus /> Add
@@ -62,18 +63,23 @@ export function MemoriesPage() {
 function MemoryCard({ memory, users, onDone }: { memory?: Memory; users: MemoryOwner[]; onDone?: () => void }) {
   const queryClient = useQueryClient();
   const confirm = useConfirm();
+  const { data: me } = useMe();
+  // A shared memory goes into every user's turns: writing one takes its own right.
+  const mayShare = can(me, "manage_shared_memories");
+  const editable = memory?.editable ?? true;
   const [draft, setDraft] = useState({
     kind: memory?.kind ?? "note",
     subject: memory?.subject ?? "",
     text: memory?.text ?? "",
-    owner: memory?.user_id ?? "",
+    owner: memory ? (memory.user_id ?? "") : mayShare ? "" : (users[0]?.id ?? ""),
   });
   const dirty =
-    !memory ||
-    draft.kind !== memory.kind ||
-    draft.subject !== (memory.subject ?? "") ||
-    draft.text !== memory.text ||
-    draft.owner !== (memory.user_id ?? "");
+    editable &&
+    (!memory ||
+      draft.kind !== memory.kind ||
+      draft.subject !== (memory.subject ?? "") ||
+      draft.text !== memory.text ||
+      draft.owner !== (memory.user_id ?? ""));
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["memories"] });
   const save = useMutation({
     mutationFn: () => {
@@ -99,13 +105,13 @@ function MemoryCard({ memory, users, onDone }: { memory?: Memory; users: MemoryO
   return (
     <Card className="space-y-3 p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <NativeSelect className="h-8 w-32" value={draft.kind} onChange={(e) => setDraft({ ...draft, kind: e.target.value as MemoryKind })}>
+        <NativeSelect className="h-8 w-32" value={draft.kind} disabled={!editable} onChange={(e) => setDraft({ ...draft, kind: e.target.value as MemoryKind })}>
           {KINDS.map((k) => (
             <option key={k}>{k}</option>
           ))}
         </NativeSelect>
-        <NativeSelect className="h-8 w-40" value={draft.owner} title="Whose memory this is" onChange={(e) => setDraft({ ...draft, owner: e.target.value })}>
-          <option value="">{SHARED}</option>
+        <NativeSelect className="h-8 w-40" value={draft.owner} disabled={!editable} title="Whose memory this is" onChange={(e) => setDraft({ ...draft, owner: e.target.value })}>
+          {mayShare || draft.owner === "" ? <option value="">{SHARED}</option> : null}
           {users.map((u) => (
             <option key={u.id} value={u.id}>
               {u.name}
@@ -113,10 +119,10 @@ function MemoryCard({ memory, users, onDone }: { memory?: Memory; users: MemoryO
           ))}
           {draft.owner && !users.some((u) => u.id === draft.owner) ? <option value={draft.owner}>{draft.owner}</option> : null}
         </NativeSelect>
-        <Input className="h-8 min-w-0 flex-1" placeholder="Subject" value={draft.subject} onChange={(e) => setDraft({ ...draft, subject: e.target.value })} />
+        <Input className="h-8 min-w-0 flex-1" placeholder="Subject" value={draft.subject} readOnly={!editable} onChange={(e) => setDraft({ ...draft, subject: e.target.value })} />
         {memory ? <Badge variant="outline">{when(memory.created_at)}</Badge> : null}
       </div>
-      <Textarea rows={2} value={draft.text} placeholder="Something to remember" onChange={(e) => setDraft({ ...draft, text: e.target.value })} />
+      <Textarea rows={2} value={draft.text} readOnly={!editable} placeholder="Something to remember" onChange={(e) => setDraft({ ...draft, text: e.target.value })} />
       <div className="flex gap-2">
         {dirty ? (
           <Button size="sm" onClick={() => save.mutate()} disabled={!draft.text.trim() || save.isPending}>
@@ -129,7 +135,7 @@ function MemoryCard({ memory, users, onDone }: { memory?: Memory; users: MemoryO
           </Button>
         ) : null}
         <span className="flex-1" />
-        {memory ? (
+        {memory && editable ? (
           <Button size="sm" variant="ghost" className="text-destructive" onClick={remove}>
             <Trash2 /> Delete
           </Button>

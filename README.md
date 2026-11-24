@@ -175,11 +175,34 @@ way to give rights: a group has permissions, and every member has them.
 
 | Permission | Allows |
 |---|---|
-| `chat` | talking to ai-os on a channel |
+| `chat` | talking to ai-os on a channel and in the web console; keeping one's own memories there |
 | `approve` | answering approval requests |
 | `receive_unapproved` | being sent a message without an approval first |
+| `manage_agents` | creating and changing agents, within limits (below) |
+| `manage_skills` | creating and changing skills |
+| `manage_connectors` | adding and changing connectors, signing in their shared accounts |
+| `manage_variables` | setting variables and secrets (a secret is never shown back) |
+| `manage_triggers` | creating and changing triggers that run for oneself |
+| `manage_shared_memories` | writing memories shared with every user |
+| `view_logs` | reading the logs, the audit trail and Health |
 | `manage_users` | approving an agent's changes to users and groups |
-| `administer` | the console's controls: settings, agents, connectors, logs, every conversation, restart |
+| `administer` | everything: all the `manage_*` rights and `view_logs`, every user's triggers, memories and conversations, settings, store, webhooks, branches, restart |
+
+`administer` brings every right in the list that manages something; the others
+can be given on their own, so a group can, say, build agents without adding
+connectors. A few are less separate than they look:
+
+- **`manage_agents`** without `administer` grants only connectors available to
+  the person, no built-in tools and none of ai-os's own tools, and makes an agent
+  available only to their own groups or `everyone`. Fixed agents (orchestrator,
+  configurator, triggers, memory, messenger) stay with administrators, as does
+  bringing back an earlier version of an agent. What an administrator granted
+  stays when such a person edits the agent.
+- **`manage_triggers`** without `administer` covers only triggers that run for
+  oneself: a run acts with its user's rights.
+- **`manage_connectors`** is as good as `administer`: a connector can run a program
+  on the server and reads secrets. Like `administer` and `manage_users`, a group
+  with it is never filled automatically (new users, the provider's groups).
 
 Default groups (created on the first start): `owner` (Administrators: everything),
 `member` (Members: may chat; where new people go), `trusted_contact` (Trusted
@@ -210,10 +233,10 @@ by the Dockerfile. What each person sees depends on their permissions:
 | Chat | conversations with ai-os, picking the agent to talk to; every conversation for administrators |
 | Voice | hands-free talking: speech is transcribed, the reply read aloud, "stop" cuts it off |
 | Approvals | open approval requests, answered here or on Slack and Teams |
-| Triggers | create, edit, switch off, run now; turn on a trigger's webhook and renew its token |
-| Memories | what ai-os remembers, per user or shared |
+| Triggers | create, edit, switch off, run now; turn on a trigger's webhook and renew its token; one's own only without `administer` |
+| Memories | what ai-os remembers: one's own and the shared ones; everyone's for administrators |
 | Agents, Skills | prompts, models and grants; instructions |
-| Connectors | MCP servers and code connectors, starting and signing in; users who are not administrators see only their own sign-ins |
+| Connectors | MCP servers and code connectors, starting and signing in; users without `manage_connectors` see only their own sign-ins |
 | Variables | values and secrets for connectors, channels and webhooks |
 | Audit | who changed what when, settings and configuration commits together |
 | Logs, Health | the instance's log, and what is running (channels, connectors, Claude sign-in) |
@@ -262,7 +285,8 @@ Behind a proxy (`cloudflare`, `jwt`, `header`), `create_users: true` makes a use
 for an address the proxy vouches for and nobody has yet, instead of refusing it:
 named after the address, with it as web account, in `default_group` (`member`
 unless set). It needs `domains`, since ai-os cannot see whom the proxy lets
-through, and the group must chat and must not administer or manage users. Single
+through, and the group must chat and must not administer, manage users or manage
+connectors. Single
 sign-on has the same, per provider (below).
 
 ```yaml
@@ -296,7 +320,7 @@ microphone (for Voice), and HSTS once the console is reached over https
 (`public_url`, or the proxy's `X-Forwarded-Proto`).
 
 A person gets in with a `web` account (the address the proxy reports) on a user with
-the `chat` permission; the controls need `administer`. Changes need an `X-Aios: 1`
+the `chat` permission; each control needs its own right (see [Configuration](#configuration)). Changes need an `X-Aios: 1`
 header, which another site cannot send. No change is accepted that would leave
 nobody able to administer ai-os.
 
@@ -361,7 +385,8 @@ web:
 provider vouches for and nobody has yet becomes a new user (named as the provider
 names them, with that address as web account) instead of being refused. They get
 `default_group` (`member` unless set), which must be able to chat and must not
-administer or manage users: a sign-in never makes an administrator. It needs
+administer, manage users or manage connectors: a sign-in never makes an
+administrator. It needs
 `domains`, so not everyone with a Google or Microsoft account becomes a user;
 only a Microsoft tenant of your own (not `consumers`) limits it without them.
 
@@ -400,7 +425,7 @@ Login offers the values providers sent lately, so nothing has to be typed.
   `groups` with the group names.
 - **Google** sends no groups; set people's groups under Users.
 
-A group that administers ai-os or manages users is never filled from a token
+A group that administers ai-os, manages users or manages connectors is never filled from a token
 (Settings refuse such a mapping), or whoever controls the provider's groups would
 control ai-os. A mapped group that chats lets a known person sign in even if they
 had no group before.

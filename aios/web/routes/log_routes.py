@@ -10,7 +10,7 @@ from aios.web.web_routes import WebRoutes
 
 
 class LogRoutes(WebRoutes):
-    """ai-os's own log, filtered by level and age. Administrators only."""
+    """ai-os's own log, filtered by level and age. For `view_logs`."""
 
     def __init__(self, log_reader: LogReader, clock: Clock) -> None:
         self._log_reader = log_reader
@@ -20,7 +20,7 @@ class LogRoutes(WebRoutes):
         app.router.add_get("/api/logs", self._logs)
 
     async def _logs(self, request: web.Request) -> web.Response:
-        WebAuth.caller(request, Permission.ADMINISTER)
+        WebAuth.caller(request, Permission.VIEW_LOGS)
         level = request.query.get("level", "WARNING").upper()
         if level not in LEVELS:
             raise web.HTTPBadRequest(text=f"level must be one of {LEVELS}")

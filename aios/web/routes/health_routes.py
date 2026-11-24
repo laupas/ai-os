@@ -23,7 +23,7 @@ from aios.web.web_routes import WebRoutes
 
 
 class HealthRoutes(WebRoutes):
-    """`/api/me` for everyone, `/api/health` for administrators."""
+    """`/api/me` for everyone, `/api/health` for those who view logs."""
 
     def __init__(
         self,
@@ -70,7 +70,7 @@ class HealthRoutes(WebRoutes):
         )
 
     async def _health(self, request: web.Request) -> web.Response:
-        WebAuth.caller(request, Permission.ADMINISTER)
+        WebAuth.caller(request, Permission.VIEW_LOGS)
         now = self._clock.now()
         problems = self._log_reader.read(now - timedelta(hours=24), "WARNING")
         errors = [line for line in problems if " ERROR " in line or " CRITICAL " in line]

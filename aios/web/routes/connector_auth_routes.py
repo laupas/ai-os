@@ -24,7 +24,7 @@ class ConnectorAuthRoutes(WebRoutes):
 
     `?account=mine` signs in the caller's own account, for a per-user connector, and
     needs only the right to chat; `?account=shared` signs in the account everybody
-    uses, and needs an administrator. Without it, the connector's mode decides.
+    uses, and needs `manage_connectors`. Without it, the connector's mode decides.
 
     The server sends the browser back to `CALLBACK`, which then returns it to the
     Connectors page, saying how it went. That return is a navigation from another
@@ -99,8 +99,10 @@ class ConnectorAuthRoutes(WebRoutes):
             return True
         if account != SHARED:
             raise web.HTTPBadRequest(text="account is mine or shared")
-        if not caller.can(Permission.ADMINISTER):
-            raise web.HTTPForbidden(text="only an administrator signs in the shared account")
+        if not caller.can(Permission.MANAGE_CONNECTORS):
+            raise web.HTTPForbidden(
+                text="only someone who manages connectors signs in the shared account"
+            )
         return False
 
     async def _callback(self, request: web.Request) -> web.Response:
