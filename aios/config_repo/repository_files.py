@@ -110,6 +110,65 @@ class RepositoryFiles:
             await self._store.committed()
         return commit
 
+    async def undo(self, branch: str, commit: str) -> str | None:
+        """Undoes one commit of `branch` with a new commit; the commits after it
+        stay. Returns the new commit, or None when there was nothing left to undo."""
+        author = CurrentAuthor.get()
+        return await self._replace(
+            branch, commit, lambda tip, full: self._repo.revert(tip, full, author)
+        )
+
+    async def restore(self, branch: str, commit: str) -> str | None:
+        """Brings every file of `branch` back to how it was at `commit`, with a new
+        commit: nothing in between is lost, and a push stays a plain push. Returns
+        the new commit, or None when the branch already is that way."""
+        author = CurrentAuthor.get()
+        return await self._replace(
+            branch,
+            commit,
+            lambda tip, full: self._repo.restore(
+                tip, full, f"Restore {branch} as of {full[:7]}", author
+            ),
+        )
+
+    async def _replace(self, branch: str, commit: str, make) -> str | None:  # type: ignore[no-untyped-def]
+        """Makes a commit on top of `branch` with `make(tip, commit)` beside it,
+        checks every file it changes as a save would be checked, and only then
+        moves the branch."""
+        if branch not in {b["name"] for b in await asyncio.to_thread(self._repo.branches)}:
+            raise ValueError(f"no branch called {branch}")
+        full = await self._commit_of(commit)
+        async with self._store.lock:
+            tip = await self._commit_of(branch)
+            if not await asyncio.to_thread(self._repo.is_ancestor, full, tip):
+                raise ValueError(f"{commit[:7]} is not in the history of {branch}")
+            running = branch == await asyncio.to_thread(self._repo.current_branch)
+            if running and not await asyncio.to_thread(self._repo.is_clean):
+                raise RepositoryConflict(
+                    "there are uncommitted edits in the repository; commit them first"
+                )
+            new = await asyncio.to_thread(make, tip, full)
+            if new is None:
+                return None
+            await asyncio.to_thread(self._check_commit, tip, new)
+            await asyncio.to_thread(self._repo.advance, branch, tip, new)
+        await self._watcher.check()
+        await self._store.committed()
+        return new
+
+    def _check_commit(self, old: str, new: str) -> None:
+        for row in self._repo.changed_files(new, old):
+            path = row["path"]
+            if row["status"] == "D":
+                self._check.deletable(path)
+                continue
+            text = self._repo.show(new, path) or ""
+            if "\0" not in text[:BINARY_SNIFF]:
+                try:
+                    self._check.check(path, text)
+                except ValueError as exc:
+                    raise ValueError(f"{path} would no longer load: {exc}") from exc
+
     def _write_here(self, path: str, text: str | None, message: str, author) -> str | None:  # type: ignore[no-untyped-def]
         file = self._repo.root / path
         if text is None:

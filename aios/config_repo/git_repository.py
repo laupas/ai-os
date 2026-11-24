@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 
 from aios.config_repo.change_author import ChangeAuthor
+from aios.config_repo.repository_conflict import RepositoryConflict
 
 log = logging.getLogger(__name__)
 
@@ -260,6 +261,63 @@ class GitRepository:
                 f"git merge failed: {result.stderr.strip() or result.stdout.strip()}"
             )
         return conflicts
+
+    def is_ancestor(self, commit: str, ref: str) -> bool:
+        """Whether `commit` is in the history of `ref` (or is it)."""
+        result = self._git("merge-base", "--is-ancestor", commit, ref, check=False)
+        return result.returncode == 0
+
+    def revert(self, tip: str, commit: str, author: ChangeAuthor) -> str | None:
+        """A new commit on top of `tip` that undoes what `commit` changed, made in a
+        temporary worktree so no branch moves; None when there is nothing left to
+        undo. Raises RepositoryConflict naming the files a later commit changed
+        again."""
+        parents = self._git("rev-list", "--parents", "-n", "1", commit).stdout.split()
+        mainline = ["-m", "1"] if len(parents) > 2 else []
+        identity = ["-c", f"user.name={author.name}", "-c", f"user.email={author.email}"]
+        with tempfile.TemporaryDirectory(prefix="aios-revert-") as tmp:
+            place = Path(tmp) / "tree"
+            self._git("worktree", "add", "--quiet", "--detach", str(place), tip)
+            try:
+                other = GitRepository(place)
+                result = other._git(
+                    *identity, "revert", "--no-edit", *mainline, commit, check=False
+                )
+                if result.returncode == 0:
+                    return other.head()
+                conflicts = other._git("diff", "--name-only", "--diff-filter=U").stdout.split()
+                other._git("revert", "--abort", check=False)
+                if conflicts:
+                    raise RepositoryConflict(
+                        "later commits changed the same lines again in " + ", ".join(conflicts)
+                    )
+                if other.is_clean():
+                    return None
+                raise RuntimeError(f"git revert failed: {result.stderr.strip()}")
+            finally:
+                self._git("worktree", "remove", "--force", str(place), check=False)
+                self._git("worktree", "prune", check=False)
+
+    def restore(self, tip: str, commit: str, message: str, author: ChangeAuthor) -> str | None:
+        """A new commit on top of `tip` whose files are exactly those of `commit`, so
+        no branch moves and the history in between is kept; None when they already
+        are."""
+        tree = self._git("rev-parse", f"{commit}^{{tree}}").stdout.strip()
+        if tree == self._git("rev-parse", f"{tip}^{{tree}}").stdout.strip():
+            return None
+        env = {
+            "GIT_AUTHOR_NAME": author.name, "GIT_AUTHOR_EMAIL": author.email,
+            "GIT_COMMITTER_NAME": author.name, "GIT_COMMITTER_EMAIL": author.email,
+        }  # fmt: skip
+        return self._git("commit-tree", tree, "-p", tip, "-m", message, env=env).stdout.strip()
+
+    def advance(self, branch: str, old: str, new: str) -> None:
+        """Moves `branch` from `old` to `new`, a commit on top of it. The checked-out
+        branch is fast-forwarded, so its files follow."""
+        if branch == self.current_branch():
+            self._git("merge", "--ff-only", "--quiet", new)
+        else:
+            self._git("update-ref", f"refs/heads/{branch}", new, old)
 
     def remote_url(self, name: str = "origin") -> str | None:
         result = self._git("remote", "get-url", name, check=False)

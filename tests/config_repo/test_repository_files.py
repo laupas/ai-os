@@ -6,6 +6,7 @@ from aios.config_repo.repository_conflict import RepositoryConflict
 from aios.config_repo.repository_file_check import RepositoryFileCheck
 from aios.config_repo.repository_files import RepositoryFiles
 from aios.entities.agents.agent import Agent
+from aios.entities.skills.skill import Skill
 from tests.config_repo.repo_world import RepoWorld
 
 WEATHER = Agent(id="weather", description="Weather.", prompt="Say the weather.\n")
@@ -119,3 +120,67 @@ async def test_what_is_local_and_what_is_on_the_remote(tmp_path) -> None:
     status = await files.remote("main")
     assert status["on_remote"] and status["unpushed"] == [commit] and status["behind"] == 0
     assert status["fetched_at"] is not None
+
+
+async def _two_edits(w, files):  # type: ignore[no-untyped-def]
+    """The agent's prompt changed twice; returns the three commits, oldest first."""
+    (first,) = await files.history("main", AGENT_FILE, 0, 1)
+    for prompt in ("Second.", "Third."):
+        opened = await files.read("main", AGENT_FILE)
+        text = opened["text"].replace(opened["text"].split("---\n")[-1].strip(), prompt)
+        await files.write("main", AGENT_FILE, text, opened["blob"], prompt)
+    second, third = reversed(await files.history("main", AGENT_FILE, 0, 2))
+    return first["commit"], second["commit"], third["commit"]
+
+
+async def test_undoing_the_last_commit_is_a_new_commit_and_applies_at_once(tmp_path) -> None:
+    w, files = await _world(tmp_path)
+    _, _, third = await _two_edits(w, files)
+    new = await files.undo("main", third)
+    assert new is not None and w.repo.head() == new
+    assert w.agents.get("weather").prompt == "Second.\n"  # type: ignore[union-attr]
+    assert len(await files.history("main", None, 0, 50)) == 4
+    assert await files.undo("main", third) is None  # nothing left to undo
+
+
+async def test_an_older_commit_that_was_changed_again_is_not_undone(tmp_path) -> None:
+    w, files = await _world(tmp_path)
+    _, second, third = await _two_edits(w, files)
+    with pytest.raises(RepositoryConflict, match=AGENT_FILE):
+        await files.undo("main", second)
+    assert w.repo.head() == third and w.repo.is_clean()
+
+
+async def test_the_branch_is_brought_back_to_an_earlier_commit(tmp_path) -> None:
+    w, files = await _world(tmp_path)
+    first, _, third = await _two_edits(w, files)
+    await w.skills.put(Skill(id="extra", description="Extra.", content="Extra.\n"))
+    new = await files.restore("main", first)
+    assert new is not None and w.repo.is_ancestor(third, new)
+    assert w.agents.get("weather") == WEATHER and w.skills.get("extra") is None
+    assert [f["path"] for f in await files.tree("main")] == [AGENT_FILE]
+    assert await files.restore("main", first) is None
+
+
+async def test_another_branch_is_restored_beside_the_running_one(tmp_path) -> None:
+    w, files = await _world(tmp_path)
+    first, _, third = await _two_edits(w, files)
+    await ConfigBranches(w.store, w.collections).create("draft", None)
+    await files.restore("draft", first)
+    assert "Say the weather." in (await files.read("draft", AGENT_FILE))["text"]
+    assert w.repo.head() == third and w.agents.get("weather").prompt == "Third.\n"  # type: ignore[union-attr]
+
+
+async def test_a_commit_of_another_branch_or_a_result_that_would_not_load_is_refused(
+    tmp_path,
+) -> None:
+    w, files = await _world(tmp_path)
+    await ConfigBranches(w.store, w.collections).create("draft", None)
+    opened = await files.read("draft", AGENT_FILE)
+    draft = await files.write("draft", AGENT_FILE, opened["text"] + "More.\n", opened["blob"], "")
+    with pytest.raises(ValueError, match="not in the history"):
+        await files.undo("main", draft)  # type: ignore[arg-type]
+    added = await files.write("main", "aios.yaml", "{}\n", None, "Add aios.yaml")
+    with pytest.raises(ValueError, match="cannot be deleted"):
+        await files.undo("main", added)  # type: ignore[arg-type]
+    assert w.repo.head() == added and (w.root / "aios.yaml").exists()

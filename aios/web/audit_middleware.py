@@ -19,9 +19,11 @@ ACTIONS: dict[tuple[str, str], tuple[str, str, AuditAction]] = {
     ("POST", "/api/git/delete"): ("git", "delete branch", AuditAction.PERFORMED),
     ("POST", "/api/git/push"): ("git", "push", AuditAction.PERFORMED),
     ("POST", "/api/git/pull"): ("git", "pull", AuditAction.PERFORMED),
+    ("POST", "/api/repository/undo"): ("git", "undo commit", AuditAction.PERFORMED),
+    ("POST", "/api/repository/restore"): ("git", "restore branch", AuditAction.PERFORMED),
 }
-# Body fields worth keeping: branch names. Never the body as a whole.
-DETAIL_FIELDS = ("name", "start", "branch", "source", "into")
+# Body fields worth keeping: branch names and commit ids. Never the body as a whole.
+DETAIL_FIELDS = ("name", "start", "branch", "source", "into", "commit")
 
 
 class AuditMiddleware:

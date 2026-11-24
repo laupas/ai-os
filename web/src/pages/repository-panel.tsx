@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDownToLine, ArrowUpFromLine, ChevronDown, ChevronRight, File, FilePlus, Folder, GitCommitHorizontal, History, Pencil, RefreshCw, RotateCcw, Save, Search, Trash2, X } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, ChevronDown, ChevronRight, File, FilePlus, Folder, GitCommitHorizontal, History, Pencil, RefreshCw, RotateCcw, Save, Search, Trash2, Undo2, X } from "lucide-react";
 import { lazy, Suspense, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Diff } from "@/components/history-button";
@@ -485,7 +485,7 @@ function CommitList({ refName, onOpenFile }: { refName: string; onOpenFile: (pat
   return (
     <div className="space-y-3">
       <div className="divide-y rounded-xl border">
-        {data?.commits.map((c) => (
+        {data?.commits.map((c, i) => (
           <div key={c.commit}>
             <button
               type="button"
@@ -520,6 +520,7 @@ function CommitList({ refName, onOpenFile }: { refName: string; onOpenFile: (pat
                   ))}
                 </div>
                 <CommitDiff commit={c.commit} />
+                <CommitActions branch={refName} commit={c} latest={i === 0} />
               </div>
             ) : null}
           </div>
@@ -531,6 +532,58 @@ function CommitList({ refName, onOpenFile }: { refName: string; onOpenFile: (pat
             Older commits
           </Button>
         </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** Undo one commit, or bring the whole branch back to how it was at it. Both make
+ * a new commit, so nothing is lost and a push stays a plain push. */
+function CommitActions({ branch, commit: c, latest }: { branch: string; commit: Commit; latest: boolean }) {
+  const queryClient = useQueryClient();
+  const confirm = useConfirm();
+  const git = useGit();
+  const [busy, setBusy] = useState(false);
+  const running = branch === git.data?.current;
+  const applies = running ? " ai-os runs the result from the next turn." : "";
+  const run = async (action: "undo" | "restore") => {
+    const ok = await confirm(
+      action === "undo"
+        ? {
+            title: `Undo ${c.commit.slice(0, 7)}?`,
+            body: `A new commit on ${branch} takes back what "${c.subject}" changed. The commits after it stay.${applies}`,
+            action: "Undo",
+          }
+        : {
+            title: `Bring ${branch} back to ${c.commit.slice(0, 7)}?`,
+            body: `Every file of ${branch} becomes as it was on ${when(c.date)}, in one new commit. The commits since stay in the history, so this can be undone too.${applies}`,
+            action: "Restore",
+            destructive: true,
+          },
+    );
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const { commit } = await api<{ commit: string | null }>("POST", `/api/repository/${action}`, { branch, commit: c.commit });
+      if (commit === null) toast.info(action === "undo" ? "Nothing to undo: its changes are already gone." : `${branch} already is as it was then.`);
+      else toast.success(action === "undo" ? `Undone on ${branch}.` : `${branch} is back to ${c.commit.slice(0, 7)}.`);
+      // On the running branch every configuration page may have changed.
+      void queryClient.invalidateQueries();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="flex flex-wrap gap-2 border-t pt-2">
+      <Button size="sm" variant="outline" disabled={busy} onClick={() => run("undo")}>
+        <Undo2 /> Undo this commit
+      </Button>
+      {!latest ? (
+        <Button size="sm" variant="outline" disabled={busy} onClick={() => run("restore")}>
+          <RotateCcw /> Bring {branch} back to here
+        </Button>
       ) : null}
     </div>
   );

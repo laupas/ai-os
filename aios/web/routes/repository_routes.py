@@ -5,6 +5,7 @@ from aiohttp import web
 from aios.config_repo.repository_conflict import RepositoryConflict
 from aios.config_repo.repository_files import RepositoryFiles
 from aios.entities.users.permission import Permission
+from aios.web.branch_commit_request import BranchCommitRequest
 from aios.web.file_write_request import FileWriteRequest
 from aios.web.request_body import RequestBody
 from aios.web.web_auth import WebAuth
@@ -16,8 +17,8 @@ MAX_LIMIT = 200
 
 class RepositoryRoutes(WebRoutes):
     """The configuration repository as files: browse any branch, read a file, its
-    history and any commit's diff, and write or delete a file as a commit.
-    Administrators only.
+    history and any commit's diff, write or delete a file as a commit, undo one
+    commit, and bring a branch back to an earlier commit. Administrators only.
 
     Writing a code connector's files here runs code on this machine, which an
     administrator could already do with a command connector; agents never reach
@@ -34,6 +35,8 @@ class RepositoryRoutes(WebRoutes):
         app.router.add_get("/api/repository/remote", self._remote)
         app.router.add_get("/api/repository/commits/{commit}", self._diff)
         app.router.add_put("/api/repository/file", self._write)
+        app.router.add_post("/api/repository/undo", self._undo)
+        app.router.add_post("/api/repository/restore", self._restore)
 
     async def _tree(self, request: web.Request) -> web.Response:
         WebAuth.caller(request, Permission.ADMINISTER)
@@ -84,6 +87,19 @@ class RepositoryRoutes(WebRoutes):
         if body.text is not None:
             blob = (await self._run(self._files.read(body.branch, body.path)))["blob"]
         return web.json_response({"commit": commit, "blob": blob})
+
+    async def _undo(self, request: web.Request) -> web.Response:
+        WebAuth.caller(request, Permission.ADMINISTER)
+        body = await RequestBody.parse(request, BranchCommitRequest)
+        return web.json_response(
+            {"commit": await self._run(self._files.undo(body.branch, body.commit))}
+        )
+
+    async def _restore(self, request: web.Request) -> web.Response:
+        WebAuth.caller(request, Permission.ADMINISTER)
+        body = await RequestBody.parse(request, BranchCommitRequest)
+        commit = await self._run(self._files.restore(body.branch, body.commit))
+        return web.json_response({"commit": commit})
 
     @staticmethod
     async def _run(work):  # type: ignore[no-untyped-def]
