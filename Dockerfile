@@ -1,5 +1,5 @@
 # The web console (web/): React, built once here and served by ai-os as static files.
-FROM node:22-slim AS web
+FROM node:25-slim AS web
 WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci --no-audit --no-fund
