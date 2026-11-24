@@ -145,7 +145,7 @@ update anything on its own.
 | Where | What |
 |---|---|
 | environment | secrets and paths: `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN`, `AIOS_SECRETS_KEY`, `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `TEAMS_APP_ID`, `TEAMS_APP_PASSWORD`, `TEAMS_TENANT_ID`, `RESEND_API_KEY`, `AIOS_MAIL_FROM`, `SIGNAL_API_URL`, `SIGNAL_SENDER`, `OPENAI_API_KEY` (voice notes), `AIOS_DATA_DIR`, `AIOS_VARIABLE_FILES_DIR` (best a tmpfs), `AIOS_INITIAL_CONFIG` and `AIOS_OWNER_PASSWORD` (first start only), `AIOS_LOG_LEVEL`; see `.env.example` |
-| `<data>/config` | the configuration repository (git): `aios.yaml`, agents, skills, connectors, triggers, roles, webhooks |
+| `<data>/config` | the configuration repository (git): `aios.yaml`, agents, skills, connectors, triggers, roles, groups, webhooks |
 | `<data>/users` | who is who, with their accounts on each channel |
 | `<data>/variables` | values and secrets for connectors, set in the console; secrets encrypted |
 | `<data>/…` | runtime: conversations, approvals, memories, logs |
@@ -177,13 +177,20 @@ number, a mail address, a web address) and roles. A role is a set of permissions
 | `chat` | talking to ai-os on a channel |
 | `approve` | answering approval requests |
 | `receive_unapproved` | being sent a message without an approval first |
-| `manage_users` | approving an agent's changes to users and roles |
+| `manage_users` | approving an agent's changes to users, roles and groups |
 | `administer` | the console's controls: settings, agents, connectors, logs, every conversation, restart |
 
 Default roles (created on the first start): `owner` (everything), `member` (may
 chat), `trusted_contact` (may be messaged without approval). Edit them, or add
 your own, under Settings → Roles. On every start the owners get a "started and
 ready" message on a channel that can reach them.
+
+**Groups** give roles to several people at once: a member of a group has the
+group's roles on top of their own (Settings → Groups, where you also pick its
+members). Groups live in the configuration repository like roles; who is in a
+group is kept on each user (`group_ids`). A role is not deleted while a group
+gives it, a group not while it has members, and no change is accepted that would
+leave nobody able to administer ai-os, through a role or a group.
 
 ## Web console and login
 
@@ -202,7 +209,7 @@ by the Dockerfile. What each person sees depends on their permissions:
 | Variables | values and secrets for connectors, channels and webhooks |
 | Audit | who changed what when, settings and configuration commits together |
 | Logs, Health | the instance's log, and what is running (channels, connectors, Claude sign-in) |
-| Settings | Claude, Channels (with Webhooks), General, Agents, Approvals, Login, Files, Data access, Users, Roles, Repository (the configuration files, editable), Branches, aios.yaml |
+| Settings | Claude, Channels (with Webhooks), General, Agents, Approvals, Login, Files, Data access, Users, Groups, Roles, Repository (the configuration files, editable), Branches, aios.yaml |
 
 The console either signs people in itself, or trusts a **login proxy** in front of
 it and checks again who is asking, since anything on the same network may reach the
@@ -721,6 +728,7 @@ triggers, roles, webhooks, code connectors) is one git repository at `<data>/con
 | `connectors/<name>.yaml` | description, enabled, and the MCP config (`${VAR}` for secrets) |
 | `triggers/<id>.yaml` | the trigger; when it last fired is runtime state, outside git |
 | `roles/<id>.yaml` | a role's name and permissions |
+| `groups/<id>.yaml` | a group's name, description and roles |
 | `webhooks/<name>.yaml` | a webhook destination (`${VAR}` for secrets) |
 | `code/<name>/` | a code connector: `connector.yaml`, `server.py`, its agents |
 

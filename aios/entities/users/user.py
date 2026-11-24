@@ -11,6 +11,8 @@ class User(BaseModel):
     aliases: list[str] = []
     accounts: list[ChannelAccount] = []
     role_ids: list[str] = []
+    group_ids: list[str] = []
+    """Groups whose roles the user has too."""
     notes: str | None = None
 
     def has_account(self, channel: str, address: str) -> bool:

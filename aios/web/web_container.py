@@ -66,6 +66,7 @@ class WebContainer(containers.DeclarativeContainer):
     config_file = providers.Dependency()
     users = providers.Dependency()
     roles = providers.Dependency()
+    groups = providers.Dependency()
     conversations = providers.Dependency()
     approvals = providers.Dependency()
     memories = providers.Dependency()
@@ -315,6 +316,7 @@ class WebContainer(containers.DeclarativeContainer):
             live=live_config,
             users=users,
             roles=roles,
+            groups=groups,
             ids=ids,
             restart=restart,
         ),

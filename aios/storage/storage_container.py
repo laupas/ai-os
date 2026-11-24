@@ -16,6 +16,7 @@ from aios.entities.git.git_remote import GitRemote
 from aios.entities.memories.memory import Memory
 from aios.entities.skills.skill import Skill
 from aios.entities.triggers.trigger import Trigger
+from aios.entities.users.group import Group
 from aios.entities.users.permission import Permission
 from aios.entities.users.role import Role
 from aios.entities.users.user import User
@@ -94,6 +95,7 @@ class StorageContainer(containers.DeclarativeContainer):
             ),
             connectors=providers.Singleton(YamlLayout, "connectors"),
             roles=providers.Singleton(YamlLayout, "roles"),
+            groups=providers.Singleton(YamlLayout, "groups"),
             triggers=providers.Singleton(YamlLayout, "triggers"),
             webhooks=providers.Singleton(YamlLayout, "webhooks"),
         ),
@@ -119,6 +121,16 @@ class StorageContainer(containers.DeclarativeContainer):
             CollectionDefinition(
                 name="roles",
                 entity=Role,
+                agent_access=AgentAccess.WRITE,
+                approver_permission=Permission.MANAGE_USERS,
+            )
+        )
+    )
+    groups_definition = providers.Singleton(
+        collection_overrides.provided.apply.call(
+            CollectionDefinition(
+                name="groups",
+                entity=Group,
                 agent_access=AgentAccess.WRITE,
                 approver_permission=Permission.MANAGE_USERS,
             )
@@ -211,6 +223,7 @@ class StorageContainer(containers.DeclarativeContainer):
         Collection, definition=connectors_definition, store=config_store
     )
     roles = providers.Singleton(Collection, definition=roles_definition, store=config_store)
+    groups = providers.Singleton(Collection, definition=groups_definition, store=config_store)
     webhooks = providers.Singleton(Collection, definition=webhooks_definition, store=config_store)
     variables = providers.Singleton(
         Collection, definition=variables_definition, store=settings_store
@@ -236,6 +249,7 @@ class StorageContainer(containers.DeclarativeContainer):
         collections=providers.List(
             users,
             roles,
+            groups,
             conversations,
             approvals,
             memories,

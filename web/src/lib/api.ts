@@ -157,7 +157,16 @@ export interface User {
   aliases: string[];
   accounts: ChannelAccount[];
   role_ids: string[];
+  /** Groups whose roles they have too. */
+  group_ids?: string[];
   notes: string | null;
+}
+
+export interface GroupDoc {
+  id: string;
+  name: string;
+  description: string;
+  role_ids: string[];
 }
 
 export interface RoleDoc {
@@ -258,6 +267,7 @@ export interface Settings {
   config_schema: Record<string, any>;
   users: User[];
   roles: RoleDoc[];
+  groups: GroupDoc[];
   permissions: Permission[];
   permission_descriptions?: Record<string, string>;
   restart_needed?: boolean;

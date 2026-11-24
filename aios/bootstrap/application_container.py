@@ -48,6 +48,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         UsersContainer,
         users=storage.users,
         roles=storage.roles,
+        groups=storage.groups,
         owner=app_config.provided.owner,
         ids=common.ids,
     )
@@ -196,6 +197,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         storage.connectors,
         storage.triggers,
         storage.roles,
+        storage.groups,
         storage.webhooks,
     )
     config_repo = providers.Container(
@@ -233,6 +235,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         config_file=config.settings.provided.resolved_config_file.call(),
         users=storage.users,
         roles=storage.roles,
+        groups=storage.groups,
         conversations=storage.conversations,
         approvals=storage.approvals,
         memories=storage.memories,

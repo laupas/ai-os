@@ -10,6 +10,7 @@ from aios.engine.agent_engine import AgentEngine
 from aios.entities.approvals.approval import Approval
 from aios.entities.conversations.conversation import Conversation
 from aios.entities.users.channel_account import ChannelAccount
+from aios.entities.users.group import Group
 from aios.entities.users.role import Role
 from aios.entities.users.user import User
 from aios.storage.agent_access import AgentAccess
@@ -43,6 +44,9 @@ class World:
         self.roles: Collection[Role] = Collection(
             CollectionDefinition(name="roles", entity=Role), self.store
         )
+        self.groups: Collection[Group] = Collection(
+            CollectionDefinition(name="groups", entity=Group), self.store
+        )
         self.conversations: Collection[Conversation] = Collection(
             CollectionDefinition(name="conversations", entity=Conversation), self.store
         )
@@ -50,9 +54,9 @@ class World:
             CollectionDefinition(name="approvals", entity=Approval), self.store
         )
         self.registry = CollectionRegistry(
-            [self.users, self.roles, self.conversations, self.approvals]
+            [self.users, self.roles, self.groups, self.conversations, self.approvals]
         )
-        self.authorizer = Authorizer(self.roles)
+        self.authorizer = Authorizer(self.roles, self.groups)
         self.channel = FakeChannel()
         self.channels = ChannelDirectory({"fake": lambda: self.channel}, ["fake"])
         self.approval_service = ApprovalService(

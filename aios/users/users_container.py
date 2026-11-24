@@ -8,10 +8,11 @@ from aios.users.owner_bootstrapper import OwnerBootstrapper
 class UsersContainer(containers.DeclarativeContainer):
     users = providers.Dependency()
     roles = providers.Dependency()
+    groups = providers.Dependency()
     owner = providers.Dependency(default=None)
     ids = providers.Dependency()
 
-    authorizer = providers.Singleton(Authorizer, roles=roles)
+    authorizer = providers.Singleton(Authorizer, roles=roles, groups=groups)
     default_roles = providers.Singleton(DefaultRoles)
     bootstrapper = providers.Singleton(
         OwnerBootstrapper,

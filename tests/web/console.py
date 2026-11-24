@@ -364,6 +364,7 @@ class Console:
                     self.live_config,
                     w.users,
                     w.roles,
+                    w.groups,
                     w.ids,
                     self.restart,
                 ),
