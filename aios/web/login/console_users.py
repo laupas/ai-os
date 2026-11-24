@@ -45,6 +45,18 @@ class ConsoleUsers:
             None,
         )
 
+    def owner_of(self, address: str) -> User | None:
+        """Whoever has the web account `address`, allowed to sign in or not."""
+        wanted = address.strip().casefold()
+        return next(
+            (
+                u
+                for u in self._users.all()
+                if any(a.channel == CHANNEL and a.address.casefold() == wanted for a in u.accounts)
+            ),
+            None,
+        )
+
     def has_address(self, address: str) -> bool:
         """Whether anyone, allowed to sign in or not, has the web account `address`."""
         wanted = address.strip().casefold()

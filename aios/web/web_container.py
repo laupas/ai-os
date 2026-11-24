@@ -16,6 +16,8 @@ from aios.web.login.password_hasher import PasswordHasher
 from aios.web.login.password_login import PasswordLogin
 from aios.web.login.pick_login import PickLogin
 from aios.web.login.sign_in_codes import SignInCodes
+from aios.web.login.sso.group_sync import GroupSync
+from aios.web.login.sso.group_values_seen import GroupValuesSeen
 from aios.web.login.sso.oidc_client import OidcClient
 from aios.web.login.sso.sso_attempts import SsoAttempts
 from aios.web.login.sso.sso_login import SsoLogin
@@ -135,6 +137,8 @@ class WebContainer(containers.DeclarativeContainer):
         WebSessions, key=secret_box.provided.derive_key.call("web-session"), clock=clock
     )
     new_user_maker = providers.Singleton(NewUserMaker, users=users, groups=groups, ids=ids)
+    group_sync = providers.Singleton(GroupSync, users=users, groups=groups)
+    group_values_seen = providers.Singleton(GroupValuesSeen)
     logins = providers.List(
         providers.Singleton(PickLogin, users=console_users),
         providers.Singleton(
@@ -157,6 +161,8 @@ class WebContainer(containers.DeclarativeContainer):
             client=providers.Singleton(OidcClient),
             secrets=variable_resolver,
             maker=new_user_maker,
+            sync=group_sync,
+            seen=group_values_seen,
         ),
     )
     identities = providers.Singleton(
@@ -330,7 +336,11 @@ class WebContainer(containers.DeclarativeContainer):
             VoiceSettingsRoutes, variables=variable_catalog, resolver=variable_resolver
         ),
         providers.Singleton(
-            WebAuthSettingsRoutes, config=aios_yaml, identities=identities, maker=new_user_maker
+            WebAuthSettingsRoutes,
+            config=aios_yaml,
+            identities=identities,
+            maker=new_user_maker,
+            seen=group_values_seen,
         ),
         providers.Singleton(FilesSettingsRoutes, config=aios_yaml, guard=file_root_guard),
         providers.Singleton(

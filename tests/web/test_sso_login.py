@@ -5,8 +5,9 @@ from pydantic import ValidationError
 
 from aios.config.sso_provider import SsoProvider
 from aios.config.web_auth_config import WebAuthConfig
+from aios.entities.users.group import Group
 from aios.web.routes.login_routes import STATE_COOKIE
-from tests.web.console import ALICE, Console
+from tests.web.console import ALICE, BOB, Console
 from tests.web.fake_oidc_provider import CLIENT_ID, CLIENT_SECRET, FakeOidcProvider
 
 W = {"X-Aios": "1"}
@@ -267,3 +268,63 @@ def test_create_users_needs_domains_unless_a_tenant_of_ones_own_bounds_it() -> N
         client_secret_variable="S",
         create_users=True,
     )
+
+
+async def test_mapped_groups_follow_the_token_and_hand_given_ones_stay(tmp_path) -> None:
+    async with FakeOidcProvider() as idp:
+        auth = _auth(idp.issuer, group_map={"Family": "trusted_contact", "Testers": "test"})
+        async with Console(tmp_path, auth=auth) as c:
+            await c.world.groups.put(Group(id="test", name="Test"))
+            await c.world.groups.put(Group(id="club", name="Club"))
+            bob = c.world.users.get(c.world.bob.id)
+            await c.world.users.put(bob.model_copy(update={"group_ids": ["member", "club"]}))  # type: ignore[union-attr]
+            idp.claims = {"email": BOB, "groups": ["Family", "Unmapped"]}
+            assert await _sign_in(c, idp) == "/"
+            assert c.world.users.get("bob").group_ids == ["member", "club", "trusted_contact"]  # type: ignore[union-attr]
+            await c.client.post("/api/logout", headers=W)
+            idp.claims = {"email": BOB, "groups": ["Testers"]}
+            assert await _sign_in(c, idp) == "/"
+            assert c.world.users.get("bob").group_ids == ["member", "club", "test"]  # type: ignore[union-attr]
+            assert c.group_values_seen.all() == {"oidc": ["Family", "Testers", "Unmapped"]}
+
+
+async def test_a_mapped_group_that_chats_lets_a_known_contact_in(tmp_path) -> None:
+    async with FakeOidcProvider() as idp:
+        auth = _auth(idp.issuer, groups_claim="roles", group_map={"Staff": "member"})
+        async with Console(tmp_path, auth=auth) as c:
+            bob = c.world.users.get(c.world.bob.id)
+            await c.world.users.put(bob.model_copy(update={"group_ids": []}))  # type: ignore[union-attr]
+            idp.claims = {"email": BOB, "roles": "Staff"}
+            assert await _sign_in(c, idp) == "/"
+            assert c.world.users.get("bob").group_ids == ["member"]  # type: ignore[union-attr]
+
+
+async def test_an_administrators_group_is_never_filled_from_a_token(tmp_path) -> None:
+    async with FakeOidcProvider() as idp:
+        auth = _auth(idp.issuer, group_map={"Admins": "owner"})
+        async with Console(tmp_path, auth=auth) as c:
+            idp.claims = {"email": BOB, "groups": ["Admins"]}
+            assert await _sign_in(c, idp) == "/"
+            assert "owner" not in c.world.users.get("bob").group_ids  # type: ignore[union-attr]
+    (tmp_path / "settings").mkdir()
+    async with FakeOidcProvider() as idp, Console(tmp_path / "settings") as c:
+        body = {"auth": _auth(idp.issuer, group_map={"Admins": "owner"}).model_dump()}
+        save = await c.client.put(
+            "/api/settings/web-auth", json=body, headers=c.headers(ALICE, write=True)
+        )
+        assert save.status == 409 and "never filled from a sign-in" in await save.text()
+
+
+async def test_a_new_person_gets_the_default_group_and_their_mapped_ones(tmp_path) -> None:
+    async with FakeOidcProvider() as idp:
+        auth = _auth(
+            idp.issuer,
+            domains=["example.org"],
+            create_users=True,
+            group_map={"Family": "trusted_contact"},
+        )
+        async with Console(tmp_path, auth=auth) as c:
+            idp.claims = {"email": "dana@example.org", "groups": ["Family"]}
+            assert await _sign_in(c, idp) == "/"
+            [dana] = [u for u in c.world.users.all() if u.has_account("web", "dana@example.org")]
+            assert dana.group_ids == ["member", "trusted_contact"]

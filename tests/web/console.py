@@ -74,6 +74,8 @@ from aios.web.login.password_hasher import PasswordHasher
 from aios.web.login.password_login import PasswordLogin
 from aios.web.login.pick_login import PickLogin
 from aios.web.login.sign_in_codes import SignInCodes
+from aios.web.login.sso.group_sync import GroupSync
+from aios.web.login.sso.group_values_seen import GroupValuesSeen
 from aios.web.login.sso.oidc_client import OidcClient
 from aios.web.login.sso.sso_attempts import SsoAttempts
 from aios.web.login.sso.sso_login import SsoLogin
@@ -282,6 +284,7 @@ class Console:
         )
         self.sessions = WebSessions(box.derive_key("web-session"), w.clock)
         maker = NewUserMaker(w.users, w.groups, w.ids)
+        self.group_values_seen = GroupValuesSeen()
         self.identities = WebIdentityFactory(
             self.sessions,
             console_users,
@@ -302,6 +305,8 @@ class Console:
                     OidcClient(),
                     self.variable_resolver,
                     maker,
+                    GroupSync(w.users, w.groups),
+                    self.group_values_seen,
                 ),
             ],
         )
@@ -376,7 +381,9 @@ class Console:
                 ),
                 ApiDocsRoutes(self.live_config.current, OpenApiBuilder()),
                 VoiceSettingsRoutes(self.variables, self.variable_resolver),
-                WebAuthSettingsRoutes(AiosYamlFile(self.config_file), self.identities, maker),
+                WebAuthSettingsRoutes(
+                    AiosYamlFile(self.config_file), self.identities, maker, self.group_values_seen
+                ),
                 FilesSettingsRoutes(
                     AiosYamlFile(self.config_file),
                     FileRootGuard([self.tmp_path / "data"]),

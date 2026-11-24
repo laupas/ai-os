@@ -191,6 +191,9 @@ accepted that would leave nobody able to administer ai-os. On every start the
 members of `owner` get a "started and ready" message on a channel that can reach
 them.
 
+With single sign-on, groups can also follow the provider's groups: see
+[groups from the provider](#single-sign-on).
+
 `everyone` is a built-in group everybody is in. It grants no permission; it is
 there for [who may use what](#who-may-use-what).
 
@@ -335,6 +338,37 @@ only a Microsoft tenant of your own (not `consumers`) limits it without them.
         create_users: true
         default_group: member
 ```
+
+**Groups from the provider**: `group_map` puts people into ai-os groups by the
+groups their provider lists in the ID token (`groups_claim`, default `groups`), on
+every sign-in: a mapped group is added when the token has its value and taken
+away when it has not, and groups given by hand under Users stay. Settings ->
+Login offers the values providers sent lately, so nothing has to be typed.
+
+```yaml
+      - kind: microsoft
+        tenant: example.com
+        client_id: 00000000-0000-0000-0000-000000000000
+        client_secret_variable: AIOS_SSO_MICROSOFT_SECRET
+        groups_claim: roles          # Entra app roles: names you define
+        group_map:
+          Family: family
+          Staff: member
+```
+
+- **Microsoft**: define *App roles* in the app registration (for example `Family`)
+  and assign users or Entra groups to them in Enterprise applications; the token
+  then lists them under `roles`. Entra's own *groups claim* works too
+  (`groups_claim: groups`), but carries object ids, and a person in more than about
+  200 groups gets none listed.
+- **OpenID Connect** providers (Authentik, Keycloak, Okta, Zitadel) usually send
+  `groups` with the group names.
+- **Google** sends no groups; set people's groups under Users.
+
+A group that administers ai-os or manages users is never filled from a token
+(Settings refuse such a mapping), or whoever controls the provider's groups would
+control ai-os. A mapped group that chats lets a known person sign in even if they
+had no group before.
 
 `domains` keeps out every address outside them; `label` changes the button's
 text, and `id` tells two providers of one kind apart. `scopes` (default `openid

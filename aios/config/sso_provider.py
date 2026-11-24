@@ -46,6 +46,12 @@ class SsoProvider(BaseModel):
     """The group a user made by `create_users` goes into (`default_role` is the
     older name). It must chat and must not administer: whoever the provider
     vouches for is not made an administrator."""
+    groups_claim: str = "groups"
+    """Where the ID token lists the user's groups: `groups` (Entra's groups claim,
+    most OpenID providers) or `roles` (Entra's app roles). Google sends none."""
+    group_map: dict[str, str] = {}
+    """A value of `groups_claim` to the ai-os group it puts the user in, kept in
+    step on every sign-in. A group that administers is never filled this way."""
     email_claim: str = "email"
     scopes: list[str] = ["openid", "email", "profile"]
 

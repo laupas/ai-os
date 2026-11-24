@@ -61,7 +61,9 @@ Read `README.md` for what ai-os is. This file is the rules for changing it.
 - `create_users` (`NewUserMaker`, for SSO per provider and behind a login proxy
   through `NewUserPolicy`) needs `domains` (or, for SSO, a Microsoft tenant of
   one's own), never puts anyone in a group that administers or manages users, and never
-  makes a second user for an address someone already has.
+  makes a second user for an address someone already has. `group_map` (`GroupSync`)
+  touches only the groups the map names and never fills a group that administers
+  or manages users.
 - Who may use an agent or connector is `available_to`, decided by `Audience`
   (`PermissionAudience`): administrators always, no list means administrators
   only. Keep all three checks: the main agent and the subagents and connectors of a

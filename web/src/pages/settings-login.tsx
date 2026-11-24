@@ -26,6 +26,8 @@ interface WebAuthState {
   public_url: string | null;
   port: number;
   you: string;
+  /** Group values each sign-in provider sent lately, by provider id. */
+  seen_groups?: Record<string, string[]>;
 }
 
 interface Tried {
@@ -252,6 +254,7 @@ function LoginForm({ data }: { data: WebAuthState }) {
         {auth.mode === "sso" ? (
           <ProvidersEditor
             providers={(auth.providers as Provider[] | undefined) ?? []}
+            seen={data.seen_groups ?? {}}
             onChange={(providers) => set("providers", providers)}
             callback={`${(publicUrl.trim() || window.location.origin).replace(/\/$/, "")}/api/login/sso/callback`}
           />
@@ -352,7 +355,7 @@ function cleanProvider(p: Provider): Provider {
   return out;
 }
 
-function ProvidersEditor({ providers, onChange, callback }: { providers: Provider[]; onChange: (p: Provider[]) => void; callback: string }) {
+function ProvidersEditor({ providers, seen, onChange, callback }: { providers: Provider[]; seen: Record<string, string[]>; onChange: (p: Provider[]) => void; callback: string }) {
   const update = (i: number, key: string, value: unknown) => onChange(providers.map((p, j) => (j === i ? { ...p, [key]: value } : p)));
   return (
     <div className="space-y-3">
@@ -387,6 +390,7 @@ function ProvidersEditor({ providers, onChange, callback }: { providers: Provide
                 {f.hint ? <Hint>{f.hint}</Hint> : null}
               </Label>
             ))}
+            <GroupMap provider={p} seen={seen[String(p.id ?? p.kind)] ?? []} set={(key, value) => update(i, key, value)} />
             <NewPeople
               value={p}
               set={(key, value) => update(i, key, value)}
@@ -442,6 +446,68 @@ function NewPeople({ value, set, hint, withDomains }: { value: Record<string, un
           <Hint>Only groups that can chat and do not administer ai-os. Change someone's groups later under Users.</Hint>
         </Label>
       ) : null}
+    </div>
+  );
+}
+
+/** Which ai-os group a value of the provider's groups claim puts someone in, kept in step on every sign-in. */
+function GroupMap({ provider: p, seen, set }: { provider: Provider; seen: string[]; set: (key: string, value: unknown) => void }) {
+  const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: () => api<Settings>("GET", "/api/settings") });
+  // Groups that administer are never filled from a token (the server refuses them too).
+  const groups = (settings?.groups ?? []).filter((g) => !g.permissions.includes("administer") && !g.permissions.includes("manage_users"));
+  const map = Object.entries((p.group_map as Record<string, string> | undefined) ?? {});
+  const write = (entries: [string, string][]) => set("group_map", entries.length ? Object.fromEntries(entries) : undefined);
+  const listId = `seen-${String(p.id ?? p.kind)}`;
+  if (p.kind === "google") {
+    return <Hint>Google sends no groups in its sign-in, so people's groups are set under Users.</Hint>;
+  }
+  return (
+    <div className="space-y-2 rounded-lg bg-muted/40 p-3">
+      <div className="text-sm font-medium">Groups from {p.kind === "microsoft" ? "Microsoft" : "the provider"}</div>
+      <Label>
+        Claim with the groups
+        <Input className="max-w-xs font-mono" placeholder="groups" value={String(p.groups_claim ?? "")} onChange={(e) => set("groups_claim", e.target.value || undefined)} />
+        <Hint>
+          {p.kind === "microsoft"
+            ? "roles for app roles (recommended: readable names you define in the app registration), groups for Entra groups (their object ids)."
+            : "Usually groups."}
+        </Hint>
+      </Label>
+      <datalist id={listId}>
+        {seen.map((v) => (
+          <option key={v} value={v} />
+        ))}
+      </datalist>
+      {map.map(([value, group], j) => (
+        <div key={j} className="flex items-center gap-2">
+          <Input
+            className="min-w-0 flex-1 font-mono text-xs"
+            list={listId}
+            placeholder="value in the token"
+            value={value}
+            onChange={(e) => write(map.map((m, k) => (k === j ? [e.target.value, m[1]] : m)))}
+          />
+          <span className="text-sm text-muted-foreground">puts them in</span>
+          <NativeSelect className="w-40" value={group} onChange={(e) => write(map.map((m, k) => (k === j ? [m[0], e.target.value] : m)))}>
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </NativeSelect>
+          <Button type="button" size="icon-sm" variant="ghost" aria-label="Remove" onClick={() => write(map.filter((_, k) => k !== j))}>
+            <Trash2 />
+          </Button>
+        </div>
+      ))}
+      <Button type="button" size="sm" variant="outline" onClick={() => write([...map, [seen.find((v) => !map.some((m) => m[0] === v)) ?? "", groups[0]?.id ?? "member"]])}>
+        <Plus /> Map a group
+      </Button>
+      <Hint>
+        {seen.length ? `Seen lately: ${seen.join(", ")}. ` : "Values appear here once someone has signed in. "}
+        On every sign-in a mapped group is added when the token has its value and taken away when it has not; groups given by hand under Users stay.
+        Groups that administer ai-os are never filled this way.
+      </Hint>
     </div>
   );
 }

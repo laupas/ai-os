@@ -11,6 +11,7 @@ from aios.config.web_config import WebConfig
 from aios.entities.users.permission import Permission
 from aios.web.aios_yaml_file import AiosYamlFile
 from aios.web.login.new_user_maker import NewUserMaker
+from aios.web.login.sso.group_values_seen import GroupValuesSeen
 from aios.web.request_body import RequestBody
 from aios.web.web_auth import WebAuth
 from aios.web.web_auth_request import WebAuthRequest
@@ -39,10 +40,12 @@ class WebAuthSettingsRoutes(WebRoutes):
         config: AiosYamlFile,
         identities: WebIdentityFactory,
         maker: NewUserMaker | None = None,
+        seen: GroupValuesSeen | None = None,
     ) -> None:
         self._config = config
         self._identities = identities
         self._maker = maker
+        self._seen = seen
         self._editor = ConfigYamlEditor()
 
     def register(self, app: web.Application) -> None:
@@ -63,6 +66,8 @@ class WebAuthSettingsRoutes(WebRoutes):
                 "public_url": current.public_url,
                 "port": current.port,
                 "you": caller.account.address,
+                # Group values sign-in providers sent lately, by provider, to map.
+                "seen_groups": self._seen.all() if self._seen else {},
             }
         )
 
