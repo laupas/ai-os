@@ -99,3 +99,6 @@ Read `README.md` for what ai-os is. This file is the rules for changing it.
 - An agent turn cannot be unit-tested without Claude. To try the real thing, run
   ai-os against a temp data dir with the web console in `auth: {mode: dev}` (see
   README).
+- `deploy/azure/main.bicep` is the source of the Deploy to Azure template; the
+  button loads `azuredeploy.json`. After every change to `main.bicep`, run
+  `deploy/azure/build.sh` and commit both together. CI fails when they differ.

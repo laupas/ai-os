@@ -31,8 +31,20 @@ jobs:
       - run: uv run ruff format --check aios tests
       - run: uv run pytest -q
 
+  # The Deploy to Azure button loads azuredeploy.json: it must be main.bicep compiled.
+  azure-template:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sh deploy/azure/build.sh
+      - run: |
+          git diff --exit-code deploy/azure/azuredeploy.json || {
+            echo "::error file=deploy/azure/azuredeploy.json::out of date: run deploy/azure/build.sh and commit it"
+            exit 1
+          }
+
   image:
-    needs: test
+    needs: [test, azure-template]
     runs-on: ubuntu-latest
     permissions:
       contents: read

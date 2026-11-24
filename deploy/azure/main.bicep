@@ -1,6 +1,6 @@
 // ai-os as an Azure Web App, its data on an Azure Files share mounted at /data.
 // The "Deploy to Azure" button uses azuredeploy.json, compiled from this file:
-//   az bicep build --file main.bicep --outfile azuredeploy.json
+//   deploy/azure/build.sh   (CI fails when the two differ)
 // See docs/azure.md.
 
 @description('Name of the web app: it becomes <name>.azurewebsites.net and must be unique in Azure.')
