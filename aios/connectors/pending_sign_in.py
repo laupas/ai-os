@@ -11,6 +11,7 @@ class PendingSignIn(BaseModel):
     connector: str
     user_id: str
     """Who started it; only they may finish it."""
+    user_name: str = ""
     for_user: str | None = None
     """Whose account it signs in: the starter's own, or None for the shared one."""
     verifier: str

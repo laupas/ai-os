@@ -33,6 +33,18 @@ class ConsoleUsers:
         ]
         return found[0] if len(found) == 1 else None
 
+    def by_address(self, address: str) -> User | None:
+        """The user whose web account is exactly `address` (in any case)."""
+        wanted = address.strip().casefold()
+        return next(
+            (
+                u
+                for u in self.all()
+                if any(a.channel == CHANNEL and a.address.casefold() == wanted for a in u.accounts)
+            ),
+            None,
+        )
+
     def may_sign_in(self, user: User) -> bool:
         return user.account_for(CHANNEL) is not None and self._authorizer.has(user, Permission.CHAT)
 

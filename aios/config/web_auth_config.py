@@ -2,6 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from aios.config.sso_provider import SsoProvider
+
 
 class WebAuthConfig(BaseModel):
     """How the web console learns who is asking: from a login proxy in front of it,
@@ -21,15 +23,17 @@ class WebAuthConfig(BaseModel):
       console. Passwords are hashed in the data dir, never in git;
     - `code`: a login page asks for a name and sends a one-time code to that user's
       chat account (Slack, Teams, Signal, mail);
+    - `sso`: a login page with a button per provider in `providers` (Microsoft
+      365, Google, any OpenID Connect provider); ai-os does the sign-in itself;
     - `dev`: every request is `dev_email`. Only on your own machine.
 
-    `pick`, `password` and `code` keep the browser signed in with a cookie for
+    `pick`, `password`, `code` and `sso` keep the browser signed in with a cookie for
     `session_days`.
     """
 
     model_config = ConfigDict(use_attribute_docstrings=True)
 
-    mode: Literal["cloudflare", "jwt", "header", "pick", "password", "code", "dev"]
+    mode: Literal["cloudflare", "jwt", "header", "pick", "password", "code", "sso", "dev"]
     team_domain: str | None = None
     """cloudflare: e.g. `example.cloudflareaccess.com`."""
     audience: str | None = None
@@ -46,9 +50,11 @@ class WebAuthConfig(BaseModel):
     secret_env: str | None = None
     """header: the environment variable holding a secret the proxy also sends.
     The name, never the value: this file is in git."""
+    providers: list[SsoProvider] = []
+    """sso: the sign-ins the login page offers."""
     dev_email: str | None = None
     session_days: int = Field(30, ge=1, le=365)
-    """pick, password, code: how long a browser stays signed in."""
+    """pick, password, code, sso: how long a browser stays signed in."""
 
     @model_validator(mode="after")
     def _complete(self) -> "WebAuthConfig":
@@ -59,6 +65,7 @@ class WebAuthConfig(BaseModel):
             "pick": [],
             "password": [],
             "code": [],
+            "sso": ["providers"],
             "dev": ["dev_email"],
         }[self.mode]
         missing = [name for name in needs if not getattr(self, name)]
@@ -69,4 +76,7 @@ class WebAuthConfig(BaseModel):
                 "web.auth mode header needs trusted_proxies or secret_env: "
                 "a plain header is forged by anything that reaches ai-os directly"
             )
+        keys = [p.key for p in self.providers]
+        if len(keys) != len(set(keys)):
+            raise ValueError("web.auth providers of one kind need an id each")
         return self

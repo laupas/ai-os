@@ -1,4 +1,4 @@
-from urllib.parse import quote
+from urllib.parse import parse_qs, quote, urlsplit
 
 from aiohttp import web
 
@@ -7,11 +7,13 @@ from aios.connectors.connector_catalog import ConnectorCatalog
 from aios.connectors.oauth_error import OAuthError
 from aios.entities.connectors.sign_in_mode import SignInMode
 from aios.entities.users.permission import Permission
+from aios.web.public_address import PublicAddress
 from aios.web.web_auth import WebAuth
 from aios.web.web_caller import WebCaller
 from aios.web.web_routes import WebRoutes
 
 CALLBACK = "/api/oauth/callback"
+STATE_COOKIE = "aios_oauth_state"
 MINE = "mine"
 SHARED = "shared"
 
@@ -48,11 +50,28 @@ class ConnectorAuthRoutes(WebRoutes):
         own = self._own_account(request, caller)
         try:
             url = await self._authorizer.start(
-                request.match_info["name"], caller.user.id, self._redirect_uri(request), own
+                request.match_info["name"],
+                caller.user.id,
+                self._redirect_uri(request),
+                own,
+                caller.user.name,
             )
         except OAuthError as exc:
             raise web.HTTPBadRequest(text=str(exc)) from exc
-        return web.json_response({"url": url})
+        response = web.json_response({"url": url})
+        state = parse_qs(urlsplit(url).query).get("state", [""])[0]
+        # Sent back even on a provider's cross-site POST (SameSite=None, which
+        # needs Secure), when the session cookie is not.
+        response.set_cookie(
+            STATE_COOKIE,
+            state,
+            max_age=600,
+            path=CALLBACK,
+            httponly=True,
+            samesite="None",
+            secure=True,
+        )
+        return response
 
     async def _sign_out(self, request: web.Request) -> web.Response:
         caller = WebAuth.caller(request, Permission.CHAT)
@@ -79,29 +98,29 @@ class ConnectorAuthRoutes(WebRoutes):
         return False
 
     async def _callback(self, request: web.Request) -> web.Response:
-        caller = WebAuth.caller(request, Permission.CHAT)
+        caller = WebAuth.caller_if_any(request)
         params = dict(request.query)
         if request.method == "POST":  # response_mode=form_post
             params.update({k: str(v) for k, v in (await request.post()).items()})
         if params.get("error"):
             message = params.get("error_description") or params["error"]
             return self._back(f"sign_in_error={quote(message)}")
+        state = params.get("state", "")
+        if caller is None and (not state or request.cookies.get(STATE_COOKIE) != state):
+            return self._back("sign_in_error=" + quote("this sign-in was started elsewhere"))
         try:
             name = await self._authorizer.finish(
-                params.get("state", ""), params.get("code", ""), caller.user.id, caller.user.name
+                state,
+                params.get("code", ""),
+                caller.user.id if caller else None,
+                caller.user.name if caller else None,
             )
         except OAuthError as exc:
             return self._back(f"sign_in_error={quote(str(exc))}")
         return self._back(f"signed_in={quote(name)}")
 
     def _redirect_uri(self, request: web.Request) -> str:
-        if self._public_url:
-            return self._public_url.rstrip("/") + CALLBACK
-        # Behind the tunnel the hop to ai-os is plain http, so the scheme the
-        # browser used is not on the request; a public host is always https.
-        host = request.host
-        local = host.split(":")[0] in {"localhost", "127.0.0.1"}
-        return f"{'http' if local else 'https'}://{host}{CALLBACK}"
+        return PublicAddress(self._public_url).of(request, CALLBACK)
 
     @staticmethod
     def _back(query: str) -> web.Response:

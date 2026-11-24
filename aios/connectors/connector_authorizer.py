@@ -59,7 +59,12 @@ class ConnectorAuthorizer:
         return url if isinstance(url, str) and url.startswith("https://") else None
 
     async def start(
-        self, name: str, user_id: str, redirect_uri: str, own_account: bool = False
+        self,
+        name: str,
+        user_id: str,
+        redirect_uri: str,
+        own_account: bool = False,
+        user_name: str = "",
     ) -> str:
         """Where to send the browser. `own_account`: the sign-in is `user_id`'s own,
         otherwise the shared one."""
@@ -86,6 +91,7 @@ class ConnectorAuthorizer:
         self._pending[state] = PendingSignIn(
             connector=name,
             user_id=user_id,
+            user_name=user_name,
             for_user=user_id if own_account else None,
             verifier=verifier,
             redirect_uri=redirect_uri,
@@ -111,14 +117,19 @@ class ConnectorAuthorizer:
         separator = "&" if "?" in meta.authorization_endpoint else "?"
         return meta.authorization_endpoint + separator + urlencode(query)
 
-    async def finish(self, state: str, code: str, user_id: str, user_name: str) -> str:
-        """Returns the connector's name once its tokens are stored."""
+    async def finish(
+        self, state: str, code: str, user_id: str | None, user_name: str | None = None
+    ) -> str:
+        """Returns the connector's name once its tokens are stored. `user_id` None:
+        the caller proved by other means (a state cookie) that this browser started
+        it, so whoever started it finishes it."""
         self._drop_stale()
         pending = self._pending.pop(state, None)
         if pending is None:
             raise OAuthError("this sign-in is unknown or expired; start it again")
-        if pending.user_id != user_id:
+        if user_id is not None and pending.user_id != user_id:
             raise OAuthError("this sign-in was started by somebody else")
+        user_name = user_name or pending.user_name or pending.user_id
         data = await self._client.token(
             pending.metadata.token_endpoint,
             {

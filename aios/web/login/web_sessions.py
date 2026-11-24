@@ -50,7 +50,7 @@ class WebSessions:
         return request.cookies.get(COOKIE)
 
     @staticmethod
-    def set_cookie(request: web.Request, response: web.Response, token: str, days: int) -> None:
+    def set_cookie(response: web.Response, token: str, days: int, secure: bool) -> None:
         response.set_cookie(
             COOKIE,
             token,
@@ -58,16 +58,12 @@ class WebSessions:
             path="/",
             httponly=True,
             samesite="Lax",
-            secure=WebSessions._https(request),
+            secure=secure,
         )
 
     @staticmethod
     def clear_cookie(response: web.Response) -> None:
         response.del_cookie(COOKIE, path="/")
-
-    @staticmethod
-    def _https(request: web.Request) -> bool:
-        return request.secure or request.headers.get("X-Forwarded-Proto") == "https"
 
     def _sign(self, payload: str) -> str:
         digest = hmac.new(self._key, payload.encode(), hashlib.sha256).digest()

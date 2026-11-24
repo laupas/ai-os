@@ -23,6 +23,7 @@ async def test_sections_come_with_their_schema_and_what_is_set(tmp_path) -> None
             "agent",
             "approval",
             "collection_access",
+            "api_docs",
         }
         assert data["collections"] == {"memories": "write"}
         assert sections["approval"]["value"] == {"always": ["mcp__gcal__update-event"]}

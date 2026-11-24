@@ -1,3 +1,6 @@
+from urllib.parse import parse_qs, urlsplit
+
+from aios.entities.connectors.connector import Connector
 from tests.web.console import ALICE, BOB, Console
 
 
@@ -148,7 +151,49 @@ async def test_the_sign_in_callback_needs_no_csrf_header_but_a_known_state(tmp_p
         other = await c.client.post("/api/connectors/gcal/sign-in", headers=c.headers(ALICE))
         assert other.status == 403  # everywhere else the header is still required
         stranger = c.headers("nobody@example.com")
-        assert (await c.client.get("/api/oauth/callback", headers=stranger)).status == 403
+        unknown = await c.client.get(
+            "/api/oauth/callback?state=s&code=x", headers=stranger, allow_redirects=False
+        )
+        assert "started%20elsewhere" in unknown.headers["Location"]
+
+
+async def test_a_sign_in_returning_by_cross_site_post_finishes_with_its_state_cookie(
+    tmp_path,
+) -> None:
+    """A provider's form_post arrives without the session cookie; the state cookie
+    set when the sign-in started is what lets it finish, as whoever started it."""
+    async with Console(tmp_path) as c:
+        oauth = {
+            "authorization_endpoint": "https://auth.example.com/authorize",
+            "token_endpoint": "http://127.0.0.1:9/token",
+            "client_id": "ai-os",
+        }
+        await c.agent_world.connector_store.put(
+            Connector(
+                id="drive",
+                config={"type": "http", "url": "https://drive.example.com/mcp", "oauth": oauth},
+            )
+        )
+        start = await c.client.post(
+            "/api/connectors/drive/sign-in", headers=c.headers(ALICE, write=True)
+        )
+        assert start.status == 200
+        state = parse_qs(urlsplit((await start.json())["url"]).query)["state"][0]
+        cookie = start.cookies["aios_oauth_state"]
+        assert cookie.value == state
+        assert cookie["samesite"] == "None" and cookie["secure"]
+        c.client.session.cookie_jar.clear()  # no session, as on a cross-site POST
+        back = await c.client.post(
+            "/api/oauth/callback",
+            data={"state": state, "code": "x"},
+            # The test client keeps no Secure cookie over http; a browser over https does.
+            headers={"Cookie": f"aios_oauth_state={state}"},
+            allow_redirects=False,
+        )
+        # Past the browser check: the code goes to the token endpoint (unreachable here).
+        location = back.headers["Location"]
+        assert "sign_in_error" in location
+        assert "elsewhere" not in location and "unknown" not in location
 
 
 async def test_a_secret_never_comes_back_out_of_the_api(tmp_path) -> None:

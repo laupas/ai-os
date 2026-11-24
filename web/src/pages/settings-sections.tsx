@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Loader2, PlugZap, Plus, RefreshCw, Save, X, XCircle } from "lucide-react";
+import { BookOpen, CheckCircle2, Loader2, PlugZap, Plus, RefreshCw, Save, X, XCircle } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { ErrorBox, Loading } from "@/components/page";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckRow } from "@/components/ui/checkbox";
 import { Hint, Input, Label, NativeSelect } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { api, type AgentsData, type SettingsSections } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -104,6 +105,7 @@ export function GeneralPanel() {
   return (
     <div className="space-y-3">
       <Loaded>{(s) => <GeneralForm key={JSON.stringify([s.timezone.value, s.triggers.value])} timezone={s.timezone} triggers={s.triggers} />}</Loaded>
+      <Loaded>{(s) => <ApiDocsCard section={s.api_docs} />}</Loaded>
       <VoiceCard />
     </div>
   );
@@ -154,6 +156,52 @@ function GeneralForm({ timezone, triggers }: { timezone: Section; triggers: Sect
         <SettingsFields schema={only(triggers.schema, ["enabled", "tick_seconds"])} values={trig} onChange={setTrig} />
       </div>
     </SectionCard>
+  );
+}
+
+/** One switch: the API's OpenAPI description and a Swagger page, for administrators. Applies at once. */
+function ApiDocsCard({ section }: { section: Section }) {
+  const queryClient = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const on = isPlain(section.value) && section.value.enabled === true;
+  const toggle = async (enabled: boolean) => {
+    setBusy(true);
+    try {
+      await api("PUT", "/api/settings/sections/api_docs", { value: enabled ? { enabled: true } : null });
+      await queryClient.invalidateQueries({ queryKey: ["settings-sections"] });
+      toast.success(enabled ? "API docs are on." : "API docs are off.");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Card className="max-w-3xl">
+      <CardHeader className="flex-row items-start gap-3">
+        <div className="flex-1">
+          <CardTitle>API docs</CardTitle>
+          <CardDescription>
+            Every route of the console's API, with a Swagger page to read and try them (OpenAPI 3.1). Only administrators see it. Applies at once.
+          </CardDescription>
+        </div>
+        <Switch checked={on} disabled={busy} onCheckedChange={(v) => void toggle(v)} aria-label="API docs" />
+      </CardHeader>
+      {on ? (
+        <CardContent className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm">
+            <a href="/api/docs" target="_blank" rel="noreferrer">
+              <BookOpen /> Open the API docs
+            </a>
+          </Button>
+          <Button asChild variant="ghost" size="sm">
+            <a href="/api/openapi.json" target="_blank" rel="noreferrer">
+              openapi.json
+            </a>
+          </Button>
+        </CardContent>
+      ) : null}
+    </Card>
   );
 }
 

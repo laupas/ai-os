@@ -40,6 +40,24 @@ web:
     # user's Slack, Teams, Signal or mail account.
     # mode: code
 
+    # Single sign-on, done by ai-os itself: a button per provider. Register
+    # <public_url>/api/login/sso/callback as redirect address with each; the client
+    # secret is a Variable (Settings → Variables), named here, never written here.
+    # mode: sso
+    # providers:
+    #   - kind: microsoft                 # Microsoft 365 / Entra ID
+    #     tenant: example.com             # your tenant id or domain; consumers for personal accounts
+    #     client_id: 00000000-0000-0000-0000-000000000000
+    #     client_secret_variable: AIOS_SSO_MICROSOFT_SECRET
+    #   - kind: google
+    #     client_id: 1234-abcd.apps.googleusercontent.com
+    #     client_secret_variable: AIOS_SSO_GOOGLE_SECRET
+    #     domains: [example.com]          # optional: only these addresses
+    #   - kind: oidc                      # Authentik, Keycloak, Okta, Auth0, Zitadel, …
+    #     issuer: https://auth.example.com/application/o/ai-os/
+    #     client_id: ai-os
+    #     client_secret_variable: AIOS_SSO_SECRET
+
     # Cloudflare Access (Zero Trust): the application's AUD tag and your team domain.
     # mode: cloudflare
     # team_domain: example.cloudflareaccess.com

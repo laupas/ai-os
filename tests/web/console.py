@@ -62,6 +62,7 @@ from aios.variables.secret_extractor import SecretExtractor
 from aios.variables.variable_catalog import VariableCatalog
 from aios.variables.variable_resolver import VariableResolver
 from aios.web.aios_yaml_file import AiosYamlFile
+from aios.web.api_docs.openapi_builder import OpenApiBuilder
 from aios.web.login.chat_code_login import ChatCodeLogin
 from aios.web.login.code_messenger import CodeMessenger
 from aios.web.login.console_users import ConsoleUsers
@@ -70,10 +71,14 @@ from aios.web.login.password_hasher import PasswordHasher
 from aios.web.login.password_login import PasswordLogin
 from aios.web.login.pick_login import PickLogin
 from aios.web.login.sign_in_codes import SignInCodes
+from aios.web.login.sso.oidc_client import OidcClient
+from aios.web.login.sso.sso_attempts import SsoAttempts
+from aios.web.login.sso.sso_login import SsoLogin
 from aios.web.login.web_passwords import WebPasswords
 from aios.web.login.web_sessions import WebSessions
 from aios.web.restart_request import RestartRequest
 from aios.web.routes.agent_routes import AgentRoutes
+from aios.web.routes.api_docs_routes import ApiDocsRoutes
 from aios.web.routes.approval_routes import ApprovalRoutes
 from aios.web.routes.channel_settings_routes import ChannelSettingsRoutes
 from aios.web.routes.claude_settings_routes import ClaudeSettingsRoutes
@@ -283,6 +288,7 @@ class Console:
                     ),
                     LoginThrottle(w.clock),
                 ),
+                SsoLogin(console_users, SsoAttempts(w.clock), OidcClient(), self.variable_resolver),
             ],
         )
         login = self.identities.login_for(self.auth)
@@ -341,7 +347,10 @@ class Console:
                     w.ids,
                     self.restart,
                 ),
-                SettingsSectionRoutes(AiosYamlFile(self.config_file), self.collection_overrides),
+                SettingsSectionRoutes(
+                    AiosYamlFile(self.config_file, live=self.live_config), self.collection_overrides
+                ),
+                ApiDocsRoutes(self.live_config.current, OpenApiBuilder()),
                 VoiceSettingsRoutes(self.variables, self.variable_resolver),
                 WebAuthSettingsRoutes(AiosYamlFile(self.config_file), self.identities),
                 FilesSettingsRoutes(

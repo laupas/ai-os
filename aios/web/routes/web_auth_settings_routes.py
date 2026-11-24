@@ -100,7 +100,7 @@ class WebAuthSettingsRoutes(WebRoutes):
         you = caller.account.address
         login = self._identities.login_for(auth)
         if login is not None:
-            reason = login.refusal(caller.user)
+            reason = login.refusal(caller.user) or await login.problem()
             if reason:
                 return {"ok": False, "email": None, "detail": reason}
             return {"ok": True, "email": you, "detail": f"you could sign in as {you}"}

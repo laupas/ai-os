@@ -3,6 +3,7 @@ from dependency_injector import containers, providers
 from aios.audit.audit_feed import AuditFeed
 from aios.audit.config_history import ConfigHistory
 from aios.web.aios_yaml_file import AiosYamlFile
+from aios.web.api_docs.openapi_builder import OpenApiBuilder
 from aios.web.audit_middleware import AuditMiddleware
 from aios.web.login.chat_code_login import ChatCodeLogin
 from aios.web.login.code_messenger import CodeMessenger
@@ -12,10 +13,14 @@ from aios.web.login.password_hasher import PasswordHasher
 from aios.web.login.password_login import PasswordLogin
 from aios.web.login.pick_login import PickLogin
 from aios.web.login.sign_in_codes import SignInCodes
+from aios.web.login.sso.oidc_client import OidcClient
+from aios.web.login.sso.sso_attempts import SsoAttempts
+from aios.web.login.sso.sso_login import SsoLogin
 from aios.web.login.web_passwords import WebPasswords
 from aios.web.login.web_sessions import WebSessions
 from aios.web.restart_request import RestartRequest
 from aios.web.routes.agent_routes import AgentRoutes
+from aios.web.routes.api_docs_routes import ApiDocsRoutes
 from aios.web.routes.approval_routes import ApprovalRoutes
 from aios.web.routes.audit_routes import AuditRoutes
 from aios.web.routes.channel_settings_routes import ChannelSettingsRoutes
@@ -109,7 +114,7 @@ class WebContainer(containers.DeclarativeContainer):
     store_sources = providers.Dependency()
     store_installer = providers.Dependency()
 
-    # The console's own login (`web.auth.mode` pick, password or code). A new way of
+    # The console's own login (`web.auth.mode` pick, password, code or sso). A new way of
     # signing in is a `WebLogin` plus an entry in `logins`.
     console_users = providers.Singleton(ConsoleUsers, users=users, authorizer=authorizer)
     passwords = providers.Singleton(
@@ -135,6 +140,13 @@ class WebContainer(containers.DeclarativeContainer):
             codes=providers.Singleton(SignInCodes, clock=clock),
             messenger=providers.Singleton(CodeMessenger, channels=channels, senders=senders),
             throttle=providers.Singleton(LoginThrottle, clock=clock),
+        ),
+        providers.Singleton(
+            SsoLogin,
+            users=console_users,
+            attempts=providers.Singleton(SsoAttempts, clock=clock),
+            client=providers.Singleton(OidcClient),
+            secrets=variable_resolver,
         ),
     )
     identities = providers.Singleton(
@@ -189,6 +201,12 @@ class WebContainer(containers.DeclarativeContainer):
             days=providers.Callable(
                 lambda web: web.effective_auth().session_days, app_config.provided.web
             ),
+            public_url=app_config.provided.web.public_url,
+        ),
+        providers.Singleton(
+            ApiDocsRoutes,
+            live=live_config.provided.current,
+            builder=providers.Singleton(OpenApiBuilder),
         ),
         providers.Singleton(
             PasswordRoutes, passwords=passwords, users=users, authorizer=authorizer

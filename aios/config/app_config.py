@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from aios.config.agent_config import AgentConfig
+from aios.config.api_docs_config import ApiDocsConfig
 from aios.config.approval_config import ApprovalConfig
 from aios.config.channel_config import ChannelConfig
 from aios.config.connector_override import ConnectorOverride
@@ -33,6 +34,7 @@ class AppConfig(BaseModel):
     files: FilesConfig = FilesConfig()
     web: WebConfig = WebConfig()
     store: StoreConfig = StoreConfig()
+    api_docs: ApiDocsConfig = ApiDocsConfig()
     connectors: dict[str, ConnectorOverride] = {}
     """The older place for a code connector's fixed settings, by its name. Moved
     onto the connector at the next start and taken out of here; a manifest's

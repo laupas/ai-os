@@ -53,6 +53,11 @@ Read `README.md` for what ai-os is. This file is the rules for changing it.
   Agents must never be able to write that folder. Code connectors belong to the
   installation; none is loaded from ai-os itself. `examples/code-connectors/hello-world`
   is the SDK example, and the tests run against it, so keep it complete and working.
+- Single sign-on (`SsoLogin`) signs in only the user whose `web` address is the
+  one in an ID token it checked itself (signature, issuer, audience, nonce), never
+  by name or alias, and only after the state cookie matches. Keep Microsoft's
+  `common` and `organizations` tenants refused and Google's `email_verified`
+  required: there, an address is not checked by anyone ai-os trusts.
 - Who may chat, approve or be messaged is decided from users and roles in code
   (`Authorizer`), never by a prompt.
 - A `per_user` connector carries only the turn user's own sign-in

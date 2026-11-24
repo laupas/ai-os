@@ -434,11 +434,13 @@ export interface AuditEntry {
   commit: string | null;
 }
 
-/** The console's own login, if it has one (`web.auth.mode` pick, password or code); null behind a proxy. */
+/** The console's own login, if it has one (`web.auth.mode` pick, password, code or sso); null behind a proxy. */
 export interface LoginInfo {
-  mode: "pick" | "password" | "code" | null;
+  mode: "pick" | "password" | "code" | "sso" | null;
   /** pick: whom the login page offers. */
   users?: UserRef[];
+  /** sso: a button for each. */
+  providers?: { id: string; kind: "microsoft" | "google" | "oidc"; label: string }[];
 }
 
 /** Who has a console password; `users` only for those who manage users. */

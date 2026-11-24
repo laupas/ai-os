@@ -27,7 +27,8 @@ class WebIdentityFactory:
 
     def login_for(self, auth: WebAuthConfig | None) -> WebLogin | None:
         """The login page `auth` asks for; None for a proxy or dev."""
-        return self._logins.get(auth.mode) if auth is not None else None
+        login = self._logins.get(auth.mode) if auth is not None else None
+        return login.configured(auth) if login is not None and auth is not None else None
 
     def from_auth(self, auth: WebAuthConfig) -> WebIdentity:
         """Also how the console tries a new `web.auth` on its own request before

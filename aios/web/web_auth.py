@@ -22,7 +22,11 @@ CSRF_HEADER = "X-Aios"
 NO_CSRF_PATHS = frozenset({"/api/oauth/callback"})
 # With the console's own login, what a browser needs before signing in.
 LOGIN_PATHS = frozenset({"/", "/api/login", "/api/logout"})
-LOGIN_PREFIXES = ("/static/",)
+LOGIN_PREFIXES = ("/static/", "/api/login/sso/")
+# A connector's OAuth sign-in coming back. A provider answering with a cross-site
+# POST (form_post) arrives without the session cookie (SameSite=Lax); the route
+# then proves the browser with a state cookie of its own instead.
+OPTIONAL_PATHS = frozenset({"/api/oauth/callback"})
 # Called by programs, not people: each route checks its own token.
 HOOK_PREFIXES = ("/hooks/",)
 
@@ -62,6 +66,8 @@ class WebAuth:
             self._check_csrf(request)
             return await handler(request)
         caller = await self._caller(request)
+        if caller is None and request.path in OPTIONAL_PATHS:
+            return await handler(request)
         if caller is None:
             raise web.HTTPForbidden(text="Not allowed. Ask the owner to add your web account.")
         self._check_csrf(request)
@@ -69,6 +75,11 @@ class WebAuth:
         # Configuration this request changes is committed in the caller's name.
         CurrentAuthor.set(ChangeAuthor(name=caller.user.name, email=caller.account.address))
         return await handler(request)
+
+    @staticmethod
+    def caller_if_any(request: web.Request) -> WebCaller | None:
+        """The caller on a route in `OPTIONAL_PATHS`, which may have none."""
+        return request.get(CALLER)
 
     @staticmethod
     def caller(request: web.Request, permission: Permission = Permission.CHAT) -> WebCaller:

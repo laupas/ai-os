@@ -205,12 +205,13 @@ port directly. Pick one in `web.auth` (or under Settings → Login):
 | `pick` (default) | a fresh install, or a home network where everyone is trusted | nothing: the login page lists the users and you pick one |
 | `password` | a small installation without a proxy (behind https) | a name (web address, name or alias) and a password set per user under Settings → Users |
 | `code` | the same, without passwords | a one-time code ai-os sends to the user's Slack, Teams, Signal or mail account |
+| `sso` | Microsoft 365, Google, or any OpenID Connect provider, without a proxy | the provider's signed ID token, fetched by ai-os itself (see below) |
 | `cloudflare` | Cloudflare Access (Zero Trust) | Access's signed token (`team_domain`, `audience`) |
 | `jwt` | oauth2-proxy, Authentik, Pomerium, any proxy forwarding a signed token | signature against `jwks_url`, `issuer`, `audience` |
 | `header` | Authelia, Traefik forward-auth, any proxy setting a plain header | only from `trusted_proxies` and/or with a shared secret (`secret_env`) |
 | `dev` | your own machine | nothing: every request is `dev_email` |
 
-`pick`, `password` and `code` keep a browser signed in with a signed cookie for
+`pick`, `password`, `code` and `sso` keep a browser signed in with a signed cookie for
 `session_days` (30). Passwords are hashed (scrypt) in `<data>/web-passwords`, never
 in git; a new password signs that user out everywhere, and five wrong attempts for
 one name block it for 15 minutes. Settings refuse to switch to `password` before the
@@ -222,6 +223,69 @@ A person gets in with a `web` account (the address the proxy reports) on a user 
 the `chat` permission; the controls need `administer`. Changes need an `X-Aios: 1`
 header, which another site cannot send. No change is accepted that would leave
 nobody able to administer ai-os.
+
+### API docs
+
+Switch on **API docs** under Settings → General (or `api_docs: {enabled: true}` in
+`aios.yaml`; applies at once) and administrators get a Swagger page at `/api/docs`
+and the OpenAPI 3.1 description at `/api/openapi.json`. Both are generated from the
+running server: every route, grouped by console page, with its request body and the
+permission it needs, so they never fall behind the code. *Try it out* uses the
+browser's own sign-in. Off, both answer 404.
+
+### Single sign-on
+
+With `sso`, the login page shows a button per provider in `providers`, and ai-os
+runs the OpenID Connect sign-in itself (authorization code with PKCE, a nonce, and
+the ID token's signature, issuer and audience checked). Whoever signs in is the
+user whose `web` account is the address the provider vouches for; names and
+aliases do not count.
+
+```yaml
+web:
+  public_url: https://ai-os.example.com
+  auth:
+    mode: sso
+    providers:
+      - kind: microsoft
+        tenant: example.com              # tenant id or domain, or consumers
+        client_id: 00000000-0000-0000-0000-000000000000
+        client_secret_variable: AIOS_SSO_MICROSOFT_SECRET
+      - kind: google
+        client_id: 1234-abcd.apps.googleusercontent.com
+        client_secret_variable: AIOS_SSO_GOOGLE_SECRET
+        domains: [example.com]
+      - kind: oidc
+        issuer: https://auth.example.com/application/o/ai-os/
+        client_id: ai-os
+        client_secret_variable: AIOS_SSO_SECRET
+```
+
+1. Register an application with the provider, with
+   `<public_url>/api/login/sso/callback` as redirect address:
+   - **Microsoft 365**: Entra ID → App registrations → New registration, platform
+     *Web*; then Certificates & secrets → New client secret. `tenant` is the
+     directory (tenant) id or a domain of it, or `consumers` for personal Microsoft
+     accounts. `common` and `organizations` are refused: they let in accounts of
+     any organisation, whose addresses nobody you trust has checked. Without an
+     `email` claim, the sign-in name (`preferred_username`) is the address.
+   - **Google**: Google Cloud → APIs & Services → Credentials → OAuth client id,
+     type *Web application*. Only addresses Google has verified count; one entry
+     in `domains` also limits Google's account picker to that Workspace domain.
+   - **OpenID Connect** (Authentik, Keycloak, Okta, Auth0, Zitadel, …): `issuer` is
+     the address under which `/.well-known/openid-configuration` is found. A
+     provider without a secret (public client) leaves out `client_secret_variable`.
+2. Set the client secret as a Variable (Settings → Variables) under the name in
+   `client_secret_variable`; it is never written into `aios.yaml`.
+3. Give everyone who should get in a `web` account with the address they sign in
+   with (Settings → People), then switch under Settings → Login. Saving is refused
+   while the secret is unset or the provider cannot be reached.
+
+`domains` keeps out every address outside them; `label` changes the button's
+text, and `id` tells two providers of one kind apart. `scopes` (default `openid
+email profile`) and `email_claim` (default `email`) are there for unusual
+providers. If a wrong setting locks you out, change `web.auth` in `aios.yaml` on
+the host and restart.
 
 ## Conversations
 
@@ -323,11 +387,83 @@ sign-ins stay, since other items may use them; the page names what still refers 
 it before you confirm. The fixed core agents cannot be removed, and a trigger is
 deleted on the Triggers page.
 
-An item may carry a `store:` block (in the front matter of an agent or skill) with
-`title`, `category`, `version`, `author`, `license`, `homepage`, `tags`, `notes`
-(Markdown setup steps), `variables` (asked for on install) and `requires` (further
-items, as `connectors/<id>`); the templates repository's README describes the
-format.
+#### Making a store source
+
+A store source is any git repository ai-os can clone over `https://` (or `file://`
+for a local test) without a password: a public repository. Its layout is that of the
+configuration repository, with a `store.yaml` on top:
+
+```
+store.yaml                 name and description of the source
+agents/<id>.md             one agent per file
+skills/<id>/SKILL.md       one skill per folder
+connectors/<id>.yaml       one connector per file
+triggers/<id>.yaml         one trigger per file
+code/<name>/               a code connector's folder (connector.yaml, server.py, agents/)
+```
+
+Every folder is optional; the file name is the item's id.
+
+```yaml
+# store.yaml
+name: My templates
+description: Connectors and agents for our team.
+```
+
+Each item is written exactly as ai-os writes it into the configuration repository,
+so the easiest start is to build it in the console and copy the file from
+`data/config/`. The rules:
+
+- **Agent** (`agents/<id>.md`): YAML front matter with `description`, `model`,
+  `enabled`, `builtin_tools`, `skills` and `connectors` (a connector id mapped to
+  the list of its tools granted, or `null` for all of them), then the prompt.
+- **Skill** (`skills/<id>/SKILL.md`): front matter with `name` and `description`,
+  then the instructions.
+- **Connector** (`connectors/<id>.yaml`): `description`, `config` (one server in
+  the shape of Claude Code's `.mcp.json`), `enabled`, `sign_in` (`shared` or
+  `per_user`), `shared_fallback`. Never put a secret here: write `${VAR}` and list
+  the variable under `store.variables`, so it is asked for on install and saved as a
+  Variable. A config with a token in it is moved to a Variable on install anyway.
+- **Code connector**: a connector whose `config` is `{code: <name>}`, with its
+  folder at `code/<name>/` (see [Code connectors](#code-connectors)).
+- **Trigger** (`triggers/<id>.yaml`): `name`, `prompt`, `cron` (a list) or
+  `once_at`, `timezone`, `agent` (`null` for the orchestrator), `enabled`,
+  `max_lateness_minutes`. No `user_id`: it is added for whoever installs it.
+
+Each item may carry a `store:` block, a top-level key of a YAML file or in the front
+matter of an agent or skill. It is shown on the Store page and never written into
+the configuration repository:
+
+```yaml
+store:
+  title: GitHub (read-only)        # shown name; default: the id
+  category: Developer              # groups items on the Store page
+  version: "1.0.0"                 # raise it on every change
+  author: Your name
+  license: MIT
+  homepage: https://github.com/github/github-mcp-server
+  tags: [github, developer]
+  notes: |                         # Markdown shown before installing
+    Create a fine-grained personal access token with read-only access ...
+  variables:                       # asked for on install, saved as Variables
+    - variable: GITHUB_MCP_TOKEN
+      label: GitHub token
+      hint: A fine-grained personal access token.
+      secret: true                 # stored encrypted, never shown again
+      required: true
+  requires: [skills/message-style] # further items installed with it
+```
+
+`requires` only needs what is not implied already: an agent's `connectors` and
+`skills` and a trigger's `agent` are installed with it when they are in the same
+source (the built-in `aios` connector excepted). Quote the version so YAML keeps it
+as text; versions compare number by number, so `1.10.0` is newer than `1.9.0`, and
+an installation offers **Update** once yours is higher than the one it has.
+
+An item that does not read (bad YAML, an unknown field, a code connector without
+its folder) is left out, and the Store page names the file and the reason under the
+source. [laupas/ai-os-templates](https://github.com/laupas/ai-os-templates) is a
+complete example of every kind.
 
 ### Code connectors
 

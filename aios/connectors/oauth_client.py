@@ -86,9 +86,12 @@ class OAuthClient:
             form["client_id"] = client_id
             if auth_method == "client_secret_post" and client_secret:
                 form["client_secret"] = client_secret
-        async with aiohttp.ClientSession(timeout=TIMEOUT) as session:
-            async with session.post(token_endpoint, data=form, headers=headers) as response:
-                data = await self._json(response, "getting a token")
+        try:
+            async with aiohttp.ClientSession(timeout=TIMEOUT) as session:
+                async with session.post(token_endpoint, data=form, headers=headers) as response:
+                    data = await self._json(response, "getting a token")
+        except (aiohttp.ClientError, TimeoutError) as exc:
+            raise OAuthError(f"the token endpoint could not be reached: {exc}") from exc
         if "access_token" not in data:
             raise OAuthError("the server answered without an access token")
         return data
