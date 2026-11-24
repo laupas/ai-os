@@ -196,7 +196,7 @@ requires-dist = [
     { name = "microsoft-teams-apps", specifier = ">=2.2.1,<2.3" },
     { name = "pydantic", specifier = ">=2.14.4" },
     { name = "pydantic-settings", specifier = ">=2.16.3" },
-    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.10" },
+    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.15.1" },
     { name = "pyyaml", specifier = ">=6.0.4" },
     { name = "ruamel-yaml", specifier = ">=0.18" },
     { name = "slack-bolt", specifier = ">=1.21" },

@@ -14,7 +14,7 @@ dependencies = [
     # Teams Socket Mode is a preview whose API may change: kept to one minor version.
     "microsoft-teams-apps>=2.2.1,<2.3",
     "croniter>=7.0.0",
-    "pyjwt[crypto]>=2.10",
+    "pyjwt[crypto]>=2.15.1",
     "cryptography>=44",
     "tzdata>=2026.6",
     "ruamel-yaml>=0.18",
