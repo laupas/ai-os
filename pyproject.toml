@@ -13,7 +13,7 @@ dependencies = [
     "slack-bolt>=1.21",
     # Teams Socket Mode is a preview whose API may change: kept to one minor version.
     "microsoft-teams-apps>=2.2.1,<2.3",
-    "croniter>=6.2.4",
+    "croniter>=7.0.0",
     "pyjwt[crypto]>=2.10",
     "cryptography>=44",
     "tzdata>=2026.5",
