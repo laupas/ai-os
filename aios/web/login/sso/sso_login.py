@@ -11,6 +11,7 @@ from aios.variables.variable_resolver import VariableResolver
 from aios.web.login.console_users import ConsoleUsers
 from aios.web.login.login_refused import LoginRefused
 from aios.web.login.login_request import LoginRequest
+from aios.web.login.new_user_maker import NewUserMaker
 from aios.web.login.redirect_login import RedirectLogin
 from aios.web.login.sso.oidc_client import OidcClient
 from aios.web.login.sso.sso_attempts import SsoAttempts
@@ -23,7 +24,8 @@ class SsoLogin(RedirectLogin):
     """Single sign-on with OpenID Connect: a button per provider (Microsoft 365,
     Google, any OpenID provider), the authorization code flow with PKCE and a
     nonce, done by ai-os itself. The user is the one whose `web` account is the
-    address in the provider's ID token: only an exact address, never a name.
+    address in the provider's ID token: only an exact address, never a name. A
+    provider with `create_users` makes that user on their first sign-in.
 
     Google's address counts only when Google says it is verified; any provider's
     when it does not say it is not. `domains` narrows it further."""
@@ -36,16 +38,20 @@ class SsoLogin(RedirectLogin):
         attempts: SsoAttempts,
         client: OidcClient,
         secrets: VariableResolver,
+        maker: NewUserMaker,
         providers: list[SsoProvider] | None = None,
     ) -> None:
         self._users = users
         self._attempts = attempts
         self._client = client
         self._secrets = secrets
+        self._maker = maker
         self._providers = {p.key: p for p in providers or []}
 
     def configured(self, auth: WebAuthConfig) -> WebLogin:
-        return SsoLogin(self._users, self._attempts, self._client, self._secrets, auth.providers)
+        return SsoLogin(
+            self._users, self._attempts, self._client, self._secrets, self._maker, auth.providers
+        )
 
     def page(self) -> dict[str, Any]:
         return {
@@ -89,6 +95,15 @@ class SsoLogin(RedirectLogin):
         claims = await self._client.verify(meta, token, p.client_id, attempt.nonce)
         email = self._email(p, claims)
         user = self._users.by_address(email)
+        if user is None and p.create_users and not self._users.has_address(email):
+            name = claims.get("name")
+            try:
+                await self._maker.make(
+                    email, name if isinstance(name, str) else None, p.default_role, p.name
+                )
+            except ValueError as exc:
+                raise LoginRefused(f"{email} could not be added: {exc}") from exc
+            user = self._users.by_address(email)
         if user is None:
             log.warning("sso: %s signed in at %s, but is no console user", email, p.name)
             raise LoginRefused(f"{email} is not a web account of anyone on this ai-os")
@@ -103,6 +118,10 @@ class SsoLogin(RedirectLogin):
                 return (
                     f"the Variable {p.client_secret_variable} ({p.name}'s client secret) is not set"
                 )
+            if p.create_users:
+                reason = self._maker.refusal(p.default_role)
+                if reason:
+                    return f"{p.name}: {reason}"
             try:
                 await self._client.discover(p.issuer_url())
             except LoginRefused as exc:

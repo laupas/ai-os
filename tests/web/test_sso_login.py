@@ -197,3 +197,73 @@ def test_two_providers_of_one_kind_need_ids() -> None:
     with pytest.raises(ValidationError, match="id each"):
         WebAuthConfig(mode="sso", providers=[google, google])
     WebAuthConfig(mode="sso", providers=[google, google.model_copy(update={"id": "work"})])
+
+
+async def test_create_users_makes_a_member_on_the_first_sign_in(tmp_path) -> None:
+    async with FakeOidcProvider() as idp:
+        auth = _auth(idp.issuer, domains=["example.org"], create_users=True)
+        async with Console(tmp_path, auth=auth) as c:
+            idp.claims = {"email": "Carol@Example.org", "name": "Carol Example"}
+            assert await _sign_in(c, idp) == "/"
+            assert await _me(c) == 200
+            made = [u for u in c.world.users.all() if u.name == "Carol Example"]
+            assert len(made) == 1
+            assert made[0].role_ids == ["member"]
+            assert made[0].account_for("web").address == "Carol@Example.org"  # type: ignore[union-attr]
+            await c.client.post("/api/logout", headers=W)
+            assert await _sign_in(c, idp) == "/"
+            assert len([u for u in c.world.users.all() if u.name == "Carol Example"]) == 1
+
+
+async def test_create_users_makes_nobody_outside_its_domains(tmp_path) -> None:
+    async with FakeOidcProvider() as idp:
+        auth = _auth(idp.issuer, domains=["example.org"], create_users=True)
+        async with Console(tmp_path, auth=auth) as c:
+            before = len(c.world.users.all())
+            idp.claims = {"email": "mallory@elsewhere.com"}
+            assert "not in a domain" in _error(await _sign_in(c, idp))
+            assert len(c.world.users.all()) == before
+
+
+async def test_create_users_never_makes_a_second_user_for_a_known_address(tmp_path) -> None:
+    async with FakeOidcProvider() as idp:
+        auth = _auth(idp.issuer, domains=["example.com"], create_users=True)
+        async with Console(tmp_path, auth=auth) as c:
+            alice = c.world.users.get("alice")
+            assert alice is not None
+            await c.world.users.put(alice.model_copy(update={"role_ids": []}))  # cannot chat now
+            before = len(c.world.users.all())
+            idp.claims = {"email": ALICE}
+            assert "not a web account" in _error(await _sign_in(c, idp))
+            assert len(c.world.users.all()) == before
+
+
+async def test_settings_refuse_a_default_role_that_administers(tmp_path) -> None:
+    async with FakeOidcProvider() as idp, Console(tmp_path) as c:
+        auth = _auth(idp.issuer, domains=["example.com"], create_users=True, default_role="owner")
+        body = {"auth": auth.model_dump(exclude_defaults=True)}
+        save = await c.client.put(
+            "/api/settings/web-auth", json=body, headers=c.headers(ALICE, write=True)
+        )
+        assert save.status == 409
+        assert "administers" in await save.text()
+
+
+def test_create_users_needs_domains_unless_a_tenant_of_ones_own_bounds_it() -> None:
+    with pytest.raises(ValidationError, match="create_users needs domains"):
+        SsoProvider(kind="google", client_id="x", client_secret_variable="S", create_users=True)
+    with pytest.raises(ValidationError, match="create_users needs domains"):
+        SsoProvider(
+            kind="microsoft",
+            tenant="consumers",
+            client_id="x",
+            client_secret_variable="S",
+            create_users=True,
+        )
+    SsoProvider(
+        kind="microsoft",
+        tenant="example.com",
+        client_id="x",
+        client_secret_variable="S",
+        create_users=True,
+    )

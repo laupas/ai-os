@@ -6,11 +6,14 @@ import { ErrorBox, Loading } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Hint, Input, Label, Textarea } from "@/components/ui/input";
-import { api } from "@/lib/api";
+import { CheckRow } from "@/components/ui/checkbox";
+import { Hint, Input, Label, NativeSelect, Textarea } from "@/components/ui/input";
+import { api, type Settings } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 type Mode = "cloudflare" | "jwt" | "header" | "pick" | "password" | "code" | "sso" | "dev";
+
+const PROXIES: Mode[] = ["cloudflare", "jwt", "header"];
 
 type ProviderKind = "microsoft" | "google" | "oidc";
 /** One single sign-on button, as `web.auth.providers` holds it. */
@@ -153,6 +156,11 @@ function LoginForm({ data }: { data: WebAuthState }) {
       if (Array.isArray(v) ? v.length : typeof v === "string" ? v.trim() : v != null) out[f.key] = typeof v === "string" ? v.trim() : v;
     }
     if (auth.mode === "sso") out.providers = ((auth.providers as Provider[] | undefined) ?? []).map(cleanProvider);
+    if (PROXIES.includes(auth.mode) && auth.create_users === true) {
+      out.create_users = true;
+      out.domains = (auth.domains as string[] | undefined) ?? [];
+      if (auth.default_role && auth.default_role !== "member") out.default_role = auth.default_role;
+    }
     return { auth: out, public_url: publicUrl.trim() || null };
   };
   const set = (key: string, value: unknown) => {
@@ -267,6 +275,15 @@ function LoginForm({ data }: { data: WebAuthState }) {
           </Label>
         ))}
 
+        {PROXIES.includes(auth.mode) ? (
+          <NewPeople
+            value={auth}
+            set={set}
+            withDomains
+            hint="Instead of refusing an address the proxy lets through and nobody has, ai-os makes a user with it. Only addresses in these domains: ai-os cannot see whom your proxy lets in."
+          />
+        ) : null}
+
         <Label>
           Public address
           <Input className="font-mono" placeholder="https://ai-os.example.com" value={publicUrl} onChange={(e) => setPublicUrl(e.target.value)} />
@@ -370,6 +387,11 @@ function ProvidersEditor({ providers, onChange, callback }: { providers: Provide
                 {f.hint ? <Hint>{f.hint}</Hint> : null}
               </Label>
             ))}
+            <NewPeople
+              value={p}
+              set={(key, value) => update(i, key, value)}
+              hint="Instead of refusing an address nobody has, ai-os makes a user with it. Needs Only these domains, unless a Microsoft tenant of your own limits who can sign in."
+            />
           </div>
         );
       })}
@@ -380,6 +402,46 @@ function ProvidersEditor({ providers, onChange, callback }: { providers: Provide
           </Button>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** Whether, and as what, someone a login vouches for and nobody has yet becomes a user. */
+function NewPeople({ value, set, hint, withDomains }: { value: Record<string, unknown>; set: (key: string, value: unknown) => void; hint: string; withDomains?: boolean }) {
+  // Roles such a user may get: those that chat and do not administer (the server checks it again).
+  const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: () => api<Settings>("GET", "/api/settings") });
+  const roles = (settings?.roles ?? []).filter((r) => r.permissions.includes("chat") && !r.permissions.includes("administer") && !r.permissions.includes("manage_users"));
+  const on = value.create_users === true;
+  return (
+    <div className="space-y-2 rounded-lg bg-muted/40 p-3">
+      <CheckRow label="Add new people on their first sign-in" checked={on} onChange={(v) => set("create_users", v || undefined)} />
+      <Hint>{hint}</Hint>
+      {on && withDomains ? (
+        <Label>
+          Only these domains
+          <Textarea
+            rows={2}
+            className="font-mono text-xs md:text-xs"
+            placeholder="example.com"
+            value={((value.domains as string[] | undefined) ?? []).join("\n")}
+            onChange={(e) => set("domains", e.target.value.split("\n").map((l) => l.trim()).filter(Boolean))}
+          />
+          <Hint>One per line.</Hint>
+        </Label>
+      ) : null}
+      {on ? (
+        <Label>
+          Their role
+          <NativeSelect className="max-w-xs" value={String(value.default_role ?? "member")} onChange={(e) => set("default_role", e.target.value === "member" ? undefined : e.target.value)}>
+            {(roles.length ? roles : [{ id: "member", name: "Member" }]).map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </NativeSelect>
+          <Hint>Only roles that can chat and do not administer ai-os. Change someone's role later under People.</Hint>
+        </Label>
+      ) : null}
     </div>
   );
 }

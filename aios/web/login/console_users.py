@@ -45,6 +45,15 @@ class ConsoleUsers:
             None,
         )
 
+    def has_address(self, address: str) -> bool:
+        """Whether anyone, allowed to sign in or not, has the web account `address`."""
+        wanted = address.strip().casefold()
+        return any(
+            a.channel == CHANNEL and a.address.casefold() == wanted
+            for u in self._users.all()
+            for a in u.accounts
+        )
+
     def may_sign_in(self, user: User) -> bool:
         return user.account_for(CHANNEL) is not None and self._authorizer.has(user, Permission.CHAT)
 

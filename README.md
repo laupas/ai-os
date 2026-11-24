@@ -227,6 +227,24 @@ administrator saving it has a password, and to `code` before ai-os can reach the
 A code is valid for 10 minutes, works once, and a new one is sent at most once a
 minute; the login page answers the same whether or not a name is known.
 
+Behind a proxy (`cloudflare`, `jwt`, `header`), `create_users: true` makes a user
+for an address the proxy vouches for and nobody has yet, instead of refusing it:
+named after the address, with it as web account and `default_role` (`member`
+unless set). It needs `domains`, since ai-os cannot see whom the proxy lets
+through, and the role must chat and must not administer or manage users. Single
+sign-on has the same, per provider (below).
+
+```yaml
+web:
+  auth:
+    mode: cloudflare
+    team_domain: example.cloudflareaccess.com
+    audience: 0123abcd...
+    create_users: true
+    domains: [example.com]
+    default_role: member
+```
+
 A person gets in with a `web` account (the address the proxy reports) on a user with
 the `chat` permission; the controls need `administer`. Changes need an `X-Aios: 1`
 header, which another site cannot send. No change is accepted that would leave
@@ -288,6 +306,23 @@ web:
 3. Give everyone who should get in a `web` account with the address they sign in
    with (Settings → People), then switch under Settings → Login. Saving is refused
    while the secret is unset or the provider cannot be reached.
+
+**New people on their first sign-in**: with `create_users: true`, an address the
+provider vouches for and nobody has yet becomes a new user (named as the provider
+names them, with that address as web account) instead of being refused. They get
+`default_role` (`member` unless set), which must be able to chat and must not
+administer or manage users: a sign-in never makes an administrator. It needs
+`domains`, so not everyone with a Google or Microsoft account becomes a user;
+only a Microsoft tenant of your own (not `consumers`) limits it without them.
+
+```yaml
+      - kind: google
+        client_id: 1234-abcd.apps.googleusercontent.com
+        client_secret_variable: AIOS_SSO_GOOGLE_SECRET
+        domains: [example.com]
+        create_users: true
+        default_role: member
+```
 
 `domains` keeps out every address outside them; `label` changes the button's
 text, and `id` tells two providers of one kind apart. `scopes` (default `openid

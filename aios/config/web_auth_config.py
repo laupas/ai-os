@@ -4,6 +4,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from aios.config.sso_provider import SsoProvider
 
+PROXIES = ("cloudflare", "jwt", "header")
+
 
 class WebAuthConfig(BaseModel):
     """How the web console learns who is asking: from a login proxy in front of it,
@@ -50,6 +52,14 @@ class WebAuthConfig(BaseModel):
     secret_env: str | None = None
     """header: the environment variable holding a secret the proxy also sends.
     The name, never the value: this file is in git."""
+    create_users: bool = False
+    """cloudflare, jwt, header: make a user for an address the proxy vouches for
+    and nobody has yet, instead of refusing it. Needs `domains`. (For sso, each
+    provider has its own.)"""
+    default_role: str = "member"
+    """The role such a user gets; it must chat and must not administer."""
+    domains: list[str] = []
+    """cloudflare, jwt, header with `create_users`: only addresses in these get a user."""
     providers: list[SsoProvider] = []
     """sso: the sign-ins the login page offers."""
     dev_email: str | None = None
@@ -76,6 +86,18 @@ class WebAuthConfig(BaseModel):
                 "web.auth mode header needs trusted_proxies or secret_env: "
                 "a plain header is forged by anything that reaches ai-os directly"
             )
+        self.domains = [d.strip().lstrip("@").casefold() for d in self.domains if d.strip()]
+        if self.create_users:
+            if self.mode not in PROXIES:
+                raise ValueError(
+                    f"web.auth create_users is for a login proxy, not {self.mode}"
+                    + (" (set it on each provider)" if self.mode == "sso" else "")
+                )
+            if not self.domains:
+                raise ValueError(
+                    "web.auth create_users needs domains: otherwise anyone the proxy lets "
+                    "through would become a user"
+                )
         keys = [p.key for p in self.providers]
         if len(keys) != len(set(keys)):
             raise ValueError("web.auth providers of one kind need an id each")

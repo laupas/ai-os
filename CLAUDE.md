@@ -58,6 +58,10 @@ Read `README.md` for what ai-os is. This file is the rules for changing it.
   by name or alias, and only after the state cookie matches. Keep Microsoft's
   `common` and `organizations` tenants refused and Google's `email_verified`
   required: there, an address is not checked by anyone ai-os trusts.
+- `create_users` (`NewUserMaker`, for SSO per provider and behind a login proxy
+  through `NewUserPolicy`) needs `domains` (or, for SSO, a Microsoft tenant of
+  one's own), never gives a role that administers or manages users, and never
+  makes a second user for an address someone already has.
 - Who may chat, approve or be messaged is decided from users and roles in code
   (`Authorizer`), never by a prompt.
 - A `per_user` connector carries only the turn user's own sign-in

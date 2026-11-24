@@ -67,6 +67,8 @@ from aios.web.login.chat_code_login import ChatCodeLogin
 from aios.web.login.code_messenger import CodeMessenger
 from aios.web.login.console_users import ConsoleUsers
 from aios.web.login.login_throttle import LoginThrottle
+from aios.web.login.new_user_maker import NewUserMaker
+from aios.web.login.new_user_policy import NewUserPolicy
 from aios.web.login.password_hasher import PasswordHasher
 from aios.web.login.password_login import PasswordLogin
 from aios.web.login.pick_login import PickLogin
@@ -142,9 +144,12 @@ class Console:
         transcriber: FakeTranscriber | None = None,
         max_audio_bytes: int = MAX_AUDIO_BYTES,
         auth: WebAuthConfig | None = None,
+        new_users: tuple[str, list[str]] | None = None,
     ) -> None:
         self.tmp_path = tmp_path
         self.auth = auth
+        self.new_users = new_users
+        """Behind the test proxy: (role, domains) for addresses nobody has yet."""
         self.transcriber = transcriber or FakeTranscriber()
         self.voice = VoiceRoutes(self.transcriber, max_audio_bytes)
         self.world = World(engine=engine)
@@ -274,6 +279,7 @@ class Console:
             w.clock,
         )
         self.sessions = WebSessions(box.derive_key("web-session"), w.clock)
+        maker = NewUserMaker(w.users, w.roles, w.ids)
         self.identities = WebIdentityFactory(
             self.sessions,
             console_users,
@@ -288,13 +294,27 @@ class Console:
                     ),
                     LoginThrottle(w.clock),
                 ),
-                SsoLogin(console_users, SsoAttempts(w.clock), OidcClient(), self.variable_resolver),
+                SsoLogin(
+                    console_users,
+                    SsoAttempts(w.clock),
+                    OidcClient(),
+                    self.variable_resolver,
+                    maker,
+                ),
             ],
         )
         login = self.identities.login_for(self.auth)
         identity = self.identities.create(WebConfig(auth=self.auth)) if login else HeaderIdentity()
         server = WebServer(
-            WebAuth(identity, w.users, w.authorizer, login_page=login is not None),
+            WebAuth(
+                identity,
+                w.users,
+                w.authorizer,
+                login_page=login is not None,
+                new_users=NewUserPolicy(maker, *self.new_users, "header")
+                if self.new_users
+                else None,
+            ),
             [
                 LoginRoutes(login, self.sessions, 30),
                 PasswordRoutes(self.passwords, w.users, w.authorizer),
@@ -352,7 +372,7 @@ class Console:
                 ),
                 ApiDocsRoutes(self.live_config.current, OpenApiBuilder()),
                 VoiceSettingsRoutes(self.variables, self.variable_resolver),
-                WebAuthSettingsRoutes(AiosYamlFile(self.config_file), self.identities),
+                WebAuthSettingsRoutes(AiosYamlFile(self.config_file), self.identities, maker),
                 FilesSettingsRoutes(
                     AiosYamlFile(self.config_file),
                     FileRootGuard([self.tmp_path / "data"]),

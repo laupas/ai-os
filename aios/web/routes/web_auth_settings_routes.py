@@ -10,6 +10,7 @@ from aios.config.web_auth_config import WebAuthConfig
 from aios.config.web_config import WebConfig
 from aios.entities.users.permission import Permission
 from aios.web.aios_yaml_file import AiosYamlFile
+from aios.web.login.new_user_maker import NewUserMaker
 from aios.web.request_body import RequestBody
 from aios.web.web_auth import WebAuth
 from aios.web.web_auth_request import WebAuthRequest
@@ -33,9 +34,15 @@ class WebAuthSettingsRoutes(WebRoutes):
     the rest of aios.yaml.
     """
 
-    def __init__(self, config: AiosYamlFile, identities: WebIdentityFactory) -> None:
+    def __init__(
+        self,
+        config: AiosYamlFile,
+        identities: WebIdentityFactory,
+        maker: NewUserMaker | None = None,
+    ) -> None:
         self._config = config
         self._identities = identities
+        self._maker = maker
         self._editor = ConfigYamlEditor()
 
     def register(self, app: web.Application) -> None:
@@ -104,6 +111,10 @@ class WebAuthSettingsRoutes(WebRoutes):
             if reason:
                 return {"ok": False, "email": None, "detail": reason}
             return {"ok": True, "email": you, "detail": f"you could sign in as {you}"}
+        if auth.create_users and self._maker is not None:
+            reason = self._maker.refusal(auth.default_role)
+            if reason:
+                return {"ok": False, "email": None, "detail": reason}
         try:
             identity = self._identities.from_auth(auth)
             email = await identity.email_of(request)

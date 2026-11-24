@@ -9,6 +9,7 @@ from aios.entities.users.permission import Permission
 from aios.entities.users.user import User
 from aios.storage.collection import Collection
 from aios.users.authorizer import Authorizer
+from aios.web.login.new_user_policy import NewUserPolicy
 from aios.web.web_caller import WebCaller
 from aios.web.web_identity import WebIdentity
 
@@ -39,6 +40,9 @@ class WebAuth:
     header, which a page on another site cannot add without CORS, and this server
     answers no CORS.
 
+    Behind a proxy with `create_users`, `new_users` makes a user for an address
+    nobody has yet (see `NewUserPolicy`).
+
     With `login_page` (the console's own login), the page, its scripts and the
     login routes are served to anyone, so a browser can sign in.
 
@@ -52,11 +56,13 @@ class WebAuth:
         users: Collection[User],
         authorizer: Authorizer,
         login_page: bool = False,
+        new_users: NewUserPolicy | None = None,
     ) -> None:
         self._identity = identity
         self._users = users
         self._authorizer = authorizer
         self._login_page = login_page
+        self._new_users = new_users
 
     @web.middleware
     async def middleware(self, request: web.Request, handler):  # type: ignore[no-untyped-def]
@@ -111,6 +117,8 @@ class WebAuth:
                 a.channel == CHANNEL and a.address.casefold() == wanted for a in u.accounts
             )
         )
+        if user is None and self._new_users is not None:
+            user = await self._new_users.user_for(email)
         if user is None or not self._authorizer.has(user, Permission.CHAT):
             log.warning("web: refused %s", email)
             return None

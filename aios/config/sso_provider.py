@@ -36,6 +36,13 @@ class SsoProvider(BaseModel):
     """oidc: e.g. https://auth.example.com/application/o/ai-os/"""
     domains: list[str] = []
     """Only addresses in these domains get in; empty: any the provider vouches for."""
+    create_users: bool = False
+    """Make a user on the first sign-in of an address nobody has yet, instead of
+    refusing it. Needs `domains`, unless a Microsoft tenant of your own bounds who
+    can sign in at all."""
+    default_role: str = "member"
+    """The role a user made by `create_users` gets. It must let them chat and must
+    not administer: whoever the provider vouches for is not made an administrator."""
     email_claim: str = "email"
     scopes: list[str] = ["openid", "email", "profile"]
 
@@ -56,6 +63,7 @@ class SsoProvider(BaseModel):
 
     @model_validator(mode="after")
     def _complete(self) -> "SsoProvider":
+        self.domains = [d.strip().lstrip("@").casefold() for d in self.domains if d.strip()]
         if self.kind == "microsoft":
             if not self.tenant:
                 raise ValueError("a microsoft sign-in needs tenant (your directory id or domain)")
@@ -71,7 +79,12 @@ class SsoProvider(BaseModel):
                 raise ValueError("an oidc sign-in needs issuer")
             if not (self.issuer.startswith("https://") or LOCAL.match(self.issuer)):
                 raise ValueError("the issuer must be an https address")
+        own_tenant = self.kind == "microsoft" and (self.tenant or "").casefold() != "consumers"
+        if self.create_users and not self.domains and not own_tenant:
+            raise ValueError(
+                "create_users needs domains: otherwise anyone with an account at the "
+                "provider would become a user"
+            )
         if "openid" not in self.scopes:
             raise ValueError("scopes must include openid")
-        self.domains = [d.strip().lstrip("@").casefold() for d in self.domains if d.strip()]
         return self

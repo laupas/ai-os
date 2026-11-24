@@ -9,6 +9,8 @@ from aios.web.login.chat_code_login import ChatCodeLogin
 from aios.web.login.code_messenger import CodeMessenger
 from aios.web.login.console_users import ConsoleUsers
 from aios.web.login.login_throttle import LoginThrottle
+from aios.web.login.new_user_maker import NewUserMaker
+from aios.web.login.new_user_policy import NewUserPolicy
 from aios.web.login.owner_password_seed import OwnerPasswordSeed
 from aios.web.login.password_hasher import PasswordHasher
 from aios.web.login.password_login import PasswordLogin
@@ -131,6 +133,7 @@ class WebContainer(containers.DeclarativeContainer):
     sessions = providers.Singleton(
         WebSessions, key=secret_box.provided.derive_key.call("web-session"), clock=clock
     )
+    new_user_maker = providers.Singleton(NewUserMaker, users=users, roles=roles, ids=ids)
     logins = providers.List(
         providers.Singleton(PickLogin, users=console_users),
         providers.Singleton(
@@ -152,6 +155,7 @@ class WebContainer(containers.DeclarativeContainer):
             attempts=providers.Singleton(SsoAttempts, clock=clock),
             client=providers.Singleton(OidcClient),
             secrets=variable_resolver,
+            maker=new_user_maker,
         ),
     )
     identities = providers.Singleton(
@@ -171,6 +175,11 @@ class WebContainer(containers.DeclarativeContainer):
         users=users,
         authorizer=authorizer,
         login_page=providers.Callable(lambda login: login is not None, login),
+        new_users=providers.Callable(
+            lambda web, maker: NewUserPolicy.of(web.effective_auth(), maker),
+            app_config.provided.web,
+            new_user_maker,
+        ),
     )
     restart = providers.Singleton(RestartRequest)
     aios_yaml = providers.Singleton(
@@ -315,7 +324,9 @@ class WebContainer(containers.DeclarativeContainer):
         providers.Singleton(
             VoiceSettingsRoutes, variables=variable_catalog, resolver=variable_resolver
         ),
-        providers.Singleton(WebAuthSettingsRoutes, config=aios_yaml, identities=identities),
+        providers.Singleton(
+            WebAuthSettingsRoutes, config=aios_yaml, identities=identities, maker=new_user_maker
+        ),
         providers.Singleton(FilesSettingsRoutes, config=aios_yaml, guard=file_root_guard),
         providers.Singleton(
             ChannelSettingsRoutes,
