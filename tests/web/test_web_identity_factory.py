@@ -13,7 +13,7 @@ from aios.web.login.web_sessions import WebSessions
 from aios.web.trusted_header_identity import TrustedHeaderIdentity
 from aios.web.web_identity_factory import WebIdentityFactory
 
-FACTORY = WebIdentityFactory(WebSessions(b"k", Clock()), None, [])  # type: ignore[arg-type]
+FACTORY = WebIdentityFactory(WebSessions(None, Clock()), None, [])  # type: ignore[arg-type]
 
 
 def _request(remote: str, **headers: str):  # type: ignore[no-untyped-def]

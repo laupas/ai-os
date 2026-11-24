@@ -1,10 +1,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { KeyRound, Loader2, LogOut } from "lucide-react";
+import { KeyRound, Loader2, LogOut, Monitor } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Hint, Input, Label } from "@/components/ui/input";
+import { SessionsList } from "@/components/sessions-list";
 import { api, type Me, type PasswordState } from "@/lib/api";
 import { useLogin } from "@/lib/use-login";
 
@@ -13,6 +14,7 @@ export function AccountBox({ me }: { me: Me }) {
   const queryClient = useQueryClient();
   const { data: login } = useLogin();
   const [changing, setChanging] = useState(false);
+  const [browsers, setBrowsers] = useState(false);
   const signOut = async () => {
     await api("POST", "/api/logout");
     await queryClient.resetQueries();
@@ -30,11 +32,21 @@ export function AccountBox({ me }: { me: Me }) {
               <KeyRound /> Password
             </Button>
           ) : null}
+          <Button size="sm" variant="ghost" onClick={() => setBrowsers(true)}>
+            <Monitor /> Browsers
+          </Button>
           <Button size="sm" variant="ghost" onClick={() => void signOut()}>
             <LogOut /> Sign out
           </Button>
         </div>
       ) : null}
+      <Dialog open={browsers} onOpenChange={setBrowsers}>
+        <DialogContent>
+          <DialogTitle>Where you are signed in</DialogTitle>
+          <DialogDescription>Sign out a browser you no longer use, or all but this one.</DialogDescription>
+          {browsers ? <SessionsList /> : null}
+        </DialogContent>
+      </Dialog>
       <Dialog open={changing} onOpenChange={setChanging}>
         <DialogContent>{changing ? <OwnPasswordForm onDone={() => setChanging(false)} /> : null}</DialogContent>
       </Dialog>

@@ -21,6 +21,7 @@ from aios.entities.users.permission import Permission
 from aios.entities.users.role import Role
 from aios.entities.users.user import User
 from aios.entities.users.web_password import WebPassword
+from aios.entities.users.web_session import WebSession
 from aios.entities.variables.variable import Variable
 from aios.entities.webhooks.webhook_destination import WebhookDestination
 from aios.storage.agent_access import AgentAccess
@@ -196,6 +197,14 @@ class StorageContainer(containers.DeclarativeContainer):
         entity=WebPassword,
         agent_access=AgentAccess.NONE,
     )
+    # Signed-in browsers: only token hashes, in the data dir. Not in the audit
+    # trail, or every few minutes of use would be a change.
+    web_sessions_definition = providers.Singleton(
+        CollectionDefinition,
+        name="web-sessions",
+        entity=WebSession,
+        agent_access=AgentAccess.NONE,
+    )
     connectors_definition = providers.Singleton(
         CollectionDefinition, name="connectors", entity=Connector, agent_access=AgentAccess.NONE
     )
@@ -231,6 +240,9 @@ class StorageContainer(containers.DeclarativeContainer):
     web_passwords = providers.Singleton(
         Collection, definition=web_passwords_definition, store=settings_store
     )
+    web_sessions = providers.Singleton(
+        Collection, definition=web_sessions_definition, store=document_store
+    )
     conversations = providers.Singleton(
         Collection, definition=conversations_definition, store=document_store
     )
@@ -256,5 +268,6 @@ class StorageContainer(containers.DeclarativeContainer):
             variables,
             git_remotes,
             web_passwords,
+            web_sessions,
         ),
     )

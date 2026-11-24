@@ -50,21 +50,21 @@ async def test_pick_lists_the_console_users_and_signs_in_the_one_picked(tmp_path
         assert await _me(c) == 403
 
 
-async def test_a_tampered_session_cookie_is_refused(tmp_path) -> None:
+async def test_a_made_up_session_cookie_is_refused_and_only_its_hash_is_stored(tmp_path) -> None:
     async with Console(tmp_path, auth=PICK) as c:
         await c.client.post("/api/login", json={"user_id": "bob"}, headers=W)
         assert await _me(c) == 200
         token = next(m.value for m in c.client.session.cookie_jar if m.key == COOKIE)
-        signature = token.rsplit(".", 1)[1]
-        forged = c.sessions.issue("alice", "pick", "", 30).rsplit(".", 1)[0]
+        assert all(token not in s.model_dump_json() for s in c.web_sessions.all())
         c.client.session.cookie_jar.clear()
-        c.client.session.cookie_jar.update_cookies({COOKIE: f"{forged}.{signature}"})
+        c.client.session.cookie_jar.update_cookies({COOKIE: token[:-2] + "xx"})
         assert await _me(c) == 403
 
 
 async def test_a_session_from_another_mode_does_not_count(tmp_path) -> None:
     async with Console(tmp_path, auth=PASSWORD) as c:
-        c.client.session.cookie_jar.update_cookies({COOKIE: c.sessions.issue("bob", "pick", "", 1)})
+        token = await c.sessions.issue("bob", "pick", "", 1)
+        c.client.session.cookie_jar.update_cookies({COOKIE: token})
         assert await _me(c) == 403
 
 

@@ -64,6 +64,9 @@ Read `README.md` for what ai-os is. This file is the rules for changing it.
   makes a second user for an address someone already has. `group_map` (`GroupSync`)
   touches only the groups the map names and never fills a group that administers
   or manages users.
+- Console sessions (`WebSessions`) live on the server; the cookie holds a random
+  token and only its SHA-256 is stored. Never store the token, and keep the
+  places that end sessions: sign-out, a new password, a deleted user.
 - Who may use an agent or connector is `available_to`, decided by `Audience`
   (`PermissionAudience`): administrators always, no list means administrators
   only. Keep all three checks: the main agent and the subagents and connectors of a

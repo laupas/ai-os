@@ -36,10 +36,12 @@ class LoginRoutes(WebRoutes):
         sessions: WebSessions,
         days: int,
         public_url: str | None = None,
+        idle_minutes: int | None = None,
     ) -> None:
         self._login = login
         self._sessions = sessions
         self._days = days
+        self._idle = idle_minutes
         self._address = PublicAddress(public_url)
 
     def register(self, app: web.Application) -> None:
@@ -66,12 +68,15 @@ class LoginRoutes(WebRoutes):
             log.warning("web: refused a sign-in (%s): %s", body.username or body.user_id, exc)
             raise web.HTTPUnauthorized(text=str(exc)) from exc
         log.info("web: %s signed in (%s)", user.name, self._login.mode)
-        token = self._sessions.issue(user.id, self._login.mode, self._login.stamp(user), self._days)
+        token = await self._sessions.issue(
+            user.id, self._login.mode, self._login.stamp(user), self._days, request, self._idle
+        )
         response = web.json_response({"ok": True, "name": user.name})
         WebSessions.set_cookie(response, token, self._days, self._address.secure(request))
         return response
 
     async def _sign_out(self, request: web.Request) -> web.Response:
+        await self._sessions.end(WebSessions.token_of(request))
         response = web.json_response({"ok": True})
         WebSessions.clear_cookie(response)
         return response
@@ -110,7 +115,9 @@ class LoginRoutes(WebRoutes):
             log.warning("web: refused a single sign-on: %s", exc)
             return self._back(str(exc))
         log.info("web: %s signed in (%s)", user.name, login.mode)
-        token = self._sessions.issue(user.id, login.mode, login.stamp(user), self._days)
+        token = await self._sessions.issue(
+            user.id, login.mode, login.stamp(user), self._days, request, self._idle
+        )
         response = web.HTTPFound("/")
         WebSessions.set_cookie(response, token, self._days, self._address.secure(request))
         response.del_cookie(STATE_COOKIE, path=SSO)

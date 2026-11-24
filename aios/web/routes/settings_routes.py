@@ -17,6 +17,7 @@ from aios.entities.users.user import User
 from aios.storage.collection import Collection
 from aios.web.aios_yaml_file import AiosYamlFile
 from aios.web.config_insert_request import ConfigInsertRequest
+from aios.web.login.web_sessions import WebSessions
 from aios.web.request_body import RequestBody
 from aios.web.restart_request import RestartRequest
 from aios.web.text_request import TextRequest
@@ -48,7 +49,9 @@ class SettingsRoutes(WebRoutes):
         groups: Collection[Group],
         ids: IdGenerator,
         restart: RestartRequest,
+        sessions: WebSessions | None = None,
     ) -> None:
+        self._sessions = sessions
         self._config = config
         self._live = live
         self._users = users
@@ -143,6 +146,8 @@ class SettingsRoutes(WebRoutes):
         if self._users.get(user_id) is None:
             raise web.HTTPNotFound(text="no such user")
         await self._users.delete(user_id)
+        if self._sessions is not None:
+            await self._sessions.end_all(user_id)
         return web.json_response({"ok": True})
 
     async def _create_group(self, request: web.Request) -> web.Response:

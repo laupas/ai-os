@@ -286,6 +286,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         repository_files=config_repo.files,
         transcriber=transcription.transcriber,
         web_passwords=storage.web_passwords,
+        web_sessions=storage.web_sessions,
         owner_password=config.settings.provided.owner_password,
         secret_box=variables.box,
         store_sources=store.catalog,

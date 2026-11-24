@@ -46,6 +46,7 @@ interface FieldSpec {
 }
 
 const SESSION_DAYS: FieldSpec = { key: "session_days", label: "Stay signed in for (days)", placeholder: "30", hint: "How long a browser stays signed in before it asks again." };
+const IDLE: FieldSpec = { key: "idle_minutes", label: "Sign out after inactivity (minutes)", placeholder: "never", hint: "A browser without a request for this long is signed out. Empty: only after the days above." };
 
 const MODES: { mode: Exclude<Mode, "dev">; title: string; body: string; icon: typeof Cloud; fields: FieldSpec[]; warning?: string }[] = [
   {
@@ -53,7 +54,7 @@ const MODES: { mode: Exclude<Mode, "dev">; title: string; body: string; icon: ty
     title: "No login: pick a user",
     body: "The console asks who you are and lists everyone with a web account. No password.",
     icon: Users,
-    fields: [SESSION_DAYS],
+    fields: [SESSION_DAYS, IDLE],
     warning:
       "Anyone who can open the console can act as anyone, administrators included. Only for a network where everyone is trusted, never on the internet without a proxy in front.",
   },
@@ -62,7 +63,7 @@ const MODES: { mode: Exclude<Mode, "dev">; title: string; body: string; icon: ty
     title: "Name and password",
     body: "The console's own login page. Each user's password is set under People, or by themselves.",
     icon: LockKeyhole,
-    fields: [SESSION_DAYS],
+    fields: [SESSION_DAYS, IDLE],
     warning: "Set your own password first (Settings → People → you), or saving is refused. Put the console behind https: a password sent over plain http can be read on the way.",
   },
   {
@@ -70,7 +71,7 @@ const MODES: { mode: Exclude<Mode, "dev">; title: string; body: string; icon: ty
     title: "Code by chat",
     body: "The console asks for your name and sends a one-time code to your Slack, Teams, Signal or mail. No passwords to manage.",
     icon: MessageSquareLock,
-    fields: [SESSION_DAYS],
+    fields: [SESSION_DAYS, IDLE],
     warning: "Whoever can read someone's chat can sign in as them. Saving is refused unless ai-os can reach you on an enabled channel.",
   },
   {
@@ -78,7 +79,7 @@ const MODES: { mode: Exclude<Mode, "dev">; title: string; body: string; icon: ty
     title: "Single sign-on",
     body: "Sign in with Microsoft 365, Google or any OpenID Connect provider. ai-os does the sign-in itself, no proxy needed.",
     icon: ShieldCheck,
-    fields: [SESSION_DAYS],
+    fields: [SESSION_DAYS, IDLE],
     warning:
       "Each person gets in with the address the provider vouches for, which must be their web account under People. Set the client secret as a Variable first, or saving is refused.",
   },

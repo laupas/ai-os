@@ -234,8 +234,24 @@ port directly. Pick one in `web.auth` (or under Settings → Login):
 | `header` | Authelia, Traefik forward-auth, any proxy setting a plain header | only from `trusted_proxies` and/or with a shared secret (`secret_env`) |
 | `dev` | your own machine | nothing: every request is `dev_email` |
 
-`pick`, `password`, `code` and `sso` keep a browser signed in with a signed cookie for
-`session_days` (30). Passwords are hashed (scrypt) in `<data>/web-passwords`, never
+`pick`, `password`, `code` and `sso` keep a browser signed in with a **session**
+on the server, for `session_days` (30), and with `idle_minutes` set, only until it
+has been unused that long. The cookie holds a random token; `<data>/web-sessions`
+keeps only its hash, so the data dir cannot be turned into a sign-in. Every
+session can be ended:
+
+- **Sign out** ends this browser's session on the server, so a copied cookie is
+  worth nothing afterwards;
+- **Browsers** (under your name in the menu) lists where you are signed in, with
+  the browser, address and last use, and signs out one or all others;
+- an administrator sees a person's browsers on their page under Settings -> Users
+  and signs them out everywhere;
+- a new password ends that user's other sessions, and deleting a user ends all of
+  theirs; someone who leaves every group that may chat is refused at once.
+
+Behind a login proxy the proxy's sessions are the ones to end; ai-os keeps none.
+
+Passwords are hashed (scrypt) in `<data>/web-passwords`, never
 in git; a new password signs that user out everywhere, and five wrong attempts for
 one name block it for 15 minutes. Settings refuse to switch to `password` before the
 administrator saving it has a password, and to `code` before ai-os can reach them.

@@ -5,6 +5,7 @@ from aios.entities.users.user import User
 from aios.storage.collection import Collection
 from aios.users.authorizer import Authorizer
 from aios.web.login.web_passwords import WebPasswords
+from aios.web.login.web_sessions import CURRENT, WebSessions
 from aios.web.password_request import PasswordRequest
 from aios.web.request_body import RequestBody
 from aios.web.web_auth import WebAuth
@@ -19,8 +20,13 @@ class PasswordRoutes(WebRoutes):
     ai-os: the console learns only who has a password."""
 
     def __init__(
-        self, passwords: WebPasswords, users: Collection[User], authorizer: Authorizer
+        self,
+        passwords: WebPasswords,
+        users: Collection[User],
+        authorizer: Authorizer,
+        sessions: WebSessions | None = None,
     ) -> None:
+        self._sessions = sessions
         self._passwords = passwords
         self._users = users
         self._authorizer = authorizer
@@ -47,12 +53,16 @@ class PasswordRoutes(WebRoutes):
         ):
             raise web.HTTPForbidden(text="the current password is wrong")
         await self._store(user_id, body.password, caller)
+        if self._sessions is not None:  # every other browser of theirs
+            await self._sessions.end_all(user_id, keep=request.get(CURRENT))
         return web.json_response({"ok": True})
 
     async def _set(self, request: web.Request) -> web.Response:
         caller, user = self._target(request)
         body = await RequestBody.parse(request, PasswordRequest)
         await self._store(user.id, body.password, caller)
+        if self._sessions is not None:
+            await self._sessions.end_all(user.id)
         return web.json_response({"ok": True})
 
     async def _clear(self, request: web.Request) -> web.Response:

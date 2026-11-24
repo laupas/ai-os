@@ -3,6 +3,7 @@ import { Globe, KeyRound, Pencil, Plus, Trash2, User as UserIcon, Users, X } fro
 import { useState } from "react";
 import { toast } from "sonner";
 import { ListView } from "@/components/list-view";
+import { SessionsList } from "@/components/sessions-list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -214,6 +215,12 @@ function UserForm({ user: u, groups, onDone }: { user: User | null; groups: Grou
           <Textarea rows={3} className="font-sans" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Who they are, for the agents: relationship, language, …" />
         </Label>
         {u ? <PasswordSection user={u} isMe={isMe} /> : null}
+        {u ? (
+          <div>
+            <div className="mb-1 text-sm font-medium">Signed in</div>
+            <SessionsList userId={u.id} />
+          </div>
+        ) : null}
       </div>
       <div className="flex gap-2 border-t p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
         <Button type="submit" disabled={busy || !name.trim()} className="flex-1 sm:flex-none">

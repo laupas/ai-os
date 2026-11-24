@@ -38,6 +38,7 @@ from aios.entities.skills.skill import Skill
 from aios.entities.triggers.trigger import Trigger
 from aios.entities.users.channel_account import ChannelAccount
 from aios.entities.users.web_password import WebPassword
+from aios.entities.users.web_session import WebSession
 from aios.entities.variables.variable import Variable
 from aios.entities.webhooks.webhook_destination import WebhookDestination
 from aios.logs.log_reader import LogReader
@@ -96,6 +97,7 @@ from aios.web.routes.log_routes import LogRoutes
 from aios.web.routes.login_routes import LoginRoutes
 from aios.web.routes.memory_routes import MemoryRoutes
 from aios.web.routes.password_routes import PasswordRoutes
+from aios.web.routes.session_routes import SessionRoutes
 from aios.web.routes.settings_routes import SettingsRoutes
 from aios.web.routes.settings_section_routes import SettingsSectionRoutes
 from aios.web.routes.skill_routes import SkillRoutes
@@ -282,7 +284,10 @@ class Console:
             PasswordHasher(),
             w.clock,
         )
-        self.sessions = WebSessions(box.derive_key("web-session"), w.clock)
+        self.web_sessions: Collection[WebSession] = Collection(
+            CollectionDefinition(name="web-sessions", entity=WebSession), w.store
+        )
+        self.sessions = WebSessions(self.web_sessions, w.clock)
         maker = NewUserMaker(w.users, w.groups, w.ids)
         self.group_values_seen = GroupValuesSeen()
         self.identities = WebIdentityFactory(
@@ -323,8 +328,14 @@ class Console:
                 else None,
             ),
             [
-                LoginRoutes(login, self.sessions, 30),
-                PasswordRoutes(self.passwords, w.users, w.authorizer),
+                LoginRoutes(
+                    login,
+                    self.sessions,
+                    30,
+                    idle_minutes=self.auth.idle_minutes if self.auth else None,
+                ),
+                SessionRoutes(self.sessions, w.users, login is not None),
+                PasswordRoutes(self.passwords, w.users, w.authorizer, self.sessions),
                 LogRoutes(LogReader(log_file), w.clock),
                 ConversationRoutes(
                     w.conversations,
@@ -375,6 +386,7 @@ class Console:
                     w.groups,
                     w.ids,
                     self.restart,
+                    self.sessions,
                 ),
                 SettingsSectionRoutes(
                     AiosYamlFile(self.config_file, live=self.live_config), self.collection_overrides

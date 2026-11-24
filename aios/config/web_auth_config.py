@@ -68,6 +68,9 @@ class WebAuthConfig(BaseModel):
     dev_email: str | None = None
     session_days: int = Field(30, ge=1, le=365)
     """pick, password, code, sso: how long a browser stays signed in."""
+    idle_minutes: int | None = Field(None, ge=5, le=60 * 24 * 365)
+    """pick, password, code, sso: sign a browser out after this long without a
+    request; None: only after `session_days`."""
 
     @model_validator(mode="after")
     def _complete(self) -> "WebAuthConfig":

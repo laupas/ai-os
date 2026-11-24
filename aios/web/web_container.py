@@ -42,6 +42,7 @@ from aios.web.routes.login_routes import LoginRoutes
 from aios.web.routes.memory_routes import MemoryRoutes
 from aios.web.routes.password_routes import PasswordRoutes
 from aios.web.routes.repository_routes import RepositoryRoutes
+from aios.web.routes.session_routes import SessionRoutes
 from aios.web.routes.settings_routes import SettingsRoutes
 from aios.web.routes.settings_section_routes import SettingsSectionRoutes
 from aios.web.routes.skill_routes import SkillRoutes
@@ -116,6 +117,7 @@ class WebContainer(containers.DeclarativeContainer):
     repository_files = providers.Dependency()
     transcriber = providers.Dependency()
     web_passwords = providers.Dependency()
+    web_sessions = providers.Dependency()
     owner_password = providers.Dependency(default=None)
     secret_box = providers.Dependency()
     store_sources = providers.Dependency()
@@ -133,9 +135,7 @@ class WebContainer(containers.DeclarativeContainer):
     owner_password_seed = providers.Singleton(
         OwnerPasswordSeed, users=users, passwords=passwords, password=owner_password
     )
-    sessions = providers.Singleton(
-        WebSessions, key=secret_box.provided.derive_key.call("web-session"), clock=clock
-    )
+    sessions = providers.Singleton(WebSessions, sessions=web_sessions, clock=clock)
     new_user_maker = providers.Singleton(NewUserMaker, users=users, groups=groups, ids=ids)
     group_sync = providers.Singleton(GroupSync, users=users, groups=groups)
     group_values_seen = providers.Singleton(GroupValuesSeen)
@@ -223,6 +223,15 @@ class WebContainer(containers.DeclarativeContainer):
                 lambda web: web.effective_auth().session_days, app_config.provided.web
             ),
             public_url=app_config.provided.web.public_url,
+            idle_minutes=providers.Callable(
+                lambda web: web.effective_auth().idle_minutes, app_config.provided.web
+            ),
+        ),
+        providers.Singleton(
+            SessionRoutes,
+            sessions=sessions,
+            users=users,
+            own_login=providers.Callable(lambda login: login is not None, login),
         ),
         providers.Singleton(
             ApiDocsRoutes,
@@ -230,7 +239,11 @@ class WebContainer(containers.DeclarativeContainer):
             builder=providers.Singleton(OpenApiBuilder),
         ),
         providers.Singleton(
-            PasswordRoutes, passwords=passwords, users=users, authorizer=authorizer
+            PasswordRoutes,
+            passwords=passwords,
+            users=users,
+            authorizer=authorizer,
+            sessions=sessions,
         ),
         providers.Singleton(LogRoutes, log_reader=log_reader, clock=clock),
         providers.Singleton(AuditRoutes, feed=audit_feed),
@@ -328,6 +341,7 @@ class WebContainer(containers.DeclarativeContainer):
             groups=groups,
             ids=ids,
             restart=restart,
+            sessions=sessions,
         ),
         providers.Singleton(
             SettingsSectionRoutes, config=aios_yaml, collections=collection_overrides
