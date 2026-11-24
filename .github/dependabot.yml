@@ -31,3 +31,7 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # Odd Node majors are never long-term support; the console builds on LTS.
+      - dependency-name: node
+        versions: [">=23 <24", ">=25 <26", ">=27 <28", ">=29 <30"]
