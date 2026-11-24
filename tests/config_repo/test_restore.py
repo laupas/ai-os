@@ -87,3 +87,36 @@ async def test_an_existing_repository_gets_config_yaml_moved_in(tmp_path, monkey
     assert (repo.root / "aios.yaml").read_text() == "channels: [web]\n"
     assert "aios.yaml: moved in" in git("-C", str(repo.root), "log", "-1", "--format=%s")
     assert (data / "config.yaml.moved-to-repository").exists()
+
+
+async def test_a_one_shot_deployment_brings_its_first_config_in_the_environment(
+    tmp_path, monkeypatch
+) -> None:
+    data = tmp_path / "data"
+    monkeypatch.setenv("AIOS_DATA_DIR", str(data))
+    monkeypatch.setenv("AIOS_INITIAL_CONFIG", '{"channels": ["web"]}')
+    ConfigRepoBootstrap(Settings()).run()
+    assert (data / "config.yaml").read_text() == '{"channels": ["web"]}\n'
+
+
+async def test_the_initial_config_never_replaces_one_that_is_there(tmp_path, monkeypatch) -> None:
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "config.yaml").write_text("channels: [slack]\n")
+    monkeypatch.setenv("AIOS_DATA_DIR", str(data))
+    monkeypatch.setenv("AIOS_INITIAL_CONFIG", "channels: [web]")
+    ConfigRepoBootstrap(Settings()).run()
+    assert (data / "config.yaml").read_text() == "channels: [slack]\n"
+
+
+async def test_the_initial_config_is_ignored_once_there_is_a_repository(
+    tmp_path, monkeypatch
+) -> None:
+    from aios.config_repo.git_repository import GitRepository
+
+    data = tmp_path / "data"
+    GitRepository(data / "config").init()
+    monkeypatch.setenv("AIOS_DATA_DIR", str(data))
+    monkeypatch.setenv("AIOS_INITIAL_CONFIG", "channels: [web]")
+    ConfigRepoBootstrap(Settings()).run()
+    assert not (data / "config.yaml").exists()

@@ -9,6 +9,7 @@ from aios.web.login.chat_code_login import ChatCodeLogin
 from aios.web.login.code_messenger import CodeMessenger
 from aios.web.login.console_users import ConsoleUsers
 from aios.web.login.login_throttle import LoginThrottle
+from aios.web.login.owner_password_seed import OwnerPasswordSeed
 from aios.web.login.password_hasher import PasswordHasher
 from aios.web.login.password_login import PasswordLogin
 from aios.web.login.pick_login import PickLogin
@@ -110,6 +111,7 @@ class WebContainer(containers.DeclarativeContainer):
     repository_files = providers.Dependency()
     transcriber = providers.Dependency()
     web_passwords = providers.Dependency()
+    owner_password = providers.Dependency(default=None)
     secret_box = providers.Dependency()
     store_sources = providers.Dependency()
     store_installer = providers.Dependency()
@@ -122,6 +124,9 @@ class WebContainer(containers.DeclarativeContainer):
         passwords=web_passwords,
         hasher=providers.Singleton(PasswordHasher),
         clock=clock,
+    )
+    owner_password_seed = providers.Singleton(
+        OwnerPasswordSeed, users=users, passwords=passwords, password=owner_password
     )
     sessions = providers.Singleton(
         WebSessions, key=secret_box.provided.derive_key.call("web-session"), clock=clock

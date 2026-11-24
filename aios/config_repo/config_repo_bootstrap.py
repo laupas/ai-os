@@ -16,6 +16,8 @@ class ConfigRepoBootstrap:
     A data dir without a repository clones it from `AIOS_CONFIG_REMOTE` when that is
     set: that is the whole of moving ai-os to a new machine. An existing repository
     without `aios.yaml` gets the data dir's `config.yaml` moved into it, in a commit.
+    A data dir with neither gets `config.yaml` from `AIOS_INITIAL_CONFIG`, which the
+    new repository then takes in.
     """
 
     def __init__(self, settings: Settings) -> None:
@@ -25,8 +27,18 @@ class ConfigRepoBootstrap:
     def run(self) -> None:
         if not self._repo.exists() and self._settings.config_remote:
             self._clone()
+        if not self._repo.exists() and self._settings.initial_config:
+            self._write_initial_config()
         if self._repo.exists() and self._repo.head():
             self._move_config_file()
+
+    def _write_initial_config(self) -> None:
+        target = self._settings.legacy_config_file()
+        if target.exists():
+            return
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text((self._settings.initial_config or "").strip() + "\n")
+        log.info("wrote %s from AIOS_INITIAL_CONFIG", target)
 
     def _clone(self) -> None:
         url = self._settings.config_remote or ""

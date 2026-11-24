@@ -1,0 +1,230 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.49.2.45890",
+      "templateHash": "1595827509556609346"
+    }
+  },
+  "parameters": {
+    "appName": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 60,
+      "metadata": {
+        "description": "Name of the web app: it becomes <name>.azurewebsites.net and must be unique in Azure."
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Where everything is created."
+      }
+    },
+    "ownerName": {
+      "type": "string",
+      "metadata": {
+        "description": "Your name, as ai-os shows it."
+      }
+    },
+    "ownerEmail": {
+      "type": "string",
+      "metadata": {
+        "description": "Your address: the name you sign in to the console with."
+      }
+    },
+    "ownerPassword": {
+      "type": "securestring",
+      "minLength": 12,
+      "metadata": {
+        "description": "Your first console password, at least 12 characters. Change it in the console afterwards."
+      }
+    },
+    "anthropicApiKey": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Anthropic API key. Leave empty to set it (or a Claude subscription token) in the console."
+      }
+    },
+    "secretsKey": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Encrypts the secrets ai-os stores. Leave empty to have one generated onto the share; set your own to keep it apart from the data. Never change it afterwards."
+      }
+    },
+    "timezone": {
+      "type": "string",
+      "defaultValue": "UTC",
+      "metadata": {
+        "description": "Time zone for triggers and dates, e.g. Europe/Zurich."
+      }
+    },
+    "sku": {
+      "type": "string",
+      "defaultValue": "B2",
+      "allowedValues": [
+        "B2",
+        "B3",
+        "P0v3",
+        "P1v3"
+      ],
+      "metadata": {
+        "description": "Size of the App Service plan. B1 is too small for Claude and its MCP servers."
+      }
+    },
+    "image": {
+      "type": "string",
+      "defaultValue": "ghcr.io/laupas/ai-os:latest",
+      "metadata": {
+        "description": "The ai-os image."
+      }
+    }
+  },
+  "variables": {
+    "url": "[format('https://{0}.azurewebsites.net', parameters('appName'))]",
+    "storageName": "[take(format('aios{0}', uniqueString(resourceGroup().id, parameters('appName'))), 24)]",
+    "initialConfig": {
+      "channels": [
+        "web"
+      ],
+      "timezone": "[parameters('timezone')]",
+      "owner": {
+        "name": "[parameters('ownerName')]",
+        "accounts": [
+          {
+            "channel": "web",
+            "address": "[parameters('ownerEmail')]"
+          }
+        ]
+      },
+      "web": {
+        "public_url": "[variables('url')]",
+        "auth": {
+          "mode": "password"
+        }
+      }
+    },
+    "baseSettings": [
+      {
+        "name": "WEBSITES_PORT",
+        "value": "8080"
+      },
+      {
+        "name": "WEBSITES_ENABLE_APP_SERVICE_STORAGE",
+        "value": "false"
+      },
+      {
+        "name": "AIOS_INITIAL_CONFIG",
+        "value": "[string(variables('initialConfig'))]"
+      },
+      {
+        "name": "AIOS_OWNER_PASSWORD",
+        "value": "[parameters('ownerPassword')]"
+      },
+      {
+        "name": "AIOS_VARIABLE_FILES_DIR",
+        "value": "/tmp/aios-variable-files"
+      }
+    ],
+    "optionalSettings": "[concat(if(empty(parameters('anthropicApiKey')), createArray(), createArray(createObject('name', 'ANTHROPIC_API_KEY', 'value', parameters('anthropicApiKey')))), if(empty(parameters('secretsKey')), createArray(), createArray(createObject('name', 'AIOS_SECRETS_KEY', 'value', parameters('secretsKey')))))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2023-05-01",
+      "name": "[variables('storageName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "kind": "StorageV2",
+      "properties": {
+        "minimumTlsVersion": "TLS1_2",
+        "supportsHttpsTrafficOnly": true,
+        "allowBlobPublicAccess": false
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/fileServices",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}/{1}', variables('storageName'), 'default')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/fileServices/shares",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}/{1}/{2}', variables('storageName'), 'default', 'data')]",
+      "properties": {
+        "shareQuota": 10
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts/fileServices', variables('storageName'), 'default')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2023-12-01",
+      "name": "[format('{0}-plan', parameters('appName'))]",
+      "location": "[parameters('location')]",
+      "kind": "linux",
+      "sku": {
+        "name": "[parameters('sku')]",
+        "capacity": 1
+      },
+      "properties": {
+        "reserved": true
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2023-12-01",
+      "name": "[parameters('appName')]",
+      "location": "[parameters('location')]",
+      "kind": "app,linux,container",
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', format('{0}-plan', parameters('appName')))]",
+        "httpsOnly": true,
+        "siteConfig": {
+          "linuxFxVersion": "[format('DOCKER|{0}', parameters('image'))]",
+          "alwaysOn": true,
+          "numberOfWorkers": 1,
+          "http20Enabled": true,
+          "minTlsVersion": "1.2",
+          "ftpsState": "Disabled",
+          "appSettings": "[concat(variables('baseSettings'), variables('optionalSettings'))]",
+          "azureStorageAccounts": {
+            "data": {
+              "type": "AzureFiles",
+              "accountName": "[variables('storageName')]",
+              "shareName": "data",
+              "mountPath": "/data",
+              "accessKey": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageName')), '2023-05-01').keys[0].value]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms', format('{0}-plan', parameters('appName')))]",
+        "[resourceId('Microsoft.Storage/storageAccounts/fileServices/shares', variables('storageName'), 'default', 'data')]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "url": {
+      "type": "string",
+      "value": "[variables('url')]"
+    },
+    "storageAccount": {
+      "type": "string",
+      "value": "[variables('storageName')]"
+    }
+  }
+}

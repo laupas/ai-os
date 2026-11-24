@@ -29,7 +29,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 ENV MCP_TIMEOUT=120000
 RUN apt-get update \
  && apt-get install -y --no-install-recommends nodejs npm ca-certificates git openssh-client \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ # A network share (Azure Files on App Service) mounts /data as root, not as the
+ # user below; git would then refuse every repository in it as "dubious ownership".
+ && git config --system --add safe.directory '*'
 
 COPY --from=ghcr.io/astral-sh/uv:0.7.8 /uv /usr/local/bin/
 

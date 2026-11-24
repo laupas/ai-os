@@ -29,6 +29,14 @@ class Settings(BaseSettings):
     config_ssh_key: str | None = Field(None, alias="AIOS_CONFIG_SSH_KEY")
     config_token: str | None = Field(None, alias="AIOS_CONFIG_TOKEN")
 
+    initial_config: str | None = Field(None, alias="AIOS_INITIAL_CONFIG")
+    """The first `config.yaml` (YAML or JSON), for a data dir with neither a
+    repository nor a remote to clone: how a one-shot deployment (a cloud template)
+    sets the owner and the login before the first start. Ignored afterwards."""
+    owner_password: str | None = Field(None, alias="AIOS_OWNER_PASSWORD")
+    """The owner's first console password, for `web.auth.mode: password` from the
+    first start. Set only while no user has a password."""
+
     variable_files: Path | None = Field(None, alias="AIOS_VARIABLE_FILES_DIR")
     """Where `${file:NAME}` values are written; best a tmpfs, so a decrypted copy
     never reaches a disk. Default: `<data>/variable-files`."""

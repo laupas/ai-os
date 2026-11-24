@@ -74,9 +74,17 @@ port on loopback only for that reason.
 generated into `./data`, so a backup of that folder holds them readable. Keep the key
 safe: without it, the stored secrets cannot be read.
 
+**On Azure**, ai-os runs as a Web App with its data on an Azure Files share, set up
+with one click or by hand: see [docs/azure.md](docs/azure.md).
+
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Flaupas%2Fai-os%2Fmain%2Fdeploy%2Fazure%2Fazuredeploy.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2Flaupas%2Fai-os%2Fmain%2Fdeploy%2Fazure%2FcreateUiDefinition.json)
+
 **To set things up front** instead of in the console (the owner, channels, the
 login), copy [`aios.example.yaml`](aios.example.yaml) to `data/config.yaml` before
-the first start.
+the first start. Where you cannot put a file there first (a cloud template), the
+same YAML in `AIOS_INITIAL_CONFIG` is written there on the first start, and
+`AIOS_OWNER_PASSWORD` gives the owner a first password for `web.auth.mode: password`
+(only while nobody has one).
 
 To build the image yourself, clone the repository, uncomment `build: .` in the
 compose file, and run `docker compose -f docker-compose.example.yml up -d --build`.
@@ -136,7 +144,7 @@ update anything on its own.
 
 | Where | What |
 |---|---|
-| environment | secrets and paths: `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN`, `AIOS_SECRETS_KEY`, `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `TEAMS_APP_ID`, `TEAMS_APP_PASSWORD`, `TEAMS_TENANT_ID`, `RESEND_API_KEY`, `AIOS_MAIL_FROM`, `SIGNAL_API_URL`, `SIGNAL_SENDER`, `OPENAI_API_KEY` (voice notes), `AIOS_DATA_DIR`, `AIOS_VARIABLE_FILES_DIR` (best a tmpfs), `AIOS_LOG_LEVEL`; see `.env.example` |
+| environment | secrets and paths: `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN`, `AIOS_SECRETS_KEY`, `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `TEAMS_APP_ID`, `TEAMS_APP_PASSWORD`, `TEAMS_TENANT_ID`, `RESEND_API_KEY`, `AIOS_MAIL_FROM`, `SIGNAL_API_URL`, `SIGNAL_SENDER`, `OPENAI_API_KEY` (voice notes), `AIOS_DATA_DIR`, `AIOS_VARIABLE_FILES_DIR` (best a tmpfs), `AIOS_INITIAL_CONFIG` and `AIOS_OWNER_PASSWORD` (first start only), `AIOS_LOG_LEVEL`; see `.env.example` |
 | `<data>/config` | the configuration repository (git): `aios.yaml`, agents, skills, connectors, triggers, roles, webhooks |
 | `<data>/users` | who is who, with their accounts on each channel |
 | `<data>/variables` | values and secrets for connectors, set in the console; secrets encrypted |

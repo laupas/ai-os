@@ -1,0 +1,165 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/0.1.2-preview/CreateUIDefinition.MultiVm.json#",
+  "handler": "Microsoft.Azure.CreateUIDef",
+  "version": "0.1.2-preview",
+  "parameters": {
+    "config": {
+      "basics": {
+        "description": "**ai-os** as an Azure Web App, with its data on an Azure Files share. You sign in to the console with your address and the password below; switch to Microsoft 365 sign-in later under Settings → Login. See [docs/azure.md](https://github.com/laupas/ai-os/blob/main/docs/azure.md).",
+        "location": {
+          "label": "Region",
+          "toolTip": "Where the web app and its storage are created."
+        }
+      }
+    },
+    "basics": [
+      {
+        "name": "appName",
+        "type": "Microsoft.Common.TextBox",
+        "label": "Web app name",
+        "toolTip": "Becomes <name>.azurewebsites.net; must be unique in Azure.",
+        "constraints": {
+          "required": true,
+          "regex": "^[a-z0-9][a-z0-9-]{0,58}[a-z0-9]$",
+          "validationMessage": "2 to 60 lowercase letters, digits and hyphens, not starting or ending with a hyphen."
+        }
+      },
+      {
+        "name": "sku",
+        "type": "Microsoft.Common.DropDown",
+        "label": "Size",
+        "defaultValue": "B2 (2 cores, 3.5 GB)",
+        "toolTip": "B1 is too small for Claude and its MCP servers.",
+        "constraints": {
+          "allowedValues": [
+            {
+              "label": "B2 (2 cores, 3.5 GB)",
+              "value": "B2"
+            },
+            {
+              "label": "B3 (4 cores, 7 GB)",
+              "value": "B3"
+            },
+            {
+              "label": "P0v3 (1 core, 4 GB)",
+              "value": "P0v3"
+            },
+            {
+              "label": "P1v3 (2 cores, 8 GB)",
+              "value": "P1v3"
+            }
+          ],
+          "required": true
+        }
+      }
+    ],
+    "steps": [
+      {
+        "name": "owner",
+        "label": "You",
+        "elements": [
+          {
+            "name": "ownerName",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Your name",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "ownerEmail",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Your address",
+            "toolTip": "What you sign in to the console with.",
+            "constraints": {
+              "required": true,
+              "regex": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+              "validationMessage": "An address like you@example.com."
+            }
+          },
+          {
+            "name": "ownerPassword",
+            "type": "Microsoft.Common.PasswordBox",
+            "label": {
+              "password": "Console password",
+              "confirmPassword": "Confirm password"
+            },
+            "toolTip": "Your first password; change it in the console afterwards.",
+            "constraints": {
+              "required": true,
+              "regex": "^.{12,}$",
+              "validationMessage": "At least 12 characters."
+            },
+            "options": {
+              "hideConfirmation": false
+            }
+          },
+          {
+            "name": "timezone",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Time zone",
+            "defaultValue": "UTC",
+            "toolTip": "For triggers and dates, e.g. Europe/Zurich.",
+            "constraints": {
+              "required": true
+            }
+          }
+        ]
+      },
+      {
+        "name": "claude",
+        "label": "Claude",
+        "elements": [
+          {
+            "name": "info",
+            "type": "Microsoft.Common.InfoBox",
+            "options": {
+              "style": "Info",
+              "text": "An Anthropic API key, from console.anthropic.com. Leave it empty to set it, or a Claude subscription token, in the ai-os console under Settings → Claude."
+            }
+          },
+          {
+            "name": "anthropicApiKey",
+            "type": "Microsoft.Common.PasswordBox",
+            "label": {
+              "password": "Anthropic API key",
+              "confirmPassword": "Confirm"
+            },
+            "constraints": {
+              "required": false
+            },
+            "options": {
+              "hideConfirmation": true
+            }
+          },
+          {
+            "name": "secretsKey",
+            "type": "Microsoft.Common.PasswordBox",
+            "label": {
+              "password": "Secrets key (optional)",
+              "confirmPassword": "Confirm"
+            },
+            "toolTip": "Encrypts the secrets ai-os stores. Empty: one is generated onto the share. Set your own (e.g. openssl rand -base64 48) to keep it apart from the data, and keep it safe. Never change it afterwards.",
+            "constraints": {
+              "required": false
+            },
+            "options": {
+              "hideConfirmation": true
+            }
+          }
+        ]
+      }
+    ],
+    "outputs": {
+      "appName": "[basics('appName')]",
+      "location": "[location()]",
+      "sku": "[basics('sku')]",
+      "ownerName": "[steps('owner').ownerName]",
+      "ownerEmail": "[steps('owner').ownerEmail]",
+      "ownerPassword": "[steps('owner').ownerPassword]",
+      "timezone": "[steps('owner').timezone]",
+      "anthropicApiKey": "[steps('claude').anthropicApiKey]",
+      "secretsKey": "[steps('claude').secretsKey]"
+    }
+  }
+}
