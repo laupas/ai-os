@@ -1,9 +1,10 @@
 import asyncio
 
 from aios.entities.conversations.channel_binding import ChannelBinding
+from aios.entities.users.permission import Permission
 from tests.fakes.fake_engine import FakeEngine
 from tests.fakes.fake_transcriber import FakeTranscriber
-from tests.web.console import ALICE, Console
+from tests.web.console import ALICE, BOB, Console
 
 
 async def test_voice_is_available_when_transcription_is(tmp_path) -> None:
@@ -22,6 +23,18 @@ async def test_a_recording_comes_back_as_text(tmp_path) -> None:
         assert response.status == 200
         assert await response.json() == {"text": "hello by voice"}
         assert c.transcriber.calls == [(b"opus", "speech.webm")]
+
+
+async def test_voice_is_a_permission_of_its_own(tmp_path) -> None:
+    # Bob may chat, but every recording costs a transcription.
+    async with Console(tmp_path) as c:
+        h = {**c.headers(BOB, write=True), "Content-Type": "audio/webm"}
+        assert (await c.client.get("/api/voice", headers=c.headers(BOB))).status == 403
+        refused = await c.client.post("/api/voice/transcriptions", data=b"opus", headers=h)
+        assert refused.status == 403 and c.transcriber.calls == []
+        await c.grant("member", Permission.VOICE)
+        allowed = await c.client.post("/api/voice/transcriptions", data=b"opus", headers=h)
+        assert allowed.status == 200
 
 
 async def test_safari_recordings_keep_their_format(tmp_path) -> None:

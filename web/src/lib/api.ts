@@ -26,6 +26,7 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
 
 export type Permission =
   | "chat"
+  | "voice"
   | "approve"
   | "receive_unapproved"
   | "manage_agents"

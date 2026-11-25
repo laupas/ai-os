@@ -176,6 +176,7 @@ way to give rights: a group has permissions, and every member has them.
 | Permission | Allows |
 |---|---|
 | `chat` | talking to ai-os on a channel and in the web console; keeping one's own memories there |
+| `voice` | talking to ai-os by voice in the web console (each recording is transcribed, which costs) |
 | `approve` | answering approval requests |
 | `receive_unapproved` | being sent a message without an approval first |
 | `manage_agents` | creating and changing agents, within limits (below) |
@@ -186,7 +187,7 @@ way to give rights: a group has permissions, and every member has them.
 | `manage_shared_memories` | writing memories shared with every user |
 | `view_logs` | reading the logs, the audit trail and Health |
 | `manage_users` | approving an agent's changes to users and groups |
-| `administer` | everything: all the `manage_*` rights and `view_logs`, every user's triggers, memories and conversations, settings, store, webhooks, branches, restart |
+| `administer` | everything: `voice`, all the `manage_*` rights and `view_logs`, every user's triggers, memories and conversations, settings, store, webhooks, branches, restart |
 
 `administer` brings every right in the list that manages something; the others
 can be given on their own, so a group can, say, build agents without adding
@@ -231,7 +232,7 @@ by the Dockerfile. What each person sees depends on their permissions:
 | Page | What |
 |---|---|
 | Chat | conversations with ai-os, picking the agent to talk to; every conversation for administrators |
-| Voice | hands-free talking: speech is transcribed, the reply read aloud, "stop" cuts it off |
+| Voice | hands-free talking: speech is transcribed, the reply read aloud, "stop" cuts it off; needs `voice` |
 | Approvals | open approval requests, answered here or on Slack and Teams |
 | Triggers | create, edit, switch off, run now; turn on a trigger's webhook and renew its token; one's own only without `administer` |
 | Memories | what ai-os remembers: one's own and the shared ones; everyone's for administrators |

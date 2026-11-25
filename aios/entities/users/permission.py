@@ -8,6 +8,10 @@ class Permission(StrEnum):
     """May talk to ai-os on a channel, the web console included, and keep their own
     memories there."""
 
+    VOICE = "voice"
+    """May talk to ai-os by voice in the web console (each recording is sent for
+    transcription, which costs)."""
+
     APPROVE = "approve"
     """May answer approval requests."""
 
@@ -50,6 +54,7 @@ class Permission(StrEnum):
         """What the right means, for the console's group editor."""
         return {
             Permission.CHAT: "May talk to ai-os on a channel and in the web console.",
+            Permission.VOICE: "May talk to ai-os by voice in the web console.",
             Permission.APPROVE: "May answer approval requests.",
             Permission.RECEIVE_UNAPPROVED: (
                 "May be sent a message without asking for approval first."
@@ -69,17 +74,19 @@ class Permission(StrEnum):
             Permission.VIEW_LOGS: "May read logs, the audit trail and health.",
             Permission.MANAGE_USERS: "May approve an agent's changes to users and groups.",
             Permission.ADMINISTER: (
-                "Everything: all of the managing rights, every user's triggers, memories "
+                "Everything: voice, all of the managing rights, every user's triggers, memories "
                 "and conversations, settings, store, restart."
             ),
         }[self]
 
     @property
     def implied(self) -> frozenset["Permission"]:
-        """The rights that come with this one: administer brings every managing right."""
+        """The rights that come with this one: administer brings voice and every
+        managing right."""
         if self is Permission.ADMINISTER:
             return frozenset(
                 {
+                    Permission.VOICE,
                     Permission.MANAGE_AGENTS,
                     Permission.MANAGE_SKILLS,
                     Permission.MANAGE_CONNECTORS,

@@ -2,6 +2,7 @@ import logging
 
 from aiohttp import web
 
+from aios.entities.users.permission import Permission
 from aios.transcription.transcriber import Transcriber
 from aios.web.web_auth import WebAuth
 from aios.web.web_routes import WebRoutes
@@ -31,8 +32,8 @@ class VoiceRoutes(WebRoutes):
 
     The browser records what was said and posts it as the raw request body; the
     transcript comes back, and the browser sends it as a chat message marked as
-    voice. Speaking the reply is left to the device. Anyone who may chat may
-    transcribe.
+    voice. Speaking the reply is left to the device. Transcribing costs, so it
+    takes the `voice` permission.
     """
 
     def __init__(self, transcriber: Transcriber, max_bytes: int = MAX_AUDIO_BYTES) -> None:
@@ -44,11 +45,11 @@ class VoiceRoutes(WebRoutes):
         app.router.add_post("/api/voice/transcriptions", self._transcribe)
 
     async def _status(self, request: web.Request) -> web.Response:
-        WebAuth.caller(request)
+        WebAuth.caller(request, Permission.VOICE)
         return web.json_response({"available": self._transcriber.is_available()})
 
     async def _transcribe(self, request: web.Request) -> web.Response:
-        WebAuth.caller(request)
+        WebAuth.caller(request, Permission.VOICE)
         if not self._transcriber.is_available():
             raise web.HTTPServiceUnavailable(text="transcription is not set up (OPENAI_API_KEY)")
         extension = EXTENSIONS.get(request.content_type)
