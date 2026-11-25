@@ -10,14 +10,14 @@ const MODES: { value: Theme; label: string; icon: typeof Sun }[] = [
   { value: "dark", label: "Dark", icon: Moon },
 ];
 
-/** How the console looks in this browser: light or dark, and the colour theme.
- * Open to everyone; nothing here reaches the server. */
+/** How the console looks: light or dark, and the colour theme. Open to everyone,
+ * kept with their account (see lib/theme.ts). */
 export function AppearancePage() {
   const [mode, setMode] = useTheme();
   const [accent, setAccent] = useAccent();
   return (
     <Page className="max-w-3xl">
-      <PageHeader title="Appearance" description="For this browser. Other browsers and devices keep their own choice." />
+      <PageHeader title="Appearance" description="Kept with your account: the same in every browser you sign in from." />
       <Card>
         <CardHeader>
           <CardTitle>Mode</CardTitle>

@@ -287,6 +287,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         transcriber=transcription.transcriber,
         web_passwords=storage.web_passwords,
         web_sessions=storage.web_sessions,
+        appearances=storage.appearances,
         owner_password=config.settings.provided.owner_password,
         secret_box=variables.box,
         store_sources=store.catalog,

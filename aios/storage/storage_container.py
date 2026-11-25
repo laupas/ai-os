@@ -16,6 +16,7 @@ from aios.entities.git.git_remote import GitRemote
 from aios.entities.memories.memory import Memory
 from aios.entities.skills.skill import Skill
 from aios.entities.triggers.trigger import Trigger
+from aios.entities.users.appearance import Appearance
 from aios.entities.users.group import Group
 from aios.entities.users.permission import Permission
 from aios.entities.users.role import Role
@@ -205,6 +206,13 @@ class StorageContainer(containers.DeclarativeContainer):
         entity=WebSession,
         agent_access=AgentAccess.NONE,
     )
+    # Each user's look of the console. Not in the audit trail: a colour is no setting.
+    appearances_definition = providers.Singleton(
+        CollectionDefinition,
+        name="appearances",
+        entity=Appearance,
+        agent_access=AgentAccess.NONE,
+    )
     connectors_definition = providers.Singleton(
         CollectionDefinition, name="connectors", entity=Connector, agent_access=AgentAccess.NONE
     )
@@ -243,6 +251,9 @@ class StorageContainer(containers.DeclarativeContainer):
     web_sessions = providers.Singleton(
         Collection, definition=web_sessions_definition, store=document_store
     )
+    appearances = providers.Singleton(
+        Collection, definition=appearances_definition, store=document_store
+    )
     conversations = providers.Singleton(
         Collection, definition=conversations_definition, store=document_store
     )
@@ -269,5 +280,6 @@ class StorageContainer(containers.DeclarativeContainer):
             git_remotes,
             web_passwords,
             web_sessions,
+            appearances,
         ),
     )

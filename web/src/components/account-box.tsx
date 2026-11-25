@@ -73,7 +73,7 @@ const THEMES: { value: Theme; label: string; icon: typeof Sun }[] = [
   { value: "dark", label: "Dark", icon: Moon },
 ];
 
-/** Light, dark or like the device, for this browser. */
+/** Light, dark or like the device; kept with the account. */
 function ThemeSwitch() {
   const [theme, setTheme] = useTheme();
   return (

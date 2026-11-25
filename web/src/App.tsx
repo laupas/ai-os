@@ -1,6 +1,8 @@
 import { AppShell, useNav } from "@/components/app-shell";
 import { ErrorBox, Loading } from "@/components/page";
+import { useEffect } from "react";
 import { useRoute } from "@/lib/router";
+import { loadAccountAppearance } from "@/lib/theme";
 import { useLogin } from "@/lib/use-login";
 import { useMe } from "@/lib/use-me";
 import { AgentsPage } from "@/pages/agents-page";
@@ -22,6 +24,10 @@ import { SkillsPage } from "@/pages/skills-page";
 
 export function App() {
   const me = useMe();
+  const email = me.data?.email;
+  useEffect(() => {
+    if (email) void loadAccountAppearance();
+  }, [email]);
   const [route = "chat", routeArg] = useRoute();
   // Git moved into Settings; an old #/git link still lands there.
   const [page, arg] = route === "git" ? ["settings", "git"] : [route, routeArg];

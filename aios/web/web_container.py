@@ -30,6 +30,7 @@ from aios.web.rate.rate_limiter import RateLimiter
 from aios.web.restart_request import RestartRequest
 from aios.web.routes.agent_routes import AgentRoutes
 from aios.web.routes.api_docs_routes import ApiDocsRoutes
+from aios.web.routes.appearance_routes import AppearanceRoutes
 from aios.web.routes.approval_routes import ApprovalRoutes
 from aios.web.routes.audit_routes import AuditRoutes
 from aios.web.routes.channel_settings_routes import ChannelSettingsRoutes
@@ -123,6 +124,7 @@ class WebContainer(containers.DeclarativeContainer):
     transcriber = providers.Dependency()
     web_passwords = providers.Dependency()
     web_sessions = providers.Dependency()
+    appearances = providers.Dependency()
     owner_password = providers.Dependency(default=None)
     secret_box = providers.Dependency()
     store_sources = providers.Dependency()
@@ -255,6 +257,7 @@ class WebContainer(containers.DeclarativeContainer):
             authorizer=authorizer,
             sessions=sessions,
         ),
+        providers.Singleton(AppearanceRoutes, appearances=appearances),
         providers.Singleton(LogRoutes, log_reader=log_reader, clock=clock),
         providers.Singleton(AuditRoutes, feed=audit_feed),
         providers.Singleton(RepositoryRoutes, files=repository_files),

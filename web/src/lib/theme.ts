@@ -1,4 +1,6 @@
 import { useSyncExternalStore } from "react";
+import { toast } from "sonner";
+import { api } from "@/lib/api";
 
 export type Theme = "system" | "light" | "dark";
 
@@ -14,8 +16,9 @@ export const THEMES = [
 ] as const;
 export type Accent = (typeof THEMES)[number]["id"];
 
-// Both choices are this browser's own, kept in localStorage; "system" follows the
-// device, live. A browser that refuses storage keeps the defaults.
+// Both choices are kept with the user's account (/api/me/appearance), so they follow
+// them to every browser. localStorage holds a copy for the first paint and the sign-in
+// page, before the account is known. "system" follows the device, live.
 const MODE_KEY = "aios-theme";
 const ACCENT_KEY = "aios-accent";
 const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
@@ -58,16 +61,48 @@ function changed() {
   listeners.forEach((notify) => notify());
 }
 
-export function setTheme(next: Theme) {
-  mode = next;
-  store(MODE_KEY, next === "system" ? null : next);
+function adopt(nextMode: Theme, nextAccent: Accent) {
+  mode = nextMode;
+  accent = nextAccent;
+  store(MODE_KEY, mode === "system" ? null : mode);
+  store(ACCENT_KEY, accent === THEMES[0].id ? null : accent);
   changed();
 }
 
+async function save() {
+  try {
+    await api("PUT", "/api/me/appearance", { mode, theme: accent });
+  } catch (e) {
+    toast.error(`Not saved to your account: ${(e as Error).message}`);
+  }
+}
+
+export function setTheme(next: Theme) {
+  adopt(next, accent);
+  void save();
+}
+
 export function setAccent(next: Accent) {
-  accent = next;
-  store(ACCENT_KEY, next === THEMES[0].id ? null : next);
-  changed();
+  adopt(mode, next);
+  void save();
+}
+
+/** Once signed in: the account's choice wins over this browser's copy. An account
+ * with none yet takes over what this browser had, so nobody loses a choice made
+ * before it was kept with the account. */
+export async function loadAccountAppearance() {
+  let saved: { mode: string; theme: string } | null;
+  try {
+    saved = await api<{ mode: string; theme: string } | null>("GET", "/api/me/appearance");
+  } catch {
+    return; // keep this browser's copy
+  }
+  if (saved) {
+    const savedMode: Theme = saved.mode === "light" || saved.mode === "dark" ? saved.mode : "system";
+    adopt(savedMode, THEMES.find((t) => t.id === saved.theme)?.id ?? THEMES[0].id);
+  } else if (mode !== "system" || accent !== THEMES[0].id) {
+    await save();
+  }
 }
 
 systemDark.addEventListener("change", applyTheme);

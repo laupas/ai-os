@@ -37,6 +37,7 @@ from aios.entities.connectors.connector_token import ConnectorToken
 from aios.entities.memories.memory import Memory
 from aios.entities.skills.skill import Skill
 from aios.entities.triggers.trigger import Trigger
+from aios.entities.users.appearance import Appearance
 from aios.entities.users.channel_account import ChannelAccount
 from aios.entities.users.permission import Permission
 from aios.entities.users.web_password import WebPassword
@@ -91,6 +92,7 @@ from aios.web.rate.rate_limiter import RateLimiter
 from aios.web.restart_request import RestartRequest
 from aios.web.routes.agent_routes import AgentRoutes
 from aios.web.routes.api_docs_routes import ApiDocsRoutes
+from aios.web.routes.appearance_routes import AppearanceRoutes
 from aios.web.routes.approval_routes import ApprovalRoutes
 from aios.web.routes.channel_settings_routes import ChannelSettingsRoutes
 from aios.web.routes.claude_settings_routes import ClaudeSettingsRoutes
@@ -354,6 +356,9 @@ class Console:
                 ),
                 SessionRoutes(self.sessions, w.users, login is not None),
                 PasswordRoutes(self.passwords, w.users, w.authorizer, self.sessions),
+                AppearanceRoutes(
+                    Collection(CollectionDefinition(name="appearances", entity=Appearance), w.store)
+                ),
                 LogRoutes(LogReader(log_file), w.clock),
                 ConversationRoutes(
                     w.conversations,
