@@ -41,7 +41,7 @@ interface NavItem {
 
 export const NAV: NavItem[] = [
   { id: "chat", label: "Chat", icon: MessagesSquare, group: "Work" },
-  { id: "voice", label: "Voice", icon: Mic, group: "Work", needs: "chat" },
+  { id: "voice", label: "Voice", icon: Mic, group: "Work", needs: "voice" },
   { id: "approvals", label: "Approvals", icon: ShieldCheck, group: "Work", needs: "approve" },
   // Everyone keeps their own memories; shared and other people's need more.
   { id: "memories", label: "Memories", icon: Brain, group: "Work", needs: "chat" },
