@@ -19,7 +19,7 @@ def _world(tmp_path, key: str | None = None):  # type: ignore[no-untyped-def]
     variables: Collection[Variable] = Collection(
         CollectionDefinition(name="variables", entity=Variable), store
     )
-    box = SecretBox(key, tmp_path / "data" / "secrets.key")
+    box = SecretBox(key or "a test key, long enough for one")
     catalog = VariableCatalog(variables, box, FakeClock())
     resolver = VariableResolver(variables, box, tmp_path / "files")
     return catalog, resolver
@@ -72,10 +72,9 @@ async def test_a_secret_is_edited_without_its_value_and_the_environment_is_the_f
 
 def test_a_generated_password_works_as_the_key_and_stays_the_same_key(tmp_path) -> None:
     password = "x" * 100
-    box = SecretBox(password, tmp_path / "unused.key")
+    box = SecretBox(password)
     token = box.encrypt("s3cret")
-    assert SecretBox(password, tmp_path / "unused.key").decrypt(token) == "s3cret"
-    assert SecretBox("y" * 100, tmp_path / "unused.key").decrypt(token) is None
-    assert not (tmp_path / "unused.key").exists()
+    assert SecretBox(password).decrypt(token) == "s3cret"
+    assert SecretBox("y" * 100).decrypt(token) is None
     fernet_key = Fernet.generate_key().decode()
     assert SecretBox.key_from(fernet_key) == fernet_key.encode()

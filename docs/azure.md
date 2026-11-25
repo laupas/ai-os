@@ -18,9 +18,9 @@ What it costs, roughly: a B2 plan (about USD 26/month) and a few GB of Azure Fil
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Flaupas%2Fai-os%2Fmain%2Fdeploy%2Fazure%2Fazuredeploy.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2Flaupas%2Fai-os%2Fmain%2Fdeploy%2Fazure%2FcreateUiDefinition.json)
 
-The portal asks for a resource group, a name for the web app, your name, address
-and a console password, and optionally the Anthropic API key. It creates the plan,
-the storage account with its share, and the web app as described below
+The portal asks for a resource group, a name for the web app, your name, address,
+a console password and the secrets key, and optionally the Anthropic API key. It
+creates the plan, the storage account with its share, and the web app as described below
 ([`deploy/azure/main.bicep`](../deploy/azure/main.bicep)). A few minutes later,
 open `https://<name>.azurewebsites.net` and sign in with your address and that
 password.
@@ -36,14 +36,17 @@ in before you do. Afterwards:
   Settings → Login.
 - Channels, the configuration remote and the rest: see step 6 below.
 
-Without a secrets key in the form, ai-os generates one onto the share, so a copy of
-the share holds the stored secrets readable. To keep them apart, set your own
-`AIOS_SECRETS_KEY` in the form (and in your password manager); it cannot be changed
-later without losing every stored secret.
+The **secrets key** is required: it encrypts the secrets ai-os stores on the share and
+lives only in the web app's settings, so a copy of the share opens no secret. Generate
+one before you start (`openssl rand -base64 48`) and save it in your password manager:
+without it the stored secrets cannot be read. To replace it later (after a leak, say),
+see [Secrets key](../README.md#secrets-key): the new key in `AIOS_SECRETS_KEY`, the old
+one in `AIOS_SECRETS_KEY_PREVIOUS` (Web App → Environment variables), restart, then
+remove the old one.
 
 Redeploying the template to the same resource group leaves the share alone but
 replaces the web app's settings with its own: settings you added in the portal
-(Slack tokens, say) are gone, and a secrets key you set must be given again,
+(Slack tokens, say) are gone, and the secrets key must be given again,
 unchanged. Set channel tokens in the console instead, where they survive.
 
 ## By hand
@@ -179,9 +182,10 @@ az webapp config appsettings set --resource-group $RG --name $APP --settings \
   AIOS_VARIABLE_FILES_DIR=/tmp/aios-variable-files
 ```
 
-- `AIOS_SECRETS_KEY` encrypts the secrets ai-os stores on the share. Copy it from
-  the portal (Web App → Environment variables) into your password manager: without
-  it, a restored share cannot be read. Never change it afterwards.
+- `AIOS_SECRETS_KEY` (required) encrypts the secrets ai-os stores on the share. Copy
+  it from the portal (Web App → Environment variables) into your password manager:
+  without it, a restored share cannot be read. Replace it only as in
+  [Secrets key](../README.md#secrets-key).
 - `AIOS_VARIABLE_FILES_DIR` keeps decrypted secret files on the container's own
   disk, not on the share.
 

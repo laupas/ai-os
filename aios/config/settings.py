@@ -1,3 +1,4 @@
+import tempfile
 from pathlib import Path
 
 from pydantic import Field
@@ -39,11 +40,16 @@ class Settings(BaseSettings):
 
     variable_files: Path | None = Field(None, alias="AIOS_VARIABLE_FILES_DIR")
     """Where `${file:NAME}` values are written; best a tmpfs, so a decrypted copy
-    never reaches a disk. Default: `<data>/variable-files`."""
+    never reaches a disk. Never inside the data dir. Default: a folder in the system's
+    temporary directory."""
 
     secrets_key: str | None = Field(None, alias="AIOS_SECRETS_KEY")
-    """Encrypts the secret variables set in the console: a Fernet key or a long
-    generated password. Unset, a key is generated into the data dir."""
+    """Required. Encrypts the secrets stored in the data dir (variables, connector
+    sign-ins, the configuration remote's key): a Fernet key or a long generated
+    password, kept outside the data dir (`SecretsKeySource`)."""
+    secrets_key_previous: str | None = Field(None, alias="AIOS_SECRETS_KEY_PREVIOUS")
+    """The key before `secrets_key`, only while replacing it: ai-os moves every secret
+    onto the new key at start, then this is removed."""
 
     def resolved_config_file(self) -> Path:
         """`aios.yaml` in the configuration repository; before that exists, the
@@ -61,11 +67,16 @@ class Settings(BaseSettings):
         return self.data_dir / "config"
 
     def secrets_key_file(self) -> Path:
+        """The key an older ai-os generated when `AIOS_SECRETS_KEY` was not set."""
         return self.data_dir / "secrets.key"
 
     def variable_files_dir(self) -> Path:
         """Where `${file:NAME}` variables are written for the MCP servers that read them."""
-        return self.variable_files or self.data_dir / "variable-files"
+        return self.variable_files or Path(tempfile.gettempdir()) / "aios-variable-files"
+
+    def legacy_variable_files_dir(self) -> Path:
+        """Where an older ai-os wrote them: removed at start."""
+        return self.data_dir / "variable-files"
 
     def known_hosts_file(self) -> Path:
         """SSH host keys of the configuration repository's remote, learnt on first use."""

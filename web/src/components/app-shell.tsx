@@ -23,6 +23,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { AccountBox } from "@/components/account-box";
 import { CommandPalette, shortcut } from "@/components/command-palette";
 import { RestartBanner } from "@/components/restart-banner";
+import { SecurityBanner } from "@/components/security-banner";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { api, type Approval, type GitOverview, type Permission } from "@/lib/api";
 import { href } from "@/lib/router";
@@ -307,6 +308,7 @@ export function AppShell({ current, hideTabBar, children }: { current: string; h
           the page needs no room for the home indicator (`--safe-bottom`). */}
       <div className="flex min-w-0 flex-1 flex-col overflow-clip pt-[env(safe-area-inset-top)] md:pt-0">
         <RestartBanner />
+        <SecurityBanner />
         <main className={cn("min-h-0 flex-1 overflow-clip", !hideTabBar && "max-md:[--safe-bottom:0px]")}>
           {children}
         </main>

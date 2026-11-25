@@ -46,7 +46,7 @@ def _token(connector: str, user_id: str | None, access: str) -> ConnectorToken:
 async def _world(tmp_path, **connector: object):  # type: ignore[no-untyped-def]
     w = AgentWorld(tmp_path)
     tokens = ConnectorTokens(
-        _collection(InMemoryDocumentStore()), SecretBox(None, tmp_path / "key")
+        _collection(InMemoryDocumentStore()), SecretBox("a test key, long enough for one")
     )
     w.connectors._tokens = tokens
     await w.connector_store.put(
@@ -141,7 +141,7 @@ async def test_each_user_signs_in_their_own_account_and_it_is_renewed(tmp_path) 
 
 async def test_tokens_are_encrypted_at_rest(tmp_path) -> None:
     store = InMemoryDocumentStore()
-    tokens = ConnectorTokens(_collection(store), SecretBox(None, tmp_path / "key"))
+    tokens = ConnectorTokens(_collection(store), SecretBox("a test key, long enough for one"))
     await tokens.put(_token("gmail", "bob", "secret-access"))
     raw = await store.get(NAME, "gmail.user.bob")
     assert raw is not None and raw["encrypted"] is True
@@ -151,7 +151,7 @@ async def test_tokens_are_encrypted_at_rest(tmp_path) -> None:
     assert token is not None and token.access_token == "secret-access"
     assert token.client_secret == "client-secret"
     # Under another key it cannot be read, and counts as not signed in.
-    other = ConnectorTokens(_collection(store), SecretBox("another key", tmp_path / "x"))
+    other = ConnectorTokens(_collection(store), SecretBox("another key"))
     await other._tokens.load()
     assert other.of_user("gmail", "bob") is None
 
@@ -169,7 +169,7 @@ async def test_the_one_token_per_connector_becomes_the_shared_one(tmp_path) -> N
         "signed_in_by": "Alice",
     }
     await store.put(NAME, "homey", legacy)
-    tokens = ConnectorTokens(_collection(store), SecretBox(None, tmp_path / "key"))
+    tokens = ConnectorTokens(_collection(store), SecretBox("a test key, long enough for one"))
     await tokens._tokens.load()
     await tokens.migrate()
     assert [d["id"] for d in await store.list(NAME)] == ["homey.shared"]

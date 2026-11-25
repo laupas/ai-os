@@ -136,12 +136,14 @@
             "name": "secretsKey",
             "type": "Microsoft.Common.PasswordBox",
             "label": {
-              "password": "Secrets key (optional)",
+              "password": "Secrets key",
               "confirmPassword": "Confirm"
             },
-            "toolTip": "Encrypts the secrets ai-os stores. Empty: one is generated onto the share. Set your own (e.g. openssl rand -base64 48) to keep it apart from the data, and keep it safe. Never change it afterwards.",
+            "toolTip": "Required: encrypts the secrets ai-os stores, kept apart from the data. Generate one (openssl rand -base64 48) and save it in your password manager: without it the stored secrets cannot be read. Give the same value when redeploying.",
             "constraints": {
-              "required": false
+              "required": true,
+              "regex": "^.{32,}$",
+              "validationMessage": "At least 32 characters: generate one with openssl rand -base64 48."
             },
             "options": {
               "hideConfirmation": true

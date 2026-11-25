@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.49.2.45890",
-      "templateHash": "1595827509556609346"
+      "templateHash": "1646989065448393841"
     }
   },
   "parameters": {
@@ -52,9 +52,9 @@
     },
     "secretsKey": {
       "type": "securestring",
-      "defaultValue": "",
+      "minLength": 32,
       "metadata": {
-        "description": "Encrypts the secrets ai-os stores. Leave empty to have one generated onto the share; set your own to keep it apart from the data. Never change it afterwards."
+        "description": "Required. Encrypts the secrets ai-os stores, kept apart from the data on the share. Generate one (openssl rand -base64 48) and save it in your password manager: without it the stored secrets cannot be read. Give the same value when redeploying; replace it under Settings → Security."
       }
     },
     "timezone": {
@@ -127,11 +127,15 @@
         "value": "[parameters('ownerPassword')]"
       },
       {
+        "name": "AIOS_SECRETS_KEY",
+        "value": "[parameters('secretsKey')]"
+      },
+      {
         "name": "AIOS_VARIABLE_FILES_DIR",
         "value": "/tmp/aios-variable-files"
       }
     ],
-    "optionalSettings": "[concat(if(empty(parameters('anthropicApiKey')), createArray(), createArray(createObject('name', 'ANTHROPIC_API_KEY', 'value', parameters('anthropicApiKey')))), if(empty(parameters('secretsKey')), createArray(), createArray(createObject('name', 'AIOS_SECRETS_KEY', 'value', parameters('secretsKey')))))]"
+    "optionalSettings": "[if(empty(parameters('anthropicApiKey')), createArray(), createArray(createObject('name', 'ANTHROPIC_API_KEY', 'value', parameters('anthropicApiKey'))))]"
   },
   "resources": [
     {

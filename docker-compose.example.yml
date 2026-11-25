@@ -1,5 +1,11 @@
-# A starting point: put this file in an empty folder and run `docker compose up -d`,
-# then open http://localhost:8080. Everything else is set up in the console.
+# A starting point: put this file in an empty folder, create the secrets key (below),
+# run `docker compose up -d` and open http://localhost:8080. Everything else is set up
+# in the console.
+#
+# The secrets key is required and lives outside the data: in a .env next to this
+# file, which docker compose reads by itself. Once, and save the key in your password
+# manager (without it the stored secrets cannot be read):
+#   echo "AIOS_SECRETS_KEY=$(openssl rand -base64 48)" > .env
 #
 # The console starts without a login (pick a user): set one under Settings → Login,
 # or put a login proxy in front, before anyone else can reach port 8080 (see README).
@@ -10,16 +16,24 @@ services:
     # build: .
     container_name: ai-os
     restart: unless-stopped
-    # Optional: secrets and channel tokens from a .env next to this file (see
-    # .env.example). Everything but AIOS_SECRETS_KEY can also be set in the console.
+    # Optional: channel tokens and the rest from the same .env (see .env.example);
+    # everything but the secrets key can also be set in the console.
     # env_file: .env
     environment:
+      # Required: encrypts the secrets ai-os stores. Replacing it: Settings → Security.
+      AIOS_SECRETS_KEY: ${AIOS_SECRETS_KEY:?create it first, see the top of this file}
+      # Only while replacing the key: the one before.
+      AIOS_SECRETS_KEY_PREVIOUS: ${AIOS_SECRETS_KEY_PREVIOUS:-}
       AIOS_DATA_DIR: /data
+      # Decrypted copies of ${file:NAME} variables: in RAM only (the tmpfs below).
+      AIOS_VARIABLE_FILES_DIR: /run/aios-files
       AIOS_LOG_LEVEL: INFO
     volumes:
       - ./data:/data
       # A notes vault for the second-brain agent; also add /vault to files.write_roots.
       # - /path/to/your/vault:/vault
+    tmpfs:
+      - /run/aios-files:uid=1000,gid=1000,mode=0700
     ports:
       # Loopback only: reach it through your proxy, or directly on this machine.
       - "127.0.0.1:8080:8080"

@@ -8,6 +8,7 @@ def test_every_provider_resolves(tmp_path, monkeypatch) -> None:
         "channels: [web]\nsenders: [signal, mail]\nowner: {name: Alice}\n"
     )
     monkeypatch.setenv("AIOS_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("AIOS_SECRETS_KEY", "a test key, long enough for one")
     container = ApplicationContainer()
 
     assert isinstance(container.application(), Application)

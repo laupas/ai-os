@@ -14,6 +14,7 @@ from aios.config.config_container import ConfigContainer
 from aios.config_repo.config_repo_container import ConfigRepoContainer
 from aios.connectors.code_connector_library import CodeConnectorLibrary
 from aios.connectors.connector_settings_migration import ConnectorSettingsMigration
+from aios.connectors.connector_tokens import SECRET_FIELDS
 from aios.connectors.connectors_container import ConnectorsContainer
 from aios.conversations.conversations_container import ConversationsContainer
 from aios.conversations.gateway_container import GatewayContainer
@@ -28,6 +29,7 @@ from aios.triggers.triggers_migration import TriggersMigration
 from aios.users.access_lists_migration import AccessListsMigration
 from aios.users.groups_migration import GroupsMigration
 from aios.users.users_container import UsersContainer
+from aios.variables.encrypted_fields import EncryptedFields
 from aios.variables.variables_container import VariablesContainer
 from aios.web.web_container import WebContainer
 
@@ -58,6 +60,30 @@ class ApplicationContainer(containers.DeclarativeContainer):
         variables=storage.variables,
         settings=config.settings,
         clock=common.clock,
+        audit_trail=storage.audit_trail,
+        # Every stored secret, so a new key reaches all of them.
+        encrypted=providers.List(
+            providers.Singleton(
+                EncryptedFields,
+                collection=storage.variables,
+                fields=("value",),
+                label="variable",
+                applies=lambda variable: variable.secret,
+            ),
+            providers.Singleton(
+                EncryptedFields,
+                collection=storage.connector_tokens,
+                fields=SECRET_FIELDS,
+                label="connector sign-in",
+                applies=lambda token: token.encrypted,
+            ),
+            providers.Singleton(
+                EncryptedFields,
+                collection=storage.git_remotes,
+                fields=("token", "private_key"),
+                label="configuration remote",
+            ),
+        ),
     )
     transcription = providers.Container(TranscriptionContainer, resolver=variables.resolver)
     channels = providers.Container(
@@ -289,6 +315,8 @@ class ApplicationContainer(containers.DeclarativeContainer):
         web_passwords=storage.web_passwords,
         web_sessions=storage.web_sessions,
         appearances=storage.appearances,
+        secrets_rotation=variables.rotation,
+        secrets_key_source=variables.key_source,
         owner_password=config.settings.provided.owner_password,
         secret_box=variables.box,
         store_sources=store.catalog,
@@ -327,6 +355,9 @@ class ApplicationContainer(containers.DeclarativeContainer):
         Application,
         registry=storage.registry,
         startup=providers.List(
+            # Every secret onto the key in use before anything reads one.
+            variables.rotation,
+            variables.legacy_files_removal,
             # The repository first: roles live in it, and the owner needs them.
             config_repo.initializer,
             providers.Singleton(

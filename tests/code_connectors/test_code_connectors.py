@@ -84,7 +84,7 @@ def test_a_declared_variable_reaches_the_server_with_its_default(tmp_path) -> No
         Collection(
             CollectionDefinition(name="variables", entity=Variable), InMemoryDocumentStore()
         ),
-        SecretBox(None, tmp_path / "key"),
+        SecretBox("a test key, long enough for one"),
         tmp_path / "files",
     )
     code = CodeConnectors(

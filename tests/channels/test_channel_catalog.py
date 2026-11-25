@@ -20,7 +20,7 @@ def values(tmp_path, world: World) -> tuple[ChannelValues, VariableCatalog]:
     variables: Collection[Variable] = Collection(
         CollectionDefinition(name="variables", entity=Variable), world.store
     )
-    box = SecretBox(None, tmp_path / "secrets.key")
+    box = SecretBox("a test key, long enough for one")
     resolver = VariableResolver(variables, box, tmp_path / "files")
     return ChannelValues(resolver), VariableCatalog(variables, box, FakeClock())
 

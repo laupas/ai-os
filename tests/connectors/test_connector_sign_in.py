@@ -44,7 +44,7 @@ def _tokens(tmp_path, store: InMemoryDocumentStore | None = None) -> ConnectorTo
         CollectionDefinition(name="connector-tokens", entity=ConnectorToken),
         store or InMemoryDocumentStore(),
     )
-    return ConnectorTokens(collection, SecretBox(None, tmp_path / "secrets.key"))
+    return ConnectorTokens(collection, SecretBox("a test key, long enough for one"))
 
 
 def _code_for(oauth: FakeOAuthServer, url: str) -> tuple[str, str]:

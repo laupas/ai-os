@@ -49,8 +49,13 @@ You need Docker, and either an Anthropic API key or a Claude subscription.
 ```sh
 mkdir ai-os && cd ai-os
 curl -fsSLo docker-compose.yml https://raw.githubusercontent.com/laupas/ai-os/main/docker-compose.example.yml
+echo "AIOS_SECRETS_KEY=$(openssl rand -base64 48)" > .env
 docker compose up -d
 ```
+
+The third line creates the **secrets key**, which ai-os requires: it encrypts the
+secrets ai-os stores and stays out of the data folder (see [Secrets key](#secrets-key)).
+Save it in your password manager; without it the stored secrets cannot be read.
 
 Open http://localhost:8080 and pick "Owner" on the login page: an empty ai-os starts
 with that one user, to sign in as and rename. Then set up the rest in the console:
@@ -69,11 +74,9 @@ chat-code login, or put a login proxy in front, under Settings → Login (see
 [Web console and login](#web-console-and-login)). The compose file publishes the
 port on loopback only for that reason.
 
-**On a server**, also set `AIOS_SECRETS_KEY` in a `.env` next to the compose file
-(the other variables are in [`.env.example`](.env.example)) and uncomment
-`env_file: .env`. Without it, the key that encrypts the console's secrets is
-generated into `./data`, so a backup of that folder holds them readable. Keep the key
-safe: without it, the stored secrets cannot be read.
+**Other settings** from the environment (channel tokens and the rest) go into the
+same `.env`: see [`.env.example`](.env.example), and uncomment `env_file: .env` in
+the compose file.
 
 **On Azure**, ai-os runs as a Web App with its data on an Azure Files share, set up
 with one click or by hand: see [docs/azure.md](docs/azure.md).
@@ -95,7 +98,8 @@ To run without Docker:
 ```sh
 uv sync
 mkdir -p /tmp/aios && cp aios.example.yaml /tmp/aios/config.yaml
-AIOS_DATA_DIR=/tmp/aios uv run python -m aios
+openssl rand -base64 48 > /tmp/aios.key   # once: the secrets key, outside the data dir
+AIOS_DATA_DIR=/tmp/aios AIOS_SECRETS_KEY="$(cat /tmp/aios.key)" uv run python -m aios
 ```
 
 Then open http://localhost:8080 and pick yourself on the login page (`pick`, the
@@ -145,7 +149,7 @@ update anything on its own.
 
 | Where | What |
 |---|---|
-| environment | secrets and paths: `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN`, `AIOS_SECRETS_KEY`, `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `TEAMS_APP_ID`, `TEAMS_APP_PASSWORD`, `TEAMS_TENANT_ID`, `RESEND_API_KEY`, `AIOS_MAIL_FROM`, `SIGNAL_API_URL`, `SIGNAL_SENDER`, `OPENAI_API_KEY` (voice notes), `AIOS_DATA_DIR`, `AIOS_VARIABLE_FILES_DIR` (best a tmpfs), `AIOS_INITIAL_CONFIG` and `AIOS_OWNER_PASSWORD` (first start only), `AIOS_LOG_LEVEL`; see `.env.example` |
+| environment | secrets and paths: `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN`, `AIOS_SECRETS_KEY` (required) and `AIOS_SECRETS_KEY_PREVIOUS` (while replacing it), `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `TEAMS_APP_ID`, `TEAMS_APP_PASSWORD`, `TEAMS_TENANT_ID`, `RESEND_API_KEY`, `AIOS_MAIL_FROM`, `SIGNAL_API_URL`, `SIGNAL_SENDER`, `OPENAI_API_KEY` (voice notes), `AIOS_DATA_DIR`, `AIOS_VARIABLE_FILES_DIR` (best a tmpfs; never in the data dir), `AIOS_INITIAL_CONFIG` and `AIOS_OWNER_PASSWORD` (first start only), `AIOS_LOG_LEVEL`; see `.env.example` |
 | `<data>/config` | the configuration repository (git): `aios.yaml`, agents, skills, connectors, triggers, groups, webhooks |
 | `<data>/users` | who is who, with their accounts on each channel |
 | `<data>/variables` | values and secrets for connectors, set in the console; secrets encrypted |
@@ -821,15 +825,17 @@ it. A connector does nothing until an agent is granted it.
   connectors they can sign in to and their own sign-in; never a configuration or
   anybody else's sign-in. Sign-ins are kept in `<data>/connector-tokens`, one file
   per connector and account (`<connector>.shared`, `<connector>.user.<user id>`),
-  their tokens encrypted with `AIOS_SECRETS_KEY`: changing that key means signing
-  in again. All of them are renewed in the background.
+  their tokens encrypted with `AIOS_SECRETS_KEY` (see [Secrets key](#secrets-key)
+  for replacing it without signing in again). All of them are renewed in the background.
 - **Variables** hold what connectors need: `${NAME}` in a connector's settings for a
   value, `${file:NAME}` for a server that wants the path of a file holding it (a JSON
   key file). Secrets are encrypted with `AIOS_SECRETS_KEY` and never shown again.
   The process environment is the fallback.
-  - A `${file:…}` value is a decrypted copy on disk, so point
-    `AIOS_VARIABLE_FILES_DIR` at a tmpfs: it then never reaches a disk, and a server
-    that rewrites it (a refreshed token) keeps that until the next restart, when the
+  - A `${file:…}` value is a decrypted copy on disk, outside the data dir (by default
+    in the system's temporary folder; an older ai-os's `<data>/variable-files` is
+    removed at start). Best point `AIOS_VARIABLE_FILES_DIR` at a tmpfs, as the
+    example compose file does: it then never reaches a disk, and a server that
+    rewrites it (a refreshed token) keeps that until the next restart, when the
     stored value is written again. Deleting the variable removes its file.
   - A literal secret is never kept in a connector's config, which is a git
     repository: saving one from the console or through the configurator moves
@@ -880,6 +886,39 @@ On the first start the repository is created from the seed in this repo: `agents
 `skills/` and `mcp_servers` in `config.yaml`. Editing the seed afterwards changes
 nothing in a running installation.
 
+## Secrets key
+
+`AIOS_SECRETS_KEY` encrypts every secret ai-os stores: secret variables, connector
+sign-ins, and the configuration remote's SSH key or token. It is required, and it
+comes only from the environment (`.env`, a cloud's app settings, a Kubernetes secret),
+never from the data dir: a copy of the data (a backup, a snapshot, a disk) then opens
+no secret. Any long random value will do (`openssl rand -base64 48`); keep it in a
+password manager, since without it the stored secrets cannot be read. Without it,
+ai-os does not start and says so.
+
+**Settings → Security** shows the key in use by its fingerprint only, how many secrets
+it opens, and any it cannot.
+
+**Replacing it**, after a leak or as routine:
+
+1. Settings → Security → *Generate a new key*. It is shown once and not kept by
+   ai-os; save it in your password manager. (Any long random value works as well.)
+2. Set `AIOS_SECRETS_KEY` to the new key and `AIOS_SECRETS_KEY_PREVIOUS` to the
+   current one, where ai-os runs.
+3. Restart. At start ai-os reads with both keys and moves every stored secret onto the
+   new one; an interrupted start continues at the next. Settings → Security then shows
+   the new fingerprint.
+4. Remove `AIOS_SECRETS_KEY_PREVIOUS` and restart again.
+
+A new key protects what is encrypted from then on. After a leak, if someone may also
+have had a copy of the data, the secrets themselves are exposed: renew them where they
+come from and enter them again.
+
+An older ai-os generated the key into `<data>/secrets.key` when the setting was
+missing. Such an installation still starts, with a warning in the console: Settings →
+Security shows that key once, to set as `AIOS_SECRETS_KEY`; at the next start ai-os
+removes the file. Nothing has to be encrypted again.
+
 ## Security model
 
 - Every tool call goes through the approval policy; `allowed_tools` stays empty, so
@@ -892,7 +931,8 @@ nothing in a running installation.
   three, and only with an administrator's yes.
 - Each agent may use only what it was granted (`AgentGrantRule`), checked before
   any approval is asked.
-- Secrets are environment variables or encrypted variables; nothing secret is written
+- Secrets are environment variables or encrypted variables, under a key that never
+  lives in the data dir (see [Secrets key](#secrets-key)); nothing secret is written
   to the configuration repository. A trigger's webhook keeps only its token's hash.
 - `/hooks/` is the only way in without the console's sign-in; each call there needs
   the trigger's own token, and what it sends reaches the agent as marked data.
@@ -979,6 +1019,7 @@ The supply chain is checked on GitHub:
 | a chat channel | a package `aios/channels/<name>/` with a `ChannelType` and its `MessageChannel`, one entry in `ChannelsContainer.types` |
 | a sender | a package `aios/messaging/<name>/` with a `ChannelType` and its `MessageSender`, one entry in `ChannelsContainer.types` |
 | stored data | an entity in `aios/entities/<subject>/`, a collection in `StorageContainer` |
+| a stored secret | encrypt it with `SecretBox`, and register its fields as `EncryptedFields` in `ApplicationContainer`, so a new key reaches it |
 
 ## License
 

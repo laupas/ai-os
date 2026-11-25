@@ -26,9 +26,10 @@ param ownerPassword string
 @secure()
 param anthropicApiKey string = ''
 
-@description('Encrypts the secrets ai-os stores. Leave empty to have one generated onto the share; set your own to keep it apart from the data. Never change it afterwards.')
+@description('Required. Encrypts the secrets ai-os stores, kept apart from the data on the share. Generate one (openssl rand -base64 48) and save it in your password manager: without it the stored secrets cannot be read. Give the same value when redeploying; replace it under Settings → Security.')
+@minLength(32)
 @secure()
-param secretsKey string = ''
+param secretsKey string
 
 @description('Time zone for triggers and dates, e.g. Europe/Zurich.')
 param timezone string = 'UTC'
@@ -63,13 +64,11 @@ var baseSettings = [
   { name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE', value: 'false' }
   { name: 'AIOS_INITIAL_CONFIG', value: string(initialConfig) }
   { name: 'AIOS_OWNER_PASSWORD', value: ownerPassword }
+  { name: 'AIOS_SECRETS_KEY', value: secretsKey }
   // Decrypted secret files stay on the container's own disk, not on the share.
   { name: 'AIOS_VARIABLE_FILES_DIR', value: '/tmp/aios-variable-files' }
 ]
-var optionalSettings = concat(
-  empty(anthropicApiKey) ? [] : [{ name: 'ANTHROPIC_API_KEY', value: anthropicApiKey }],
-  empty(secretsKey) ? [] : [{ name: 'AIOS_SECRETS_KEY', value: secretsKey }]
-)
+var optionalSettings = empty(anthropicApiKey) ? [] : [{ name: 'ANTHROPIC_API_KEY', value: anthropicApiKey }]
 
 resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   name: storageName

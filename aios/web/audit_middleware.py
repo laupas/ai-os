@@ -21,6 +21,13 @@ ACTIONS: dict[tuple[str, str], tuple[str, str, AuditAction]] = {
     ("POST", "/api/git/pull"): ("git", "pull", AuditAction.PERFORMED),
     ("POST", "/api/repository/undo"): ("git", "undo commit", AuditAction.PERFORMED),
     ("POST", "/api/repository/restore"): ("git", "restore branch", AuditAction.PERFORMED),
+    # Keys handed out: never stored by ai-os, so nothing else would record them.
+    ("POST", "/api/security/keys"): ("security", "new secrets key", AuditAction.PERFORMED),
+    ("POST", "/api/security/data-dir-key"): (
+        "security",
+        "secrets key shown",
+        AuditAction.PERFORMED,
+    ),
 }
 # Body fields worth keeping: branch names and commit ids. Never the body as a whole.
 DETAIL_FIELDS = ("name", "start", "branch", "source", "into", "commit")

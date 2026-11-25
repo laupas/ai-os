@@ -31,7 +31,7 @@ async def _world(tmp_path, auto_push: bool = False):  # type: ignore[no-untyped-
     remotes: Collection[GitRemote] = Collection(
         CollectionDefinition(name="git-remotes", entity=GitRemote), InMemoryDocumentStore()
     )
-    box = SecretBox("k" * 64, tmp_path / "unused.key")
+    box = SecretBox("k" * 64)
     remote = ConfigRemote(
         w.store, remotes, box, FakeClock(), tmp_path / "known_hosts", w.collections
     )

@@ -17,6 +17,7 @@ import { GitPanel } from "./git-page";
 import { RepositoryPanel } from "./repository-panel";
 import { ChannelsPanel } from "./settings-channels";
 import { ClaudePanel } from "./settings-claude";
+import { SecurityPanel } from "./settings-security";
 import { LoginPanel } from "./settings-login";
 import { FilesPanel } from "./settings-files";
 import { AgentsSettingsPanel, ApprovalsSettingsPanel, DataAccessPanel, GeneralPanel } from "./settings-sections";
@@ -25,7 +26,7 @@ import { GroupsPanel, UsersPanel } from "./settings-people";
 // The sections, by group. The ids are the addresses (#/settings/git), so old links keep working.
 export const SECTIONS = [
   { group: "AI", items: [{ id: "claude", label: "Claude" }, { id: "agents", label: "Agents" }, { id: "approvals", label: "Approvals" }] },
-  { group: "Access", items: [{ id: "login", label: "Login" }, { id: "users", label: "Users" }, { id: "groups", label: "Groups" }, { id: "access", label: "Data access" }] },
+  { group: "Access", items: [{ id: "login", label: "Login" }, { id: "users", label: "Users" }, { id: "groups", label: "Groups" }, { id: "access", label: "Data access" }, { id: "security", label: "Security" }] },
   { group: "System", items: [{ id: "general", label: "General" }, { id: "channels", label: "Channels" }, { id: "files", label: "Files" }] },
   { group: "Configuration", items: [{ id: "repository", label: "Repository" }, { id: "git", label: "Branches" }, { id: "config", label: "aios.yaml" }] },
 ];
@@ -65,6 +66,7 @@ export function SettingsPage({ tab }: { tab?: string }) {
     access: <DataAccessPanel />,
     users: <UsersPanel data={data} />,
     groups: <GroupsPanel data={data} />,
+    security: <SecurityPanel />,
   }[shown.id];
   return (
     <Page className="max-w-6xl">

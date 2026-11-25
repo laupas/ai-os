@@ -47,6 +47,7 @@ from aios.web.routes.login_routes import LoginRoutes
 from aios.web.routes.memory_routes import MemoryRoutes
 from aios.web.routes.password_routes import PasswordRoutes
 from aios.web.routes.repository_routes import RepositoryRoutes
+from aios.web.routes.security_routes import SecurityRoutes
 from aios.web.routes.session_routes import SessionRoutes
 from aios.web.routes.settings_routes import SettingsRoutes
 from aios.web.routes.settings_section_routes import SettingsSectionRoutes
@@ -125,6 +126,8 @@ class WebContainer(containers.DeclarativeContainer):
     web_passwords = providers.Dependency()
     web_sessions = providers.Dependency()
     appearances = providers.Dependency()
+    secrets_rotation = providers.Dependency()
+    secrets_key_source = providers.Dependency()
     owner_password = providers.Dependency(default=None)
     secret_box = providers.Dependency()
     store_sources = providers.Dependency()
@@ -258,6 +261,7 @@ class WebContainer(containers.DeclarativeContainer):
             sessions=sessions,
         ),
         providers.Singleton(AppearanceRoutes, appearances=appearances),
+        providers.Singleton(SecurityRoutes, rotation=secrets_rotation, source=secrets_key_source),
         providers.Singleton(LogRoutes, log_reader=log_reader, clock=clock),
         providers.Singleton(AuditRoutes, feed=audit_feed),
         providers.Singleton(RepositoryRoutes, files=repository_files),

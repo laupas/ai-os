@@ -6,6 +6,7 @@ from aiohttp.test_utils import TestClient, TestServer
 
 from aios.agents.skill_catalog import SkillCatalog
 from aios.approvals.file_root_guard import FileRootGuard
+from aios.audit.audit_trail import AuditTrail
 from aios.channels.channel_catalog import ChannelCatalog
 from aios.channels.channel_directory import ChannelDirectory
 from aios.channels.channel_values import ChannelValues
@@ -55,6 +56,7 @@ from aios.storage.collection import Collection
 from aios.storage.collection_access_overrides import CollectionAccessOverrides
 from aios.storage.collection_definition import CollectionDefinition
 from aios.storage.collection_definition import CollectionDefinition as Definition
+from aios.storage.in_memory_append_log import InMemoryAppendLog
 from aios.store.store_installer import StoreInstaller
 from aios.store.store_installs import StoreInstalls
 from aios.store.store_source_reader import StoreSourceReader
@@ -64,8 +66,11 @@ from aios.triggers.trigger_timing import TriggerTiming
 from aios.users.group_limits import GroupLimits
 from aios.users.permission_audience import PermissionAudience
 from aios.users.voice_gate import VoiceGate
+from aios.variables.encrypted_fields import EncryptedFields
 from aios.variables.secret_box import SecretBox
 from aios.variables.secret_extractor import SecretExtractor
+from aios.variables.secrets_key_rotation import SecretsKeyRotation
+from aios.variables.secrets_key_source import SecretsKeySource
 from aios.variables.variable_catalog import VariableCatalog
 from aios.variables.variable_resolver import VariableResolver
 from aios.web.agent_edit_scope import AgentEditScope
@@ -106,6 +111,7 @@ from aios.web.routes.log_routes import LogRoutes
 from aios.web.routes.login_routes import LoginRoutes
 from aios.web.routes.memory_routes import MemoryRoutes
 from aios.web.routes.password_routes import PasswordRoutes
+from aios.web.routes.security_routes import SecurityRoutes
 from aios.web.routes.session_routes import SessionRoutes
 from aios.web.routes.settings_routes import SettingsRoutes
 from aios.web.routes.settings_section_routes import SettingsSectionRoutes
@@ -251,7 +257,24 @@ class Console:
         variables: Collection[Variable] = Collection(
             CollectionDefinition(name="variables", entity=Variable), w.store
         )
-        box = SecretBox(None, self.tmp_path / "secrets.key")
+        self.key_source = SecretsKeySource(
+            "a test key, long enough for one", None, self.tmp_path / "secrets.key"
+        )
+        box = SecretBox(self.key_source.current(), self.key_source.previous())
+        self.secrets_box = box
+        self.secrets_rotation = SecretsKeyRotation(
+            box,
+            self.key_source,
+            [
+                EncryptedFields(
+                    collection=variables,
+                    fields=("value",),
+                    label="variable",
+                    applies=lambda v: v.secret,
+                )
+            ],
+            AuditTrail(InMemoryAppendLog(), w.clock),
+        )
         self.variables = VariableCatalog(variables, box, w.clock)
         self.variable_resolver = VariableResolver(variables, box, self.tmp_path / "variable-files")
         self.webhooks: Collection[WebhookDestination] = Collection(
@@ -360,6 +383,7 @@ class Console:
                 AppearanceRoutes(
                     Collection(CollectionDefinition(name="appearances", entity=Appearance), w.store)
                 ),
+                SecurityRoutes(self.secrets_rotation, self.key_source),
                 LogRoutes(LogReader(log_file), w.clock),
                 ConversationRoutes(
                     w.conversations,

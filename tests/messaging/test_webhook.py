@@ -28,7 +28,7 @@ async def _template(tmp_path) -> WebhookTemplate:  # type: ignore[no-untyped-def
     variables: Collection[Variable] = Collection(
         CollectionDefinition(name="variables", entity=Variable), InMemoryDocumentStore()
     )
-    box = SecretBox(None, tmp_path / "secrets.key")
+    box = SecretBox("a test key, long enough for one")
     await VariableCatalog(variables, box, FakeClock()).save(
         "HOOK_TOKEN", "s3cret", True, False, "", "Alice"
     )

@@ -74,7 +74,7 @@ class VariableResolver:
         return str(self._file_for(name, value)) if as_file else value
 
     def _file_for(self, name: str, value: str) -> Path:
-        self._files.mkdir(parents=True, exist_ok=True)
+        self._files.mkdir(parents=True, exist_ok=True, mode=0o700)
         path = self._files / name
         stamp = self._files / f".{name}.sha256"
         digest = hashlib.sha256(value.encode()).hexdigest()
