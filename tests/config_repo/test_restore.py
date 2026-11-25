@@ -96,7 +96,7 @@ async def test_a_one_shot_deployment_brings_its_first_config_in_the_environment(
     monkeypatch.setenv("AIOS_DATA_DIR", str(data))
     monkeypatch.setenv("AIOS_INITIAL_CONFIG", '{"channels": ["web"]}')
     ConfigRepoBootstrap(Settings()).run()
-    assert (data / "config.yaml").read_text() == '{"channels": ["web"]}\n'
+    assert (data / "config.yaml").read_text() == "channels:\n- web\n"
 
 
 async def test_the_initial_config_never_replaces_one_that_is_there(tmp_path, monkeypatch) -> None:

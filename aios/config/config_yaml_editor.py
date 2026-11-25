@@ -39,6 +39,7 @@ class ConfigYamlEditor:
         Within the section, mappings are merged key by key and a list that only
         grew keeps its items, so the comments on what stays, stay.
         """
+        text = self._as_block(text)
         lines = text.splitlines(keepends=True)
         if lines and not lines[-1].endswith("\n"):
             lines[-1] += "\n"
@@ -62,6 +63,16 @@ class ConfigYamlEditor:
         section = self._yaml.load("".join(lines[own[1] : body_end]))
         self._merge(section, key, value)
         return "".join(lines[: own[1]]) + self._dump(section) + "".join(lines[body_end:])
+
+    def _as_block(self, text: str) -> str:
+        """`text` in block style when it is a mapping written in flow style (the
+        JSON a deployment template writes): its keys are not at the start of a
+        line, so a section added below it would make a second document. Such a
+        file has no comments to lose."""
+        if not text.strip() or self._section_starts(text.splitlines()):
+            return text
+        document = YAML(typ="safe").load(text)
+        return self._dump(document) if isinstance(document, dict) else text
 
     @staticmethod
     def _section_starts(lines: list[str]) -> dict[str, tuple[int, int]]:

@@ -83,3 +83,12 @@ def test_the_comment_above_the_next_section_stays_with_it() -> None:
     )
     gone = ConfigYamlEditor().replace_section(text, "agent", None)
     assert gone == "approval:\n  deny:\n    - a\n"
+
+
+def test_a_section_goes_into_a_file_written_as_json() -> None:
+    text = (
+        '{"channels":["web"],"web":{"public_url":"https://x.example","auth":{"mode":"password"}}}\n'
+    )
+    sso = {"mode": "sso", "providers": [{"kind": "microsoft", "tenant": "example.com"}]}
+    edited = ConfigYamlEditor().replace_section(text, "web", {"auth": sso})
+    assert yaml.safe_load(edited) == {"channels": ["web"], "web": {"auth": sso}}

@@ -1,6 +1,8 @@
 import logging
 import shutil
 
+import yaml
+
 from aios.config.settings import CONFIG_FILE_NAME, Settings
 from aios.config_repo.current_author import AIOS
 from aios.config_repo.git_credentials import GitCredentials
@@ -17,7 +19,8 @@ class ConfigRepoBootstrap:
     set: that is the whole of moving ai-os to a new machine. An existing repository
     without `aios.yaml` gets the data dir's `config.yaml` moved into it, in a commit.
     A data dir with neither gets `config.yaml` from `AIOS_INITIAL_CONFIG`, which the
-    new repository then takes in.
+    new repository then takes in. A deployment template sends it as JSON; it is
+    written as block YAML, the form the console edits a section of.
     """
 
     def __init__(self, settings: Settings) -> None:
@@ -37,7 +40,14 @@ class ConfigRepoBootstrap:
         if target.exists():
             return
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text((self._settings.initial_config or "").strip() + "\n")
+        text = (self._settings.initial_config or "").strip()
+        try:
+            loaded = yaml.safe_load(text)
+        except yaml.YAMLError:
+            loaded = None  # left as it is, for the configuration check to report
+        if isinstance(loaded, dict):
+            text = yaml.safe_dump(loaded, sort_keys=False, allow_unicode=True).strip()
+        target.write_text(text + "\n")
         log.info("wrote %s from AIOS_INITIAL_CONFIG", target)
 
     def _clone(self) -> None:
