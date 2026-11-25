@@ -7,6 +7,11 @@ from aiohttp.test_utils import TestClient, TestServer
 from aios.agents.skill_catalog import SkillCatalog
 from aios.approvals.file_root_guard import FileRootGuard
 from aios.audit.audit_trail import AuditTrail
+from aios.backup.backup_archive import BackupArchive
+from aios.backup.backup_cipher import BackupCipher
+from aios.backup.backup_extractor import BackupExtractor
+from aios.backup.backup_maker import BackupMaker
+from aios.backup.pending_restore import PendingRestore
 from aios.channels.channel_catalog import ChannelCatalog
 from aios.channels.channel_directory import ChannelDirectory
 from aios.channels.channel_values import ChannelValues
@@ -100,6 +105,7 @@ from aios.web.routes.agent_routes import AgentRoutes
 from aios.web.routes.api_docs_routes import ApiDocsRoutes
 from aios.web.routes.appearance_routes import AppearanceRoutes
 from aios.web.routes.approval_routes import ApprovalRoutes
+from aios.web.routes.backup_routes import BackupRoutes
 from aios.web.routes.channel_settings_routes import ChannelSettingsRoutes
 from aios.web.routes.claude_settings_routes import ClaudeSettingsRoutes
 from aios.web.routes.connector_auth_routes import ConnectorAuthRoutes
@@ -262,6 +268,7 @@ class Console:
         )
         box = SecretBox(self.key_source.current(), self.key_source.previous())
         self.secrets_box = box
+        self.backup_cipher = BackupCipher(box)
         self.secrets_rotation = SecretsKeyRotation(
             box,
             self.key_source,
@@ -384,6 +391,13 @@ class Console:
                     Collection(CollectionDefinition(name="appearances", entity=Appearance), w.store)
                 ),
                 SecurityRoutes(self.secrets_rotation, self.key_source),
+                BackupRoutes(
+                    BackupMaker(BackupArchive(self.tmp_path / "data"), self.backup_cipher, w.clock),
+                    self.backup_cipher,
+                    BackupExtractor(),
+                    PendingRestore(self.tmp_path / "data"),
+                    self.tmp_path / "data",
+                ),
                 LogRoutes(LogReader(log_file), w.clock),
                 ConversationRoutes(
                     w.conversations,

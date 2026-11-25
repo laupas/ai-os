@@ -33,6 +33,7 @@ from aios.web.routes.api_docs_routes import ApiDocsRoutes
 from aios.web.routes.appearance_routes import AppearanceRoutes
 from aios.web.routes.approval_routes import ApprovalRoutes
 from aios.web.routes.audit_routes import AuditRoutes
+from aios.web.routes.backup_routes import BackupRoutes
 from aios.web.routes.channel_settings_routes import ChannelSettingsRoutes
 from aios.web.routes.claude_settings_routes import ClaudeSettingsRoutes
 from aios.web.routes.connector_auth_routes import ConnectorAuthRoutes
@@ -128,6 +129,11 @@ class WebContainer(containers.DeclarativeContainer):
     appearances = providers.Dependency()
     secrets_rotation = providers.Dependency()
     secrets_key_source = providers.Dependency()
+    backup_maker = providers.Dependency()
+    backup_cipher = providers.Dependency()
+    backup_extractor = providers.Dependency()
+    pending_restore = providers.Dependency()
+    data_dir = providers.Dependency()
     owner_password = providers.Dependency(default=None)
     secret_box = providers.Dependency()
     store_sources = providers.Dependency()
@@ -262,6 +268,14 @@ class WebContainer(containers.DeclarativeContainer):
         ),
         providers.Singleton(AppearanceRoutes, appearances=appearances),
         providers.Singleton(SecurityRoutes, rotation=secrets_rotation, source=secrets_key_source),
+        providers.Singleton(
+            BackupRoutes,
+            maker=backup_maker,
+            cipher=backup_cipher,
+            extractor=backup_extractor,
+            pending=pending_restore,
+            data_dir=data_dir,
+        ),
         providers.Singleton(LogRoutes, log_reader=log_reader, clock=clock),
         providers.Singleton(AuditRoutes, feed=audit_feed),
         providers.Singleton(RepositoryRoutes, files=repository_files),

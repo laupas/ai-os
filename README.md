@@ -919,6 +919,41 @@ missing. Such an installation still starts, with a warning in the console: Setti
 Security shows that key once, to set as `AIOS_SECRETS_KEY`; at the next start ai-os
 removes the file. Nothing has to be encrypted again.
 
+## Backup
+
+**Settings → Backup** (administrators) downloads the data dir as one file: users and
+groups, conversations, memories, approvals, the configuration repository with its
+history, variables, connector sign-ins and the Claude CLI's sign-ins. Left out are the
+logs, the browsers signed in to the console, decrypted copies of secrets, and the
+Claude CLI's transcripts (past turns cannot be resumed from a backup; conversations
+stay). Every download is recorded in the audit trail.
+
+The file is encrypted (AES-GCM) with a key derived from `AIOS_SECRETS_KEY`, so it opens
+only with that key: keep the key as long as you keep the backup, also after replacing
+it. Its readable header, and its name, carry the key's fingerprint. It is made while
+ai-os runs: every file in it is complete, though a change made during the download may
+be in it or not.
+
+**Restoring**, in the same place:
+
+1. Choose the backup file. ai-os checks it completely before anything changes: that a
+   key it has opens it (`AIOS_SECRETS_KEY`, or `AIOS_SECRETS_KEY_PREVIOUS` for a backup
+   made before the key was replaced), that the archive is whole, and that every entry
+   stays inside the data dir and is something a backup holds. It then shows when the
+   backup was made, with which key, and how many files of each kind it holds.
+2. *Restore and restart*. At the start, before anything reads the data dir, the data
+   in place moves into `<data>/.before-restore-<time>/` and the backup is unpacked
+   instead. The logs, the Claude CLI's transcripts and an older `secrets.key` stay
+   where they are. If unpacking fails, the data is put back and the reason shown.
+   Secrets from a backup under a previous key move onto the key in use in the same
+   start.
+3. Everyone signs in again (signed-in browsers are not in a backup). The restore is
+   in the audit trail; remove the `.before-restore-…` folder once everything is as it
+   should be.
+
+On a new machine: start ai-os with the same `AIOS_SECRETS_KEY` (and an empty data
+dir), sign in as the owner, and restore there.
+
 ## Security model
 
 - Every tool call goes through the approval policy; `allowed_tools` stays empty, so

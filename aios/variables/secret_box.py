@@ -19,7 +19,8 @@ class SecretBox:
     def __init__(self, key: str, previous: Sequence[str] = ()) -> None:
         self._key = self.key_from(key)
         self._current = Fernet(self._key)
-        self._previous = [Fernet(self.key_from(k)) for k in previous]
+        self._previous_keys = [self.key_from(k) for k in previous]
+        self._previous = [Fernet(k) for k in self._previous_keys]
         self._all = MultiFernet([self._current, *self._previous])
         self._previous_fingerprints = [self.fingerprint_of(k) for k in previous]
 
@@ -62,6 +63,14 @@ class SecretBox:
         """A key for `purpose` (signing the console's sessions, say), derived from
         this box's key, so it needs no file or setting of its own."""
         return hmac.new(self._key, purpose.encode(), hashlib.sha256).digest()
+
+    def derive_keys(self, purpose: str) -> list[bytes]:
+        """`derive_key` from the key in use, then from each previous key: to open what
+        was sealed before the key was replaced (a backup)."""
+        return [
+            hmac.new(k, purpose.encode(), hashlib.sha256).digest()
+            for k in [self._key, *self._previous_keys]
+        ]
 
     @classmethod
     def fingerprint_of(cls, key: str) -> str:

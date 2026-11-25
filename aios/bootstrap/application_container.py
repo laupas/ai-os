@@ -5,6 +5,7 @@ from dependency_injector import containers, providers
 from aios.agents.agents_container import AgentsContainer
 from aios.approvals.approval_policy_container import ApprovalPolicyContainer
 from aios.approvals.approvals_container import ApprovalsContainer
+from aios.backup.backup_container import BackupContainer
 from aios.bootstrap.application import Application
 from aios.bootstrap.startup_notice import StartupNotice
 from aios.channels.channels_container import ChannelsContainer
@@ -84,6 +85,13 @@ class ApplicationContainer(containers.DeclarativeContainer):
                 label="configuration remote",
             ),
         ),
+    )
+    backup = providers.Container(
+        BackupContainer,
+        settings=config.settings,
+        box=variables.box,
+        clock=common.clock,
+        audit_trail=storage.audit_trail,
     )
     transcription = providers.Container(TranscriptionContainer, resolver=variables.resolver)
     channels = providers.Container(
@@ -317,6 +325,11 @@ class ApplicationContainer(containers.DeclarativeContainer):
         appearances=storage.appearances,
         secrets_rotation=variables.rotation,
         secrets_key_source=variables.key_source,
+        backup_maker=backup.maker,
+        backup_cipher=backup.cipher,
+        backup_extractor=backup.extractor,
+        pending_restore=backup.pending,
+        data_dir=config.settings.provided.data_dir,
         owner_password=config.settings.provided.owner_password,
         secret_box=variables.box,
         store_sources=store.catalog,
@@ -355,7 +368,9 @@ class ApplicationContainer(containers.DeclarativeContainer):
         Application,
         registry=storage.registry,
         startup=providers.List(
-            # Every secret onto the key in use before anything reads one.
+            backup.restore_audit,
+            # Every secret onto the key in use before anything reads one; after a
+            # restore, also those of a backup made with a previous key.
             variables.rotation,
             variables.legacy_files_removal,
             # The repository first: roles live in it, and the owner needs them.

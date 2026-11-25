@@ -21,6 +21,15 @@ ACTIONS: dict[tuple[str, str], tuple[str, str, AuditAction]] = {
     ("POST", "/api/git/pull"): ("git", "pull", AuditAction.PERFORMED),
     ("POST", "/api/repository/undo"): ("git", "undo commit", AuditAction.PERFORMED),
     ("POST", "/api/repository/restore"): ("git", "restore branch", AuditAction.PERFORMED),
+    # The whole data dir, sealed: everyone's conversations and memories.
+    ("POST", "/api/backup"): ("backup", "download", AuditAction.PERFORMED),
+    ("POST", "/api/backup/restore"): ("backup", "restore uploaded", AuditAction.PERFORMED),
+    ("POST", "/api/backup/restore/confirm"): (
+        "backup",
+        "restore confirmed",
+        AuditAction.PERFORMED,
+    ),
+    ("DELETE", "/api/backup/restore"): ("backup", "restore discarded", AuditAction.PERFORMED),
     # Keys handed out: never stored by ai-os, so nothing else would record them.
     ("POST", "/api/security/keys"): ("security", "new secrets key", AuditAction.PERFORMED),
     ("POST", "/api/security/data-dir-key"): (
