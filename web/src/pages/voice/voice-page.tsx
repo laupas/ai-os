@@ -447,7 +447,7 @@ export function VoicePage() {
         </div>
       </div>
 
-      <div className="flex flex-col items-center gap-2 border-t px-4 pt-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+      <div className="flex flex-col items-center gap-2 border-t px-4 pt-4 pb-[calc(var(--safe-bottom)+1rem)]">
         {error ? <p className="text-center text-xs text-destructive">{error}</p> : null}
         {unavailable ? (
           <p className="text-center text-sm text-muted-foreground">{unavailable}</p>

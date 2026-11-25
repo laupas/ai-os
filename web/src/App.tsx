@@ -4,6 +4,7 @@ import { useRoute } from "@/lib/router";
 import { useLogin } from "@/lib/use-login";
 import { useMe } from "@/lib/use-me";
 import { AgentsPage } from "@/pages/agents-page";
+import { AppearancePage } from "@/pages/appearance-page";
 import { ApprovalsPage } from "@/pages/approvals-page";
 import { AuditPage } from "@/pages/audit-page";
 import { ChatPage } from "@/pages/chat/chat-page";
@@ -24,7 +25,8 @@ export function App() {
   const [route = "chat", routeArg] = useRoute();
   // Git moved into Settings; an old #/git link still lands there.
   const [page, arg] = route === "git" ? ["settings", "git"] : [route, routeArg];
-  const allowed = useNav().map((n) => n.id);
+  // Appearance is everyone's, reached from the account box rather than the menu.
+  const allowed = [...useNav().map((n) => n.id), "appearance"];
   // Not signed in: the console's own login page, if it has one.
   const login = useLogin(Boolean(me.error));
   if (me.isLoading || (me.error && login.isLoading)) return <Loading />;
@@ -55,10 +57,11 @@ export function App() {
     logs: <LogsPage />,
     health: <HealthPage />,
     settings: <SettingsPage tab={arg} />,
+    appearance: <AppearancePage />,
   }[current];
-  // In a chat thread the thread header (with its back button) replaces the phone's top bar.
+  // In a chat thread the composer takes the bottom of a phone's screen, not the tab bar.
   return (
-    <AppShell current={current} hideMobileBar={current === "chat" && Boolean(arg)}>
+    <AppShell current={current} hideTabBar={current === "chat" && Boolean(arg)}>
       {body}
     </AppShell>
   );

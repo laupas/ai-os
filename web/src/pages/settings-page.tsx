@@ -1,15 +1,18 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Power, Save } from "lucide-react";
+import { ArrowLeft, ChevronRight, Power } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ErrorBox, Loading, Page, PageHeader } from "@/components/page";
 import { ConfigReference } from "@/components/config-reference";
+import { SaveBar } from "@/components/save-bar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { api, type Settings } from "@/lib/api";
+import { useConfirm } from "@/lib/confirm";
 import { restartAiOs } from "@/lib/restart";
-import { go } from "@/lib/router";
+import { href } from "@/lib/router";
+import { cn } from "@/lib/utils";
 import { GitPanel } from "./git-page";
 import { RepositoryPanel } from "./repository-panel";
 import { ChannelsPanel } from "./settings-channels";
@@ -19,12 +22,19 @@ import { FilesPanel } from "./settings-files";
 import { AgentsSettingsPanel, ApprovalsSettingsPanel, DataAccessPanel, GeneralPanel } from "./settings-sections";
 import { GroupsPanel, UsersPanel } from "./settings-people";
 
-const TABS = ["claude", "channels", "general", "agents", "approvals", "login", "files", "access", "users", "groups", "repository", "git", "config"];
-import { api, type Settings } from "@/lib/api";
-import { useConfirm } from "@/lib/confirm";
+// The sections, by group. The ids are the addresses (#/settings/git), so old links keep working.
+export const SECTIONS = [
+  { group: "AI", items: [{ id: "claude", label: "Claude" }, { id: "agents", label: "Agents" }, { id: "approvals", label: "Approvals" }] },
+  { group: "Access", items: [{ id: "login", label: "Login" }, { id: "users", label: "Users" }, { id: "groups", label: "Groups" }, { id: "access", label: "Data access" }] },
+  { group: "System", items: [{ id: "general", label: "General" }, { id: "channels", label: "Channels" }, { id: "files", label: "Files" }] },
+  { group: "Configuration", items: [{ id: "repository", label: "Repository" }, { id: "git", label: "Branches" }, { id: "config", label: "aios.yaml" }] },
+];
+const ALL = SECTIONS.flatMap((g) => g.items);
 
 const editor = "font-mono text-xs md:text-xs";
 
+/** The sections listed on the left from 768px. On a phone the list and a section are
+ * two screens, as in chat: #/settings is the list, #/settings/<section> one section. */
 export function SettingsPage({ tab }: { tab?: string }) {
   const { data, isLoading, error } = useQuery({ queryKey: ["settings"], queryFn: () => api<Settings>("GET", "/api/settings") });
   const confirm = useConfirm();
@@ -39,73 +49,79 @@ export function SettingsPage({ tab }: { tab?: string }) {
       toast.error((e as Error).message);
     }
   };
+  const chosen = ALL.find((s) => s.id === tab);
+  const shown = chosen ?? ALL[0];
+  const panel = {
+    claude: <ClaudePanel />,
+    channels: <ChannelsPanel />,
+    general: <GeneralPanel />,
+    agents: <AgentsSettingsPanel />,
+    approvals: <ApprovalsSettingsPanel />,
+    repository: <RepositoryPanel />,
+    git: <GitPanel />,
+    config: <ConfigEditor key={data.config} text={data.config} schema={data.config_schema} inRepository={Boolean(data.in_repository)} />,
+    login: <LoginPanel />,
+    files: <FilesPanel />,
+    access: <DataAccessPanel />,
+    users: <UsersPanel data={data} />,
+    groups: <GroupsPanel data={data} />,
+  }[shown.id];
   return (
-    <Page>
-      <PageHeader
-        title="Settings"
-        actions={
-          <Button variant="outline" onClick={restart}>
-            <Power /> Restart ai-os
+    <Page className="max-w-6xl">
+      <div className={cn(chosen && "max-md:hidden")}>
+        <PageHeader
+          title="Settings"
+          actions={
+            <Button variant="outline" onClick={restart}>
+              <Power /> Restart ai-os
+            </Button>
+          }
+        />
+      </div>
+      {chosen ? (
+        <div className="-ml-2 flex items-center gap-1 md:hidden">
+          <Button variant="ghost" size="icon" asChild>
+            <a href={href("settings")} aria-label="All settings">
+              <ArrowLeft />
+            </a>
           </Button>
-        }
-      />
-      <Tabs value={TABS.includes(tab ?? "") ? tab : "claude"} onValueChange={(v) => go("settings", v)} className="space-y-4">
-        <TabsList className="w-full justify-start overflow-x-auto sm:w-fit">
-          <TabsTrigger value="claude">Claude</TabsTrigger>
-          <TabsTrigger value="channels">Channels</TabsTrigger>
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="agents">Agents</TabsTrigger>
-          <TabsTrigger value="approvals">Approvals</TabsTrigger>
-          <TabsTrigger value="login">Login</TabsTrigger>
-          <TabsTrigger value="files">Files</TabsTrigger>
-          <TabsTrigger value="access">Data access</TabsTrigger>
-          <TabsTrigger value="users">Users</TabsTrigger>
-          <TabsTrigger value="groups">Groups</TabsTrigger>
-          <TabsTrigger value="repository">Repository</TabsTrigger>
-          <TabsTrigger value="git">Branches</TabsTrigger>
-          <TabsTrigger value="config">aios.yaml</TabsTrigger>
-        </TabsList>
-        <TabsContent value="claude">
-          <ClaudePanel />
-        </TabsContent>
-        <TabsContent value="channels">
-          <ChannelsPanel />
-        </TabsContent>
-        <TabsContent value="general">
-          <GeneralPanel />
-        </TabsContent>
-        <TabsContent value="agents">
-          <AgentsSettingsPanel />
-        </TabsContent>
-        <TabsContent value="approvals">
-          <ApprovalsSettingsPanel />
-        </TabsContent>
-        <TabsContent value="repository">
-          <RepositoryPanel />
-        </TabsContent>
-        <TabsContent value="git">
-          <GitPanel />
-        </TabsContent>
-        <TabsContent value="config">
-          <ConfigEditor key={data.config} text={data.config} schema={data.config_schema} inRepository={Boolean(data.in_repository)} />
-        </TabsContent>
-        <TabsContent value="login">
-          <LoginPanel />
-        </TabsContent>
-        <TabsContent value="files">
-          <FilesPanel />
-        </TabsContent>
-        <TabsContent value="access">
-          <DataAccessPanel />
-        </TabsContent>
-        <TabsContent value="users">
-          <UsersPanel data={data} />
-        </TabsContent>
-        <TabsContent value="groups">
-          <GroupsPanel data={data} />
-        </TabsContent>
-      </Tabs>
+          <h1 className="text-xl font-semibold">{chosen.label}</h1>
+        </div>
+      ) : null}
+      <div className="md:grid md:grid-cols-[12rem_minmax(0,1fr)] md:items-start md:gap-8">
+        <SectionNav current={shown.id} className={cn("md:sticky md:top-0", chosen && "max-md:hidden")} />
+        <div className={cn("min-w-0", !chosen && "max-md:hidden")}>{panel}</div>
+      </div>
     </Page>
+  );
+}
+
+/** Grouped rows to tap on a phone; on a wider screen a list of links beside the section. */
+function SectionNav({ current, className }: { current: string; className?: string }) {
+  return (
+    <nav aria-label="Settings sections" className={cn("space-y-5 md:space-y-4", className)}>
+      {SECTIONS.map(({ group, items }) => (
+        <div key={group}>
+          <div className="px-1 pb-1.5 text-xs font-semibold tracking-wider text-muted-foreground uppercase md:px-3 md:pb-1 md:text-[11px]">{group}</div>
+          <div className="divide-y overflow-hidden rounded-xl border bg-card md:space-y-0.5 md:divide-y-0 md:overflow-visible md:rounded-none md:border-0 md:bg-transparent">
+            {items.map(({ id, label }) => (
+              <a
+                key={id}
+                href={href("settings", id)}
+                aria-current={id === current ? "page" : undefined}
+                className={cn(
+                  "flex min-h-12 items-center px-4 text-sm hover:bg-accent/50 md:min-h-0 md:rounded-lg md:px-3 md:py-1.5 md:text-muted-foreground md:hover:bg-accent md:hover:text-foreground",
+                  id === current && "md:bg-primary/10 md:font-medium md:text-primary md:hover:bg-primary/15 md:hover:text-primary",
+                )}
+              >
+                <span className="flex-1">{label}</span>
+                <ChevronRight className="size-4 text-muted-foreground md:hidden" />
+              </a>
+            ))}
+          </div>
+        </div>
+      ))}
+    </nav>
   );
 }
 
@@ -136,10 +152,11 @@ function ConfigEditor({ text: initial, schema, inRepository }: { text: string; s
     }
   };
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+    <>
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
     <Card>
-      <CardHeader className="flex-row items-center">
-        <div className="flex-1">
+      <CardHeader>
+        <div>
           <CardTitle>aios.yaml</CardTitle>
           <CardDescription>
             {inRepository
@@ -147,17 +164,16 @@ function ConfigEditor({ text: initial, schema, inRepository }: { text: string; s
               : "Checked before it is saved; applies at once, except channels, web, owner and collection access, which need a restart."}
           </CardDescription>
         </div>
-        <Button onClick={save} disabled={text === initial}>
-          <Save /> Save
-        </Button>
       </CardHeader>
       <CardContent>
         <Textarea rows={24} className={editor} spellCheck={false} value={text} onChange={(e) => setText(e.target.value)} />
       </CardContent>
     </Card>
-      <div className="lg:sticky lg:top-0 lg:max-h-[calc(100svh-8rem)] lg:overflow-y-auto">
+      <div className="xl:sticky xl:top-0 xl:max-h-[calc(100svh-8rem)] xl:overflow-y-auto">
         <ConfigReference schema={schema} onInsert={insert} />
       </div>
     </div>
+    <SaveBar dirty={text !== initial} onSave={save} onDiscard={() => setText(initial)} />
+    </>
   );
 }

@@ -68,31 +68,37 @@ function AuditRow({ entry: e }: { entry: AuditEntry }) {
     enabled: open && Boolean(e.commit),
   });
   const what = e.detail ?? (e.fields.length ? e.fields.join(", ") : null);
+  // A phone stacks it: who, action and when; then what, with the commit; then the detail.
+  // From 768px it is one line of columns (`contents` lets the first group join them).
   const body = (
     <>
-      <span className="w-36 shrink-0 text-xs text-muted-foreground tabular-nums">{stamp(e.at)}</span>
-      <span className="w-28 shrink-0 truncate text-sm" title={e.actor_email}>
-        {e.actor}
+      <span className="col-start-2 row-start-1 justify-self-end text-xs text-muted-foreground tabular-nums md:w-36 md:shrink-0">{stamp(e.at)}</span>
+      <span className="col-start-1 row-start-1 flex min-w-0 items-center gap-2 md:contents">
+        <span className="min-w-0 truncate text-sm font-medium md:w-28 md:shrink-0 md:font-normal" title={e.actor_email}>
+          {e.actor}
+        </span>
+        <Badge variant={TONE[e.action]} className="md:w-20">
+          {e.action}
+        </Badge>
       </span>
-      <Badge variant={TONE[e.action]} className="w-20">
-        {e.action}
-      </Badge>
-      <span className="min-w-0 shrink-0 text-sm">
+      <span className="col-start-1 row-start-2 min-w-0 truncate text-sm md:shrink-0">
         <span className="text-muted-foreground">{e.area}</span>
         {e.item !== e.area ? <> / {e.item}</> : null}
       </span>
-      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground" title={what ?? undefined}>
-        {what}
-      </span>
+      {what ? (
+        <span className="col-span-2 row-start-3 min-w-0 truncate text-xs text-muted-foreground md:flex-1" title={what}>
+          {what}
+        </span>
+      ) : null}
       {e.commit ? (
-        <code className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+        <code className="col-start-2 row-start-2 flex shrink-0 items-center gap-1 justify-self-end text-xs text-muted-foreground md:ml-auto">
           <GitCommitHorizontal className="size-3" />
           {e.commit.slice(0, 7)}
         </code>
       ) : null}
     </>
   );
-  const row = "flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-left md:flex-nowrap";
+  const row = "grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 px-3 py-2.5 text-left md:flex md:py-2";
   if (!e.commit) return <div className={row}>{body}</div>;
   return (
     <div>

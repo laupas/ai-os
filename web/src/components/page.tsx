@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 export function Page({ className, children }: { className?: string; children: ReactNode }) {
   return (
     <div className="h-full overflow-y-auto">
-      <div className={cn("mx-auto w-full max-w-5xl space-y-4 p-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] md:p-8", className)}>
+      <div className={cn("mx-auto w-full max-w-5xl space-y-4 p-4 pb-[calc(var(--safe-bottom)+1.5rem)] md:p-8", className)}>
         {children}
       </div>
     </div>
@@ -16,7 +16,7 @@ export function PageHeader({ title, description, actions }: { title: ReactNode; 
   return (
     <div className="flex flex-wrap items-start gap-3">
       <div className="min-w-0 flex-1">
-        <h1 className="text-xl font-semibold tracking-tight md:text-2xl">{title}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
         {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}

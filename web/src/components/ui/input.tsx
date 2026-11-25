@@ -5,7 +5,7 @@ const field =
   "w-full min-w-0 rounded-md border border-input bg-transparent px-3 shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50 dark:bg-input/30";
 
 export function Input({ className, ...props }: React.ComponentProps<"input">) {
-  return <input className={cn(field, "h-9 py-1", className)} {...props} />;
+  return <input className={cn(field, "h-9 py-1 pointer-coarse:h-11", className)} {...props} />;
 }
 
 export function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
@@ -13,7 +13,7 @@ export function Textarea({ className, ...props }: React.ComponentProps<"textarea
 }
 
 export function NativeSelect({ className, ...props }: React.ComponentProps<"select">) {
-  return <select className={cn(field, "h-9 py-1 pr-8", className)} {...props} />;
+  return <select className={cn(field, "h-9 py-1 pr-8 pointer-coarse:h-11", className)} {...props} />;
 }
 
 export function Label({ className, ...props }: React.ComponentProps<"label">) {

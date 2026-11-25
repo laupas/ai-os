@@ -5,13 +5,11 @@ import { Toaster } from "sonner";
 import { App } from "./App";
 import { ViewportDebug } from "./components/viewport-debug";
 import { ConfirmProvider } from "./lib/confirm";
+import { applyTheme } from "./lib/theme";
 import "./index.css";
 
-// Follow the system theme, live.
-const dark = window.matchMedia("(prefers-color-scheme: dark)");
-const applyTheme = () => document.documentElement.classList.toggle("dark", dark.matches);
+// Light, dark, or following the device: the choice is in the account menu.
 applyTheme();
-dark.addEventListener("change", applyTheme);
 
 // The shell is pinned to the window's edges (`fixed inset-0`), which browsers lay out
 // around their own toolbars; every height the page can read was wrong in at least
@@ -24,6 +22,8 @@ const fitKeyboard = () => {
   // Below this it is toolbar movement, not a keyboard.
   const keyboard = covered > 120 ? Math.round(covered) : 0;
   document.documentElement.style.setProperty("--keyboard", `${keyboard}px`);
+  // The phone's tab bar steps aside while the keyboard is up.
+  document.documentElement.classList.toggle("keyboard", keyboard > 0);
   if (window.scrollY) window.scrollTo(0, 0);
 };
 // Chrome on iOS can scroll the window or settle its toolbars without a visual

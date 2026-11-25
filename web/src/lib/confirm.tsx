@@ -1,6 +1,7 @@
-import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { setLeaveQuestion } from "@/lib/router";
 
 interface Ask {
   title: string;
@@ -21,6 +22,14 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     setAsk(next);
     return new Promise<boolean>((resolve) => (resolver.current = resolve));
   }, []);
+  // Leaving a page with unsaved changes asks here too, not with the browser's own box.
+  useEffect(
+    () =>
+      setLeaveQuestion(() =>
+        confirm({ title: "Discard your changes?", body: "They are not saved yet.", action: "Discard", destructive: true }),
+      ),
+    [confirm],
+  );
   const settle = (value: boolean) => {
     resolver.current(value);
     setAsk(null);
@@ -32,7 +41,8 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
         <DialogContent>
           <DialogTitle>{ask?.title}</DialogTitle>
           {ask?.body ? <DialogDescription>{ask.body}</DialogDescription> : null}
-          <div className="flex justify-end gap-2">
+          {/* On a phone the dialog is a sheet at the bottom: full-width buttons, the action nearest the thumb. */}
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button variant="outline" onClick={() => settle(false)}>
               Cancel
             </Button>

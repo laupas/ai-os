@@ -27,7 +27,12 @@ export function SheetContent({
         {...props}
       >
         {children}
-        <DialogPrimitive.Close className="absolute top-[calc(env(safe-area-inset-top)+0.9rem)] right-4 rounded-sm opacity-70 transition-opacity hover:opacity-100">
+        <DialogPrimitive.Close
+          className={cn(
+            "absolute right-4 rounded-sm opacity-70 transition-opacity hover:opacity-100",
+            side === "bottom" ? "top-3" : "top-[calc(env(safe-area-inset-top)+0.9rem)]",
+          )}
+        >
           <XIcon className="size-5" />
           <span className="sr-only">Close</span>
         </DialogPrimitive.Close>

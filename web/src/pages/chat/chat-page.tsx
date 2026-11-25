@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Bot, ChevronDown, Eraser, MessageSquarePlus, Sparkles, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowLeft, Bot, ChevronDown, Eraser, MessageSquarePlus, Sparkles, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ListView } from "@/components/list-view";
@@ -57,7 +57,7 @@ function ConversationList({ current }: { current?: string }) {
           </Button>
         ) : null}
       </div>
-      <div className="flex-1 overflow-y-auto px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+      <div className="flex-1 overflow-y-auto px-4 pt-3 pb-[calc(0.75rem+var(--safe-bottom))]">
         {isLoading ? <Loading /> : null}
         {error ? <ErrorBox error={error} /> : null}
         {data ? (
@@ -142,7 +142,7 @@ function PruneDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (ope
 
 function ThreadHeader({ title, sub, actions }: { title: string; sub?: React.ReactNode; actions?: React.ReactNode }) {
   return (
-    <div className="flex shrink-0 items-center gap-2 border-b bg-background/80 px-2 pt-[env(safe-area-inset-top)] backdrop-blur md:px-4 md:pt-0">
+    <div className="flex shrink-0 items-center gap-2 border-b bg-background/80 px-2 backdrop-blur md:px-4">
       <div className="flex h-[3.25rem] min-w-0 flex-1 items-center gap-1 md:h-14">
         <Button variant="ghost" size="icon" className="md:hidden" asChild>
           <a href={href("chat")} aria-label="Back">
@@ -242,6 +242,7 @@ function Thread({ id }: { id: string }) {
   const queryClient = useQueryClient();
   const scroller = useRef<HTMLDivElement>(null);
   const stuck = useRef(true); // following the bottom
+  const [away, setAway] = useState(false); // scrolled up: offer the way back down
 
   useEffect(() => {
     const el = scroller.current;
@@ -255,8 +256,15 @@ function Thread({ id }: { id: string }) {
       toast.error((error as Error).message);
     }
   };
+  const toBottom = () => {
+    const el = scroller.current;
+    stuck.current = true;
+    setAway(false);
+    el?.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  };
   const send = async (text: string) => {
     stuck.current = true;
+    setAway(false);
     try {
       await api("POST", `/api/conversations/${encodeURIComponent(id)}/messages`, { text });
     } catch (error) {
@@ -289,12 +297,14 @@ function Thread({ id }: { id: string }) {
           </Button>
         }
       />
+      <div className="relative flex min-h-0 flex-1 flex-col">
       <div
         ref={scroller}
         className="flex-1 overflow-y-auto"
         onScroll={(e) => {
           const el = e.currentTarget;
           stuck.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+          if (away === stuck.current) setAway(!stuck.current);
         }}
       >
         <div className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-6 md:px-6">
@@ -324,6 +334,12 @@ function Thread({ id }: { id: string }) {
             </div>
           ) : null}
         </div>
+      </div>
+      {away ? (
+        <Button variant="outline" size="sm" className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full shadow-md" onClick={toBottom}>
+          <ArrowDown /> {live.running ? "Jump to latest" : "Back to the end"}
+        </Button>
+      ) : null}
       </div>
       {c?.writable ? <Composer onSend={send} onStop={stop} busy={live.running} /> : null}
       {c && !c.writable ? (

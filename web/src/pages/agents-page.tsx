@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ListView } from "@/components/list-view";
 import { ErrorBox, Loading, Page, PageHeader } from "@/components/page";
 import { HistoryButton } from "@/components/history-button";
+import { SaveBar } from "@/components/save-bar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { AudiencePicker } from "@/components/audience-picker";
 import { api, type Agent, type AgentsData } from "@/lib/api";
 import { useConfirm } from "@/lib/confirm";
-import { go, href } from "@/lib/router";
+import { goSaved, href } from "@/lib/router";
 import { can, useMe } from "@/lib/use-me";
 
 // Which agent may use which built-in tool, skill and connector. ai-os enforces it in
@@ -22,8 +23,8 @@ import { can, useMe } from "@/lib/use-me";
 
 const MODELS = ["", "sonnet", "opus", "haiku"];
 
-export const useAgents = () =>
-  useQuery({ queryKey: ["agents"], queryFn: () => api<AgentsData>("GET", "/api/agents") });
+export const useAgents = (options?: { enabled?: boolean }) =>
+  useQuery({ queryKey: ["agents"], queryFn: () => api<AgentsData>("GET", "/api/agents"), ...options });
 
 function AgentBadges({ a }: { a: Agent }) {
   return (
@@ -127,7 +128,7 @@ function AgentForm({ data, name }: { data: AgentsData; name: string }) {
       .filter((c) => !known.has(c))
       .map((c) => ({ name: c, enabled: false, tools: null as string[] | null, missing: true, settings: undefined, locked: undefined })),
   ];
-  const [form, setForm] = useState(() => ({
+  const fresh = () => ({
     name: "",
     description: a?.description ?? "",
     prompt: a?.prompt ?? "",
@@ -142,7 +143,12 @@ function AgentForm({ data, name }: { data: AgentsData; name: string }) {
         return [c.name, { on: c.name in (a?.connectors ?? {}), all: granted === null, tools: granted ?? [], text: (granted ?? []).join(", ") }];
       }),
     ) as Record<string, Grant>,
-  }));
+  });
+  const [form, setForm] = useState(fresh);
+  // Compared as written to the file: sets and lists in any order are the same.
+  const snapshot = (f: ReturnType<typeof fresh>) =>
+    JSON.stringify(f, (_key, v) => (v instanceof Set ? [...v].sort() : Array.isArray(v) && v.every((x) => typeof x === "string") ? [...v].sort() : v));
+  const dirty = !readOnly && snapshot(form) !== snapshot(fresh());
   const toggle = (set: Set<string>, v: string, on: boolean) => {
     const next = new Set(set);
     if (on) next.add(v);
@@ -179,7 +185,7 @@ function AgentForm({ data, name }: { data: AgentsData; name: string }) {
     onSuccess: () => {
       toast.success("Saved. Applies to the next turn.");
       void queryClient.invalidateQueries({ queryKey: ["agents"] });
-      if (isNew) go("agents", form.name.trim());
+      if (isNew) goSaved("agents", form.name.trim());
     },
     onError: (e) => toast.error(e.message),
   });
@@ -196,7 +202,7 @@ function AgentForm({ data, name }: { data: AgentsData; name: string }) {
     try {
       await api("DELETE", `/api/agents/${encodeURIComponent(a.name)}`);
       await queryClient.invalidateQueries({ queryKey: ["agents"] });
-      go("agents");
+      goSaved("agents");
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -348,22 +354,27 @@ function AgentForm({ data, name }: { data: AgentsData; name: string }) {
             <Textarea rows={16} className="font-mono text-xs md:text-xs" spellCheck={false} value={form.prompt} onChange={(e) => setForm({ ...form, prompt: e.target.value })} />
           </CardContent>
         </Card>
-        <div className="sticky bottom-0 -mx-4 flex flex-wrap items-center gap-2 border-t bg-background/95 px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:p-0">
-          {readOnly ? (
+        {readOnly ? (
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-muted-foreground">A fixed agent: only an administrator changes it.</span>
-          ) : (
-            <Button type="submit" disabled={save.isPending}>
-              {isNew ? "Create" : "Save"}
-            </Button>
-          )}
-          {!isNew && !a.fixed ? (
-            <Button type="button" variant="ghost" className="text-destructive" onClick={remove}>
-              Delete
-            </Button>
-          ) : null}
-          {isNew ? null : <HistoryButton kind="agents" id={a.name} />}
-          <span className="text-xs text-muted-foreground">Applies to the next turn.</span>
-        </div>
+            <HistoryButton kind="agents" id={a.name} />
+          </div>
+        ) : (
+          <SaveBar
+            dirty={dirty}
+            busy={save.isPending}
+            label={isNew ? "Create" : "Save"}
+            onDiscard={() => setForm(fresh())}
+            note="Applies to the next turn."
+          >
+            {!isNew && !a.fixed ? (
+              <Button type="button" variant="ghost" className="text-destructive" onClick={remove}>
+                Delete
+              </Button>
+            ) : null}
+            {isNew ? null : <HistoryButton kind="agents" id={a.name} />}
+          </SaveBar>
+        )}
       </form>
     </Page>
   );

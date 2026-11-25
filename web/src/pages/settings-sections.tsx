@@ -11,6 +11,7 @@ import { CheckRow } from "@/components/ui/checkbox";
 import { Hint, Input, Label, NativeSelect } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { api, type AgentsData, type SettingsSections } from "@/lib/api";
+import { useUnsaved } from "@/lib/router";
 import { cn } from "@/lib/utils";
 
 // The aios.yaml sections the forms edit, one PUT per section. What is not set
@@ -52,6 +53,7 @@ function useSave() {
 }
 
 function SectionCard({ title, description, dirty, onSave, children }: { title: string; description: ReactNode; dirty: boolean; onSave: () => void; children: ReactNode }) {
+  useUnsaved(dirty);
   return (
     <Card className="max-w-3xl">
       <CardHeader className="flex-row items-start gap-3">

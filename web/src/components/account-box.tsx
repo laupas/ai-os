@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { KeyRound, Loader2, LogOut, Monitor } from "lucide-react";
+import { KeyRound, Loader2, LogOut, Monitor, Moon, Palette, Sun } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,10 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Hint, Input, Label } from "@/components/ui/input";
 import { SessionsList } from "@/components/sessions-list";
 import { api, type Me, type PasswordState } from "@/lib/api";
+import { useTheme, type Theme } from "@/lib/theme";
+import { href } from "@/lib/router";
 import { useLogin } from "@/lib/use-login";
+import { cn } from "@/lib/utils";
 
 /** Who is signed in; with the console's own login, also signing out and (password) changing one's password. */
 export function AccountBox({ me }: { me: Me }) {
@@ -24,6 +27,16 @@ export function AccountBox({ me }: { me: Me }) {
       <div>
         <div className="font-medium text-foreground">{me.name}</div>
         <div className="truncate">{me.email}</div>
+      </div>
+      <div className="flex items-center gap-1">
+        <div className="flex-1">
+          <ThemeSwitch />
+        </div>
+        <Button size="icon-sm" variant="ghost" asChild>
+          <a href={href("appearance")} aria-label="Appearance" title="Appearance: mode and colour theme">
+            <Palette />
+          </a>
+        </Button>
       </div>
       {login?.mode ? (
         <div className="flex flex-wrap gap-1">
@@ -50,6 +63,37 @@ export function AccountBox({ me }: { me: Me }) {
       <Dialog open={changing} onOpenChange={setChanging}>
         <DialogContent>{changing ? <OwnPasswordForm onDone={() => setChanging(false)} /> : null}</DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+const THEMES: { value: Theme; label: string; icon: typeof Sun }[] = [
+  { value: "system", label: "Like the device", icon: Monitor },
+  { value: "light", label: "Light", icon: Sun },
+  { value: "dark", label: "Dark", icon: Moon },
+];
+
+/** Light, dark or like the device, for this browser. */
+function ThemeSwitch() {
+  const [theme, setTheme] = useTheme();
+  return (
+    <div role="radiogroup" aria-label="Appearance" className="flex gap-0.5 rounded-lg bg-muted p-0.5">
+      {THEMES.map(({ value, label, icon: Icon }) => (
+        <button
+          key={value}
+          role="radio"
+          aria-checked={theme === value}
+          aria-label={label}
+          title={label}
+          onClick={() => setTheme(value)}
+          className={cn(
+            "flex h-7 flex-1 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground pointer-coarse:h-10",
+            theme === value && "bg-background text-foreground shadow-xs",
+          )}
+        >
+          <Icon className="size-3.5" />
+        </button>
+      ))}
     </div>
   );
 }

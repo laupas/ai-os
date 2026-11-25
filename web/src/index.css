@@ -2,7 +2,8 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* shadcn/ui "zinc" theme. */
+/* shadcn/ui "zinc" theme, with indigo as the one accent: main buttons, the
+ * current page, switches. */
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);
@@ -10,7 +11,7 @@
   --card-foreground: oklch(0.141 0.005 285.823);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: oklch(0.21 0.006 285.885);
+  --primary: oklch(0.511 0.262 276.966);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.967 0.001 286.375);
   --secondary-foreground: oklch(0.21 0.006 285.885);
@@ -36,8 +37,8 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.21 0.006 285.885);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.92 0.004 286.32);
-  --primary-foreground: oklch(0.21 0.006 285.885);
+  --primary: oklch(0.673 0.182 276.935);
+  --primary-foreground: oklch(0.257 0.09 281.288);
   --secondary: oklch(0.274 0.006 286.033);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.274 0.006 286.033);
@@ -52,6 +53,73 @@
   --ring: oklch(0.552 0.016 285.938);
   --bubble: oklch(0.32 0.01 286);
   --bubble-foreground: oklch(0.985 0 0);
+}
+
+/* Colour themes (the Appearance page): each sets the accent, light and dark. A class on
+ * <html> themes the console; the same class on an element themes only that element,
+ * which is how the page previews them. Keep in step with THEMES in lib/theme.ts. */
+.theme-indigo {
+  --primary: oklch(0.511 0.262 276.966);
+  --primary-foreground: oklch(0.985 0 0);
+}
+.theme-blue {
+  --primary: oklch(0.546 0.245 262.881);
+  --primary-foreground: oklch(0.985 0 0);
+}
+.theme-teal {
+  --primary: oklch(0.511 0.096 186.391);
+  --primary-foreground: oklch(0.985 0 0);
+}
+.theme-green {
+  --primary: oklch(0.527 0.154 150.069);
+  --primary-foreground: oklch(0.985 0 0);
+}
+.theme-orange {
+  --primary: oklch(0.553 0.195 38.402);
+  --primary-foreground: oklch(0.985 0 0);
+}
+.theme-rose {
+  --primary: oklch(0.586 0.253 17.585);
+  --primary-foreground: oklch(0.985 0 0);
+}
+.theme-graphite {
+  --primary: oklch(0.21 0.006 285.885);
+  --primary-foreground: oklch(0.985 0 0);
+}
+.dark.theme-indigo,
+.dark .theme-indigo {
+  --primary: oklch(0.673 0.182 276.935);
+  --primary-foreground: oklch(0.257 0.09 281.288);
+}
+.dark.theme-blue,
+.dark .theme-blue {
+  --primary: oklch(0.707 0.165 254.624);
+  --primary-foreground: oklch(0.282 0.091 267.935);
+}
+.dark.theme-teal,
+.dark .theme-teal {
+  --primary: oklch(0.777 0.152 181.912);
+  --primary-foreground: oklch(0.277 0.046 192.524);
+}
+.dark.theme-green,
+.dark .theme-green {
+  --primary: oklch(0.792 0.209 151.711);
+  --primary-foreground: oklch(0.266 0.065 152.934);
+}
+.dark.theme-orange,
+.dark .theme-orange {
+  --primary: oklch(0.75 0.183 55.934);
+  --primary-foreground: oklch(0.266 0.079 36.259);
+}
+.dark.theme-rose,
+.dark .theme-rose {
+  --primary: oklch(0.712 0.194 13.428);
+  --primary-foreground: oklch(0.271 0.105 12.094);
+}
+.dark.theme-graphite,
+.dark .theme-graphite {
+  --primary: oklch(0.92 0.004 286.32);
+  --primary-foreground: oklch(0.21 0.006 285.885);
 }
 
 @theme inline {
@@ -83,6 +151,12 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* The room a page leaves at its bottom for the home indicator. On a phone the tab bar
+ * takes care of it, and the shell sets this to 0 under it (see app-shell.tsx). */
+:root {
+  --safe-bottom: env(safe-area-inset-bottom);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -94,7 +168,8 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    /* The system font: native on every device, nothing to download. */
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     -webkit-tap-highlight-color: transparent;
   }
   /* 16px inputs keep iOS from zooming in on focus. */

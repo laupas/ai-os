@@ -40,7 +40,7 @@ export function Composer({
     onSend(value);
   };
   return (
-    <div className="shrink-0 border-t bg-background/95 px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] backdrop-blur md:px-6">
+    <div className="shrink-0 border-t bg-background/95 px-3 pt-3 pb-[calc(var(--safe-bottom)+0.75rem)] backdrop-blur md:px-6">
       <div className="mx-auto max-w-3xl rounded-2xl border bg-card p-2 shadow-sm focus-within:ring-[3px] focus-within:ring-ring/30">
         {toolbar ? <div className="flex items-center gap-2 px-1 pb-1">{toolbar}</div> : null}
         <div className="flex items-end gap-2">
