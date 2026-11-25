@@ -107,6 +107,37 @@
         ]
       },
       {
+        "name": "security",
+        "label": "Secrets key",
+        "elements": [
+          {
+            "name": "info",
+            "type": "Microsoft.Common.InfoBox",
+            "options": {
+              "style": "Warning",
+              "text": "Required. ai-os encrypts the secrets it stores (variables, connector sign-ins, backups) with this key and keeps it apart from the data on the storage share. Generate one first, for example with: openssl rand -base64 48 (macOS, Linux or the Azure Cloud Shell), and save it in your password manager: without it, the stored secrets and backups cannot be read. Give the same value when you redeploy; to replace it later, see Settings → Security."
+            }
+          },
+          {
+            "name": "secretsKey",
+            "type": "Microsoft.Common.PasswordBox",
+            "label": {
+              "password": "Secrets key",
+              "confirmPassword": "Secrets key, again"
+            },
+            "toolTip": "Encrypts the secrets ai-os stores. Keep it in your password manager; give the same value when you redeploy.",
+            "constraints": {
+              "required": true,
+              "regex": "^.{32,}$",
+              "validationMessage": "At least 32 characters: generate one with openssl rand -base64 48."
+            },
+            "options": {
+              "hideConfirmation": false
+            }
+          }
+        ]
+      },
+      {
         "name": "claude",
         "label": "Claude",
         "elements": [
@@ -131,23 +162,6 @@
             "options": {
               "hideConfirmation": true
             }
-          },
-          {
-            "name": "secretsKey",
-            "type": "Microsoft.Common.PasswordBox",
-            "label": {
-              "password": "Secrets key",
-              "confirmPassword": "Confirm"
-            },
-            "toolTip": "Required: encrypts the secrets ai-os stores, kept apart from the data. Generate one (openssl rand -base64 48) and save it in your password manager: without it the stored secrets cannot be read. Give the same value when redeploying.",
-            "constraints": {
-              "required": true,
-              "regex": "^.{32,}$",
-              "validationMessage": "At least 32 characters: generate one with openssl rand -base64 48."
-            },
-            "options": {
-              "hideConfirmation": true
-            }
           }
         ]
       }
@@ -161,7 +175,7 @@
       "ownerPassword": "[steps('owner').ownerPassword]",
       "timezone": "[steps('owner').timezone]",
       "anthropicApiKey": "[steps('claude').anthropicApiKey]",
-      "secretsKey": "[steps('claude').secretsKey]"
+      "secretsKey": "[steps('security').secretsKey]"
     }
   }
 }

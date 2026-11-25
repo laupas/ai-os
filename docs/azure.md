@@ -18,9 +18,9 @@ What it costs, roughly: a B2 plan (about USD 26/month) and a few GB of Azure Fil
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Flaupas%2Fai-os%2Fmain%2Fdeploy%2Fazure%2Fazuredeploy.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2Flaupas%2Fai-os%2Fmain%2Fdeploy%2Fazure%2FcreateUiDefinition.json)
 
-The portal asks for a resource group, a name for the web app, your name, address,
-a console password and the secrets key, and optionally the Anthropic API key. It
-creates the plan, the storage account with its share, and the web app as described below
+The portal asks for a resource group, a name for the web app, your name, address and
+a console password, the secrets key (a step of its own: generate it before you start,
+see below), and optionally the Anthropic API key. It creates the plan, the storage account with its share, and the web app as described below
 ([`deploy/azure/main.bicep`](../deploy/azure/main.bicep)). A few minutes later,
 open `https://<name>.azurewebsites.net` and sign in with your address and that
 password.
