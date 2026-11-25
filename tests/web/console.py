@@ -63,6 +63,7 @@ from aios.triggers.trigger_runner import TriggerRunner
 from aios.triggers.trigger_timing import TriggerTiming
 from aios.users.group_limits import GroupLimits
 from aios.users.permission_audience import PermissionAudience
+from aios.users.voice_gate import VoiceGate
 from aios.variables.secret_box import SecretBox
 from aios.variables.secret_extractor import SecretExtractor
 from aios.variables.variable_catalog import VariableCatalog
@@ -280,7 +281,7 @@ class Console:
         self.fake_type = FakeChannelType()
         self.channel_catalog = ChannelCatalog(
             [
-                SlackChannelType(self.transcriber),
+                SlackChannelType(self.transcriber, VoiceGate(w.users, w.authorizer)),
                 WebChannelType(self.channel),
                 SignalChannelType(),
                 MailChannelType(),

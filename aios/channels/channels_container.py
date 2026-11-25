@@ -25,6 +25,7 @@ class ChannelsContainer(containers.DeclarativeContainer):
     config = providers.Dependency()
     resolver = providers.Dependency()
     transcriber = providers.Dependency()
+    voice_gate = providers.Dependency()
     ids = providers.Dependency()
 
     # Both are used by the web server: the hub observes every conversation, and the
@@ -33,11 +34,11 @@ class ChannelsContainer(containers.DeclarativeContainer):
     web = providers.Singleton(WebChannel, ids=ids)
 
     types = providers.List(
-        providers.Singleton(SlackChannelType, transcriber=transcriber),
+        providers.Singleton(SlackChannelType, transcriber=transcriber, voice_gate=voice_gate),
         providers.Singleton(WebChannelType, channel=web),
         providers.Singleton(SignalChannelType),
         providers.Singleton(MailChannelType),
-        providers.Singleton(TeamsChannelType, transcriber=transcriber),
+        providers.Singleton(TeamsChannelType, transcriber=transcriber, voice_gate=voice_gate),
         providers.Singleton(WebhookChannelType),
     )
     values = providers.Singleton(ChannelValues, resolver=resolver)

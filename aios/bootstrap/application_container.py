@@ -65,6 +65,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         config=app_config.provided.channels,
         resolver=variables.resolver,
         transcriber=transcription.transcriber,
+        voice_gate=users.voice_gate,
         ids=common.ids,
     )
     approvals = providers.Container(

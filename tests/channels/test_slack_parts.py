@@ -109,8 +109,11 @@ def test_voice_note_without_text_is_kept_with_its_file() -> None:
 def test_voice_notes_recognises_audio() -> None:
     from aios.channels.slack.slack_voice_notes import SlackVoiceNotes
     from aios.transcription.whisper_transcriber import WhisperTranscriber
+    from aios.users.voice_gate import VoiceGate
+    from tests.fakes.world import World
 
-    notes = SlackVoiceNotes("xoxb", WhisperTranscriber(None))
+    w = World()
+    notes = SlackVoiceNotes("xoxb", WhisperTranscriber(None), VoiceGate(w.users, w.authorizer))
     message = _reader().read(
         _event(channel_type="im", text="", files=[{"name": "a.ogg", "mimetype": ""}])
     )

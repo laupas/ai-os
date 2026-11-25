@@ -5,6 +5,7 @@ import aiohttp
 from aios.conversations.attachment import Attachment
 from aios.conversations.inbound_message import InboundMessage
 from aios.transcription.transcriber import Transcriber
+from aios.users.voice_gate import VoiceGate
 
 log = logging.getLogger(__name__)
 
@@ -12,11 +13,21 @@ AUDIO_EXTENSIONS = (".m4a", ".mp3", ".mp4", ".ogg", ".oga", ".wav", ".webm", ".a
 
 
 class SlackVoiceNotes:
-    """Replaces a voice note in a Slack message with its transcript."""
+    """Replaces a voice note in a Slack message with its transcript, for senders
+    the gate lets through."""
 
-    def __init__(self, bot_token: str, transcriber: Transcriber) -> None:
+    def __init__(self, bot_token: str, transcriber: Transcriber, gate: VoiceGate) -> None:
         self._bot_token = bot_token
         self._transcriber = transcriber
+        self._gate = gate
+
+    def allowed(self, message: InboundMessage) -> bool:
+        """Whether its sender may have a voice note transcribed (`VoiceGate`)."""
+        return self._gate.allows(message.sender)
+
+    def may_be_told(self, message: InboundMessage) -> bool:
+        """Whether to tell the sender why their voice note was not listened to."""
+        return self._gate.may_be_told(message.sender)
 
     def audio_in(self, message: InboundMessage) -> Attachment | None:
         return next((a for a in message.attachments if self._is_audio(a)), None)

@@ -37,7 +37,8 @@ channel (web, Slack, Teams) ──► Gateway ──► Engine (Claude Agent SDK
   with an administrator's approval. Shared preferences and the user's own go into
   the system prompt.
 - **Voice**: voice notes on Slack and Teams, and the console's Voice page, are
-  transcribed (OpenAI) and handled like typed messages.
+  transcribed (OpenAI) and handled like typed messages, for people with the `voice`
+  permission.
 - **Audit**: every settings change, and every commit to the configuration, in one
   feed; logs and a health page for the running instance.
 
@@ -176,7 +177,7 @@ way to give rights: a group has permissions, and every member has them.
 | Permission | Allows |
 |---|---|
 | `chat` | talking to ai-os on a channel and in the web console; keeping one's own memories there |
-| `voice` | talking to ai-os by voice in the web console (each recording is transcribed, which costs) |
+| `voice` | talking to ai-os by voice: the console's Voice page and voice notes on Slack and Teams (each is transcribed, which costs) |
 | `approve` | answering approval requests |
 | `receive_unapproved` | being sent a message without an approval first |
 | `manage_agents` | creating and changing agents, within limits (below) |

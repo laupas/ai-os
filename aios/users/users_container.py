@@ -4,6 +4,7 @@ from aios.users.authorizer import Authorizer
 from aios.users.default_groups import DefaultGroups
 from aios.users.owner_bootstrapper import OwnerBootstrapper
 from aios.users.permission_audience import PermissionAudience
+from aios.users.voice_gate import VoiceGate
 
 
 class UsersContainer(containers.DeclarativeContainer):
@@ -14,6 +15,7 @@ class UsersContainer(containers.DeclarativeContainer):
 
     authorizer = providers.Singleton(Authorizer, groups=groups)
     audience = providers.Singleton(PermissionAudience, authorizer=authorizer)
+    voice_gate = providers.Singleton(VoiceGate, users=users, authorizer=authorizer)
     default_groups = providers.Singleton(DefaultGroups)
     bootstrapper = providers.Singleton(
         OwnerBootstrapper,

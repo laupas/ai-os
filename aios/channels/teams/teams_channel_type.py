@@ -12,6 +12,7 @@ from aios.channels.teams.teams_emoji import TeamsEmoji
 from aios.channels.teams.teams_threads import TeamsThreads
 from aios.channels.teams.teams_voice_notes import TeamsVoiceNotes
 from aios.transcription.transcriber import Transcriber
+from aios.users.voice_gate import VoiceGate
 from aios.variables.variable_field import VariableField
 
 APP_ID = "TEAMS_APP_ID"
@@ -25,8 +26,11 @@ class TeamsChannelType(ChannelType):
     """Microsoft Teams in Socket Mode: a bot from the Teams Developer Portal with
     its client id, a client secret, and the tenant it lives in."""
 
-    def __init__(self, transcriber: Transcriber, chunk_size: int = 12000) -> None:
+    def __init__(
+        self, transcriber: Transcriber, voice_gate: VoiceGate, chunk_size: int = 12000
+    ) -> None:
         self._transcriber = transcriber
+        self._voice_gate = voice_gate
         self._chunk_size = chunk_size
 
     @property
@@ -275,7 +279,7 @@ class TeamsChannelType(ChannelType):
             cards=TeamsCards(),
             emoji=TeamsEmoji(),
             chunker=MessageChunker(size=self._chunk_size),
-            voice_notes=TeamsVoiceNotes(transcriber=self._transcriber),
+            voice_notes=TeamsVoiceNotes(transcriber=self._transcriber, gate=self._voice_gate),
         )
 
     async def check(self, values: dict[str, str | None]) -> ChannelCheckResult:

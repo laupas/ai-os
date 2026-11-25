@@ -32,6 +32,7 @@ NEW_IN_THREADS = (
     "Write at the top of the chat to start a new conversation: each one gets its own thread."
 )
 NO_VOICE = "I could not listen to that voice note."
+NO_VOICE_RIGHT = "Voice notes are not switched on for you; please type instead."
 CANNOT_ANSWER = "You can't answer this one: it is no longer pending, or you may not approve it."
 
 
@@ -198,17 +199,26 @@ class TeamsChannel(
 
     async def _receive(self, inbound: InboundHandler, message: InboundMessage) -> None:
         if self._voice_notes.audio_in(message) is not None:
-            try:
-                message, transcript = await self._voice_notes.transcribe(message)
-            except Exception as exc:
-                log.warning("voice note failed: %s", exc)
-                transcript = None
-            if transcript:
-                await self.send(message.binding, f"🎙️ {transcript}")
-            elif not message.text:
-                await self.send(message.binding, NO_VOICE)
+            if not self._voice_notes.allowed(message):
+                if not message.text and self._voice_notes.may_be_told(message):
+                    await self.send(message.binding, NO_VOICE_RIGHT)
+            else:
+                message = await self._listen(message)
         if message.text:
             await inbound.handle(message)
+
+    async def _listen(self, message: InboundMessage) -> InboundMessage:
+        """The message with its voice note's transcript, which is also shown back."""
+        try:
+            message, transcript = await self._voice_notes.transcribe(message)
+        except Exception as exc:
+            log.warning("voice note failed: %s", exc)
+            transcript = None
+        if transcript:
+            await self.send(message.binding, f"🎙️ {transcript}")
+        elif not message.text:
+            await self.send(message.binding, NO_VOICE)
+        return message
 
     def _remember_service_url(self, activity: dict[str, Any]) -> None:
         service_url = activity.get("serviceUrl")

@@ -142,7 +142,7 @@ def test_slack_shortcodes_become_emoji() -> None:
 
 
 def test_the_setup_steps_link_to_the_developer_portal() -> None:
-    steps = TeamsChannelType(transcriber=None).setup  # type: ignore[arg-type]
+    steps = TeamsChannelType(transcriber=None, voice_gate=None).setup  # type: ignore[arg-type]
     assert steps[0].link == "https://dev.teams.microsoft.com"
     assert any("Socket mode" in step.text for step in steps)
 

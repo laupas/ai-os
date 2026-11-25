@@ -9,6 +9,8 @@ from aios.channels.teams.teams_channel import (
     DEFAULT_SERVICE_URL,
     NEW_IN_THREADS,
     NEW_STARTED,
+    NO_VOICE,
+    NO_VOICE_RIGHT,
     TeamsChannel,
 )
 from aios.channels.teams.teams_emoji import TeamsEmoji
@@ -18,7 +20,10 @@ from aios.conversations.inbound_handler import InboundHandler
 from aios.conversations.inbound_message import InboundMessage
 from aios.entities.conversations.channel_binding import ChannelBinding
 from aios.entities.users.channel_account import ChannelAccount
+from aios.entities.users.permission import Permission
 from aios.progress.progress_event import ProgressEvent
+from aios.users.voice_gate import VoiceGate
+from tests.fakes.world import World
 
 SERVICE = "https://smba.trafficmanager.net/emea/"
 
@@ -95,7 +100,13 @@ class NoTranscriber:
         return False
 
 
-def _channel(bot: FakeBot, in_chats: bool = False) -> TeamsChannel:
+def _gate(world: World | None = None) -> VoiceGate:
+    """Over `world`'s users; without one, a gate that knows nobody."""
+    w = world or World()
+    return VoiceGate(w.users, w.authorizer)
+
+
+def _channel(bot: FakeBot, in_chats: bool = False, gate: VoiceGate | None = None) -> TeamsChannel:
     return TeamsChannel(
         tenant_id="tenant",
         bot=bot,  # type: ignore[arg-type]
@@ -103,7 +114,7 @@ def _channel(bot: FakeBot, in_chats: bool = False) -> TeamsChannel:
         cards=TeamsCards(),
         emoji=TeamsEmoji(),
         chunker=MessageChunker(size=1000),
-        voice_notes=TeamsVoiceNotes(NoTranscriber()),  # type: ignore[arg-type]
+        voice_notes=TeamsVoiceNotes(NoTranscriber(), gate or _gate()),  # type: ignore[arg-type]
     )
 
 
@@ -311,3 +322,59 @@ async def test_the_channel_ends_when_ai_os_ends_even_if_the_bot_swallows_the_can
     task.cancel()
     await asyncio.wait({task}, timeout=1)
     assert task.cancelled()  # idling here kept ai-os from ending, and so from restarting
+
+
+def _voice_note() -> dict[str, Any]:
+    file = {
+        "contentType": "application/vnd.microsoft.teams.file.download.info",
+        "name": "note.m4a",
+        "content": {"downloadUrl": "https://files.example/note.m4a"},
+    }
+    return _activity(text="", attachments=[file])
+
+
+async def _bob_on_teams(*group_ids: str) -> World:
+    """Bob, whose Teams account sends `_activity`, in `group_ids`."""
+    w = await World().setup()
+    teams = ChannelAccount(channel="teams", address="user-oid")
+    await w.users.put(
+        w.bob.model_copy(
+            update={"accounts": [*w.bob.accounts, teams], "group_ids": list(group_ids)}
+        )
+    )
+    return w
+
+
+async def test_a_voice_note_needs_the_voice_permission() -> None:
+    bot, inbound = FakeBot(), FakeInbound()
+    channel = _channel(bot, gate=_gate(await _bob_on_teams("member")))
+    task = await _started(channel, bot, inbound=inbound)
+    await _deliver(channel, bot, _voice_note())
+    # Bob may chat, so he is told why; nothing was fetched or transcribed.
+    assert [t[2] for t in bot.texts] == [NO_VOICE_RIGHT] and not inbound.handled
+    task.cancel()
+
+
+async def test_a_stranger_s_voice_note_is_ignored_without_a_word() -> None:
+    bot, inbound = FakeBot(), FakeInbound()
+    channel = _channel(bot)
+    task = await _started(channel, bot, inbound=inbound)
+    await _deliver(channel, bot, _voice_note())
+    assert bot.texts == [] and not inbound.handled
+    task.cancel()
+
+
+async def test_with_the_voice_permission_a_voice_note_is_listened_to() -> None:
+    w = await _bob_on_teams("member")
+    member = w.groups.get("member")
+    assert member is not None
+    await w.groups.put(
+        member.model_copy(update={"permissions": member.permissions | {Permission.VOICE}})
+    )
+    bot = FakeBot()
+    channel = _channel(bot, gate=_gate(w))
+    task = await _started(channel, bot)
+    await _deliver(channel, bot, _voice_note())
+    # Let through: here transcription is not set up, so it says it could not listen.
+    assert [t[2] for t in bot.texts] == [NO_VOICE]
+    task.cancel()

@@ -13,6 +13,7 @@ from aios.channels.slack.slack_blocks import SlackBlocks
 from aios.channels.slack.slack_channel import SlackChannel
 from aios.channels.slack.slack_voice_notes import SlackVoiceNotes
 from aios.transcription.transcriber import Transcriber
+from aios.users.voice_gate import VoiceGate
 from aios.variables.variable_field import VariableField
 
 BOT = "SLACK_BOT_TOKEN"
@@ -22,8 +23,11 @@ APP = "SLACK_APP_TOKEN"
 class SlackChannelType(ChannelType):
     """Slack over Socket Mode: a Slack app with a bot token and an app-level token."""
 
-    def __init__(self, transcriber: Transcriber, chunk_size: int = 3500) -> None:
+    def __init__(
+        self, transcriber: Transcriber, voice_gate: VoiceGate, chunk_size: int = 3500
+    ) -> None:
         self._transcriber = transcriber
+        self._voice_gate = voice_gate
         self._chunk_size = chunk_size
 
     @property
@@ -195,7 +199,9 @@ class SlackChannelType(ChannelType):
             blocks=SlackBlocks(),
             converter=MarkdownToMrkdwn(),
             chunker=MessageChunker(size=self._chunk_size),
-            voice_notes=SlackVoiceNotes(bot_token=bot, transcriber=self._transcriber),
+            voice_notes=SlackVoiceNotes(
+                bot_token=bot, transcriber=self._transcriber, gate=self._voice_gate
+            ),
         )
 
     async def check(self, values: dict[str, str | None]) -> ChannelCheckResult:
