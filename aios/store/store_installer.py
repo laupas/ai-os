@@ -77,6 +77,10 @@ class StoreInstaller:
         not installed from the Store."""
         return self._installs.get(item.ref) if self.installed(item) else None
 
+    def records(self) -> dict[StoreRef, StoreInstallRecord]:
+        """Every item installed from the Store that is still there."""
+        return {r: rec for r, rec in self._installs.all().items() if self._has(r.kind, r.id)}
+
     def update_available(self, item: StoreItem) -> bool:
         record = self.record_of(item)
         return (

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ListView } from "@/components/list-view";
 import { ErrorBox, Loading, Page, PageHeader } from "@/components/page";
 import { HistoryButton } from "@/components/history-button";
+import { InstalledVersion } from "@/components/installed-version";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Hint, Input, Label, Textarea } from "@/components/ui/input";
@@ -58,6 +59,7 @@ function SkillCard({ skill, onEdit }: { skill: Skill; onEdit: () => void }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium">{skill.name}</span>
+            <InstalledVersion kind="skill" id={skill.name} />
           </div>
           <p className="mt-1 text-sm text-muted-foreground">{skill.description}</p>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -127,7 +129,10 @@ function SkillForm({ skill: s, onDone }: { skill: Skill | null; onDone: () => vo
       }}
     >
       <SheetHeader className="border-b">
-        <SheetTitle>{s ? s.name : "New skill"}</SheetTitle>
+        <SheetTitle className="flex flex-wrap items-center gap-2">
+          {s ? s.name : "New skill"}
+          {s ? <InstalledVersion kind="skill" id={s.name} /> : null}
+        </SheetTitle>
         <SheetDescription>
           Applies to the next turn.
         </SheetDescription>

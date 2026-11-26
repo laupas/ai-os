@@ -546,6 +546,19 @@ export interface StoreItem {
   removable: boolean;
 }
 
+/** By `kind:id`: an item installed from the Store, and still there. */
+export type InstalledVersions = Record<
+  string,
+  {
+    version: string | null;
+    source: string;
+    installed_at: string;
+    installed_by: string;
+    /** A newer version the source offered when last fetched. */
+    latest: string | null;
+  }
+>;
+
 export interface StoreState {
   sources: StoreSource[];
   items: StoreItem[];

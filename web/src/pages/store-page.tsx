@@ -59,6 +59,7 @@ export function StorePage() {
     mutationFn: () => api<StoreState>("POST", "/api/store/refresh"),
     onSuccess: (state) => {
       queryClient.setQueryData(["store"], state);
+      void queryClient.invalidateQueries({ queryKey: ["store", "installed"] });
       const failed = state.sources.filter((s) => s.error).length;
       if (failed) toast.error(`${failed} source${failed > 1 ? "s" : ""} could not be fetched.`);
       else toast.success("Sources fetched again.");

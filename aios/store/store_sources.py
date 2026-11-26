@@ -48,6 +48,14 @@ class StoreSources:
                 listings.append(await asyncio.to_thread(self._read, source, folder))
             return listings
 
+    async def fetched(self) -> list[StoreListing]:
+        """What the sources offered when last fetched; never fetches, so a page
+        that only shows versions does not wait for the network."""
+        return [
+            await asyncio.to_thread(self._read, source, self.folder_of(source))
+            for source in self._sources()
+        ]
+
     async def find(self, url: str, ref: StoreRef) -> tuple[StoreListing, StoreItem] | None:
         for listing in await self.listings():
             if listing.url == url:

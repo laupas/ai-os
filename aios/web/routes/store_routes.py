@@ -14,6 +14,7 @@ from aios.store.store_kind import StoreKind
 from aios.store.store_listing import StoreListing
 from aios.store.store_ref import StoreRef
 from aios.store.store_sources import StoreSources
+from aios.store.store_version import StoreVersion
 from aios.variables.variable_field_state import VariableFieldState
 from aios.variables.variable_resolver import VariableResolver
 from aios.web.aios_yaml_file import AiosYamlFile
@@ -27,7 +28,8 @@ from aios.web.web_routes import WebRoutes
 
 class StoreRoutes(WebRoutes):
     """The Store: what the sources in aios.yaml offer, installed one item at a time.
-    Administrators only. Adding or removing a source is a save of aios.yaml."""
+    Administrators only, except the installed versions, which the pages of agents,
+    skills and connectors show. Adding or removing a source is a save of aios.yaml."""
 
     def __init__(
         self,
@@ -44,6 +46,7 @@ class StoreRoutes(WebRoutes):
 
     def register(self, app: web.Application) -> None:
         app.router.add_get("/api/store", self._list)
+        app.router.add_get("/api/store/installed", self._installed)
         app.router.add_post("/api/store/refresh", self._refresh)
         app.router.add_post("/api/store/sources", self._add_source)
         app.router.add_delete("/api/store/sources", self._remove_source)
@@ -53,6 +56,31 @@ class StoreRoutes(WebRoutes):
     async def _list(self, request: web.Request) -> web.Response:
         WebAuth.caller(request, Permission.ADMINISTER)
         return web.json_response(self._state(await self._sources.listings()))
+
+    async def _installed(self, request: web.Request) -> web.Response:
+        """The version of each item installed from the Store, for the pages of
+        agents, skills and connectors; `latest` only when a source last fetched
+        offers a newer one."""
+        WebAuth.caller_any(
+            request,
+            Permission.MANAGE_AGENTS,
+            Permission.MANAGE_SKILLS,
+            Permission.MANAGE_CONNECTORS,
+        )
+        listings = {s.url: s for s in await self._sources.fetched()}
+        rows = {}
+        for ref, record in self._installer.records().items():
+            listing = listings.get(record.source)
+            offered = listing.get(ref) if listing else None
+            latest = offered.meta.version if offered else None
+            rows[str(ref)] = {
+                "version": record.version,
+                "source": record.source,
+                "installed_at": record.installed_at.isoformat(),
+                "installed_by": record.installed_by,
+                "latest": latest if StoreVersion.newer(latest, record.version) else None,
+            }
+        return web.json_response(rows)
 
     async def _refresh(self, request: web.Request) -> web.Response:
         WebAuth.caller(request, Permission.ADMINISTER)

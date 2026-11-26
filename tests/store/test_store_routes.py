@@ -177,6 +177,26 @@ async def test_an_item_knows_its_installed_version_and_offers_an_update(tmp_path
         assert "agent:cal" in records and "connector:gcal" in records
 
 
+async def test_installed_versions_are_listed_for_the_pages_of_each_kind(tmp_path) -> None:
+    async with Console(tmp_path) as c:
+        url = await _with_source(c, tmp_path)
+        assert (await _install(c, url, "agent", "cal")).status == 200
+        rows = await (await c.client.get("/api/store/installed", headers=c.headers(ALICE))).json()
+        assert (rows["agent:cal"]["version"], rows["agent:cal"]["source"]) == ("1.0.0", url)
+        assert rows["agent:cal"]["latest"] is None
+        assert "connector:gcal" in rows
+
+        commit_change(tmp_path / "source", "agents/cal.md", "'1.0.0'", "'1.2.0'")
+        await c.client.post("/api/store/refresh", headers=c.headers(ALICE, write=True))
+        rows = await (await c.client.get("/api/store/installed", headers=c.headers(ALICE))).json()
+        assert rows["agent:cal"]["latest"] == "1.2.0"
+
+        await c.agent_world.agents.delete("cal")
+        rows = await (await c.client.get("/api/store/installed", headers=c.headers(ALICE))).json()
+        assert "agent:cal" not in rows
+        assert (await c.client.get("/api/store/installed", headers=c.headers(BOB))).status == 403
+
+
 async def test_an_item_made_by_hand_has_no_installed_version(tmp_path) -> None:
     async with Console(tmp_path) as c:
         await _with_source(c, tmp_path)

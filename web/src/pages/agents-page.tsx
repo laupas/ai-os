@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ListView } from "@/components/list-view";
 import { ErrorBox, Loading, Page, PageHeader } from "@/components/page";
 import { HistoryButton } from "@/components/history-button";
+import { InstalledVersion } from "@/components/installed-version";
 import { SaveBar } from "@/components/save-bar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ function AgentBadges({ a }: { a: Agent }) {
     <>
       {a.fixed ? <Badge variant="secondary">fixed</Badge> : null}
       {!a.enabled ? <Badge variant="destructive">off</Badge> : null}
+      {a.name ? <InstalledVersion kind="agent" id={a.name} /> : null}
     </>
   );
 }

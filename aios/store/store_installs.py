@@ -23,6 +23,15 @@ class StoreInstalls:
     def get(self, ref: StoreRef) -> StoreInstallRecord | None:
         return self._all().get(str(ref))
 
+    def all(self) -> dict[StoreRef, StoreInstallRecord]:
+        records = {}
+        for key, record in self._all().items():
+            try:
+                records[StoreRef.parse(key)] = record
+            except ValueError:
+                continue
+        return records
+
     async def record(self, items: list[StoreItem], user: User) -> None:
         """Written with the install, inside its commit."""
         records = self._all()

@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, KeyRound, Loader2, LogOut, Pencil, Play, Plug, PlugZap, Plus, XCircle } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { InstalledVersion } from "@/components/installed-version";
 import { ListView } from "@/components/list-view";
 import { type Options, prune, SettingsFields, type Values } from "@/components/schema-form";
 import { VariableFieldInput } from "@/components/variable-field-input";
@@ -182,6 +183,7 @@ function ConnectorCard({ connector: c, onEdit }: { connector: Connector; onEdit:
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium">{c.id}</span>
             <Status c={c} />
+            <InstalledVersion kind="connector" id={c.id} />
           </div>
           {(c.description || c.code?.description) ? (
             <p className="mt-1 text-sm text-muted-foreground">{c.description || c.code?.description}</p>
@@ -530,7 +532,10 @@ function ConnectorForm({
       }}
     >
       <SheetHeader className="border-b">
-        <SheetTitle>{c ? c.id : "New connector"}</SheetTitle>
+        <SheetTitle className="flex flex-wrap items-center gap-2">
+          {c ? c.id : "New connector"}
+          {c ? <InstalledVersion kind="connector" id={c.id} /> : null}
+        </SheetTitle>
         <SheetDescription>
           Keep secrets out: write <code>{"${NAME}"}</code>, or <code>{"${file:NAME}"}</code> for a file, and set NAME under{" "}
           <a className="underline" href={href("variables")}>
