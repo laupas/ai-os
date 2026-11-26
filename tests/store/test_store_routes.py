@@ -266,3 +266,81 @@ async def test_core_agents_and_what_is_not_there_cannot_be_uninstalled(tmp_path)
         assert (await _uninstall(c, "agent", "cal")).status == 400
         assert (await _uninstall(c, "trigger", "brief")).status == 400
         assert c.agent_world.agents.get("orchestrator") is not None
+
+
+async def test_a_connector_installs_again_under_another_name_with_its_own_variables(
+    tmp_path,
+) -> None:
+    async with Console(tmp_path) as c:
+        url = await _with_source(c, tmp_path)
+        assert (await _install(c, url, "connector", "gcal")).status == 200
+        values = {"GCAL_ID": "work-client", "GCAL_SECRET": "work-secret"}
+        response = await _install(c, url, "connector", "gcal", name="gcal-work", variables=values)
+        assert response.status == 200, await response.text()
+        assert (await response.json())["installed"] == ["connector:gcal-work"]
+        copy = c.agent_world.connector_store.get("gcal-work")
+        assert copy.config["headers"] == {
+            "X-Client": "${GCAL_WORK_GCAL_ID}",
+            "Authorization": "Bearer ${GCAL_WORK_GCAL_SECRET}",
+        }
+        assert c.variable_resolver.value_of("GCAL_WORK_GCAL_SECRET") == "work-secret"
+        assert c.variable_resolver.value_of("GCAL_SECRET") is None
+        assert c.agent_world.connector_store.get("gcal").config["headers"]["X-Client"] == (
+            "${GCAL_ID}"
+        )
+        state = await (await c.client.get("/api/store", headers=c.headers(ALICE))).json()
+        assert _item(state, "connector", "gcal")["copies"] == ["gcal-work"]
+        installed = await (
+            await c.client.get("/api/store/installed", headers=c.headers(ALICE))
+        ).json()
+        assert installed["connector:gcal-work"]["copy_of"] == "gcal"
+        again = await _install(c, url, "connector", "gcal", name="gcal-work")
+        assert again.status == 409
+
+
+async def test_a_code_connector_copy_maps_its_declared_variables(tmp_path) -> None:
+    async with Console(tmp_path) as c:
+        url = await _with_source(c, tmp_path)
+        response = await _install(c, url, "connector", "hello", name="hello-2", trust_code=True)
+        assert response.status == 200, await response.text()
+        config = c.agent_world.connector_store.get("hello-2").config
+        assert config["variables"] == {"HELLO_TOKEN": "HELLO_2_HELLO_TOKEN"}
+
+
+async def test_only_a_connector_installs_under_another_name(tmp_path) -> None:
+    async with Console(tmp_path) as c:
+        url = await _with_source(c, tmp_path)
+        response = await _install(c, url, "agent", "cal", name="cal-2")
+        assert response.status == 400
+        assert (await _install(c, url, "connector", "gcal", name="Bad Name")).status == 400
+
+
+async def test_an_update_by_the_id_here_reaches_a_copy_and_keeps_who_has_it(tmp_path) -> None:
+    async with Console(tmp_path) as c:
+        url = await _with_source(c, tmp_path)
+        h = c.headers(ALICE, write=True)
+        assert (await _install(c, url, "connector", "gcal")).status == 200
+        assert (await _install(c, url, "connector", "gcal", name="gcal-work")).status == 200
+        store = c.agent_world.connector_store
+        copy = store.get("gcal-work")
+        await store.put(copy.model_copy(update={"available_to": ["everyone"], "enabled": False}))
+
+        commit_change(tmp_path / "source", "connectors/gcal.yaml", "Google Calendar", "Calendar 2")
+        await c.client.post("/api/store/refresh", headers=h)
+        body = {"kind": "connector", "id": "gcal-work"}
+        response = await c.client.post("/api/store/update", json=body, headers=h)
+        assert response.status == 200, await response.text()
+
+        copy = store.get("gcal-work")
+        assert copy.description == "Calendar 2"
+        assert copy.config["headers"]["X-Client"] == "${GCAL_WORK_GCAL_ID}"
+        assert (copy.available_to, copy.enabled) == (["everyone"], False)
+        assert store.get("gcal").description == "Google Calendar"  # only the one asked for
+
+        made_here = {"kind": "connector", "id": "mine"}
+        await store.put(Connector(id="mine", config={"command": "x"}))
+        assert (await c.client.post("/api/store/update", json=made_here, headers=h)).status == 404
+        refused = await c.client.post(
+            "/api/store/update", json=body, headers=c.headers(BOB, write=True)
+        )
+        assert refused.status == 403

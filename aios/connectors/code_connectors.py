@@ -12,9 +12,11 @@ from aios.connectors.code_connector_launcher import BASE
 from aios.connectors.code_connector_library import CodeConnectorLibrary
 from aios.connectors.code_connector_manifest import CodeConnectorManifest
 from aios.connectors.code_connector_options import CodeConnectorOptions
+from aios.connectors.connector_variable_names import ConnectorVariableNames
 from aios.entities.agents.agent import Agent
 from aios.entities.connectors.connector import Connector
 from aios.storage.storage_name import StorageName
+from aios.variables.variable_field import VariableField
 from aios.variables.variable_resolver import VariableResolver
 
 CODE_KEY = "code"
@@ -36,7 +38,9 @@ class CodeConnectors:
     Settings are the manifest's defaults, then what is set on the connector. Those
     the manifest locks are changed only in the console (`ConfigEditor` refuses an
     agent's change). Declared variables reach the server under their own names, a
-    field's default standing in for one that is set nowhere.
+    field's default standing in for one that is set nowhere. Where they are read
+    from is the connector's `variables` map, so two connectors running the same
+    code can have their own keys; without one, from the Variable of that name.
     """
 
     def __init__(
@@ -82,6 +86,15 @@ class CodeConnectors:
         defaults = manifest.defaults() if manifest else {}
         return {**defaults, **self.stored(connector)}
 
+    @staticmethod
+    def fields(connector: Connector, manifest: CodeConnectorManifest) -> list[VariableField]:
+        """The manifest's variables as this connector reads them: under its own names."""
+        names = ConnectorVariableNames.mapping(connector.config)
+        return [
+            f.model_copy(update={"variable": names.get(f.variable, f.variable)})
+            for f in manifest.variables
+        ]
+
     def launch_config(self, connector: Connector) -> dict[str, Any] | None:
         """The stdio server config for Claude Code, `${VAR}` still to be filled in;
         None when the code connector it names does not exist."""
@@ -91,7 +104,7 @@ class CodeConnectors:
         state = self._state_root / StorageName.check(connector.id)
         state.mkdir(parents=True, exist_ok=True)
         env = {
-            **self._with_defaults(manifest),
+            **self._with_defaults(connector, manifest),
             "AIOS_CONNECTOR_SETTINGS": json.dumps(self.settings(connector)),
             "AIOS_CONNECTOR_STATE": str(state),
             "AIOS_TIMEZONE": self._timezone(),
@@ -111,17 +124,17 @@ class CodeConnectors:
         env["AIOS_CONNECTOR_KEEP"] = ",".join([*env["AIOS_CONNECTOR_KEEP"].split(","), TOKEN_ENV])
         return {**config, "env": env}
 
-    def _with_defaults(self, manifest: CodeConnectorManifest) -> dict[str, str]:
-        env = manifest.launch_env()
+    def _with_defaults(
+        self, connector: Connector, manifest: CodeConnectorManifest
+    ) -> dict[str, str]:
+        names = ConnectorVariableNames.mapping(connector.config)
+        env = ConnectorVariableNames.renamed(manifest.launch_env(), names)
         if self._resolver is None:
             return env
         for field in manifest.variables:
-            unset = self._resolver.value_of(field.variable) is None
-            if (
-                field.default is not None
-                and unset
-                and env.get(field.variable) == f"${{{field.variable}}}"
-            ):
+            name = names.get(field.variable, field.variable)
+            unset = self._resolver.value_of(name) is None
+            if field.default is not None and unset and env.get(field.variable) == f"${{{name}}}":
                 env[field.variable] = field.default
         return env
 

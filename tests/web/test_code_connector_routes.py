@@ -104,3 +104,25 @@ async def test_a_setting_s_options_come_from_the_server(tmp_path) -> None:
         # Only a list the schema names; nothing else reaches the server's arguments.
         r = await c.client.post("/api/connectors/hello-world/options/other", json={}, headers=h)
         assert r.status == 404
+
+
+async def test_a_second_connector_of_the_same_code_keeps_variables_of_its_own(tmp_path) -> None:
+    async with Console(tmp_path) as c:
+        h = c.headers(ALICE, write=True)
+        body = {"name": "hello-world", "config": {"code": "hello-world"}}
+        await c.client.post("/api/connectors", json=body, headers=h)
+        body = {"name": "hello-work", "config": {"code": "hello-world"}}
+        row = await (await c.client.post("/api/connectors", json=body, headers=h)).json()
+        (field,) = row["code"]["variables"]
+        assert field["variable"] == "HELLO_WORK_HELLO_TOKEN"
+        r = await c.client.put(
+            "/api/connectors/hello-work",
+            json={
+                "config": {"code": "hello-world", "variables": {"HELLO_TOKEN": field["variable"]}},
+                "variables": {"HELLO_WORK_HELLO_TOKEN": "work"},
+            },
+            headers=h,
+        )
+        assert r.status == 200, await r.text()
+        assert c.variable_resolver.value_of("HELLO_WORK_HELLO_TOKEN") == "work"
+        assert c.variable_resolver.value_of("HELLO_TOKEN") is None

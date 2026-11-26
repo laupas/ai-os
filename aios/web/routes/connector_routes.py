@@ -12,6 +12,7 @@ from aios.connectors.connector_catalog import ConnectorCatalog
 from aios.connectors.connector_probe import ConnectorProbe
 from aios.connectors.connector_status_board import ConnectorStatusBoard
 from aios.connectors.connector_tokens import ConnectorTokens
+from aios.connectors.connector_variable_names import VARIABLES_KEY, ConnectorVariableNames
 from aios.entities.connectors.connector import Connector
 from aios.entities.connectors.connector_token import ConnectorToken
 from aios.entities.connectors.sign_in_mode import SignInMode
@@ -41,7 +42,9 @@ class ConnectorRoutes(WebRoutes):
 
     A change applies to the next turn. The built-in `aios` server is listed but
     cannot be changed. Which agent may use a connector is set on the agent. A code
-    connector's declared variables are saved as Variables with it.
+    connector's declared variables are saved as Variables with it; a second
+    connector running the same code reads its own (`ConnectorVariableNames`), so it
+    can work with another key or account.
     """
 
     def __init__(
@@ -130,6 +133,7 @@ class ConnectorRoutes(WebRoutes):
         if self._connectors.get(name) is not None:
             raise web.HTTPConflict(text=f"there is already a connector called {name}")
         connector, moved = await self._without_secrets(self._connector(name, body, None), caller)
+        connector = self._own_variables(connector)
         manifest = self._manifest(connector)
         if CodeConnectors.is_code(connector) and manifest is None:
             raise web.HTTPBadRequest(text="there is no code connector of that name")
@@ -203,8 +207,12 @@ class ConnectorRoutes(WebRoutes):
             raise web.HTTPNotFound(text=f"{connector.id} is not a code connector")
         if self._resolver is not None:
             launch = self._resolver.expand(launch)
-        declared = {f.variable for f in manifest.variables}
-        typed = {k: v.strip() for k, v in body.variables.items() if k in declared and v.strip()}
+        # Typed under the names this connector reads, passed under the declared ones.
+        mine = CodeConnectors.fields(connector, manifest)
+        declared = {m.variable: f.variable for f, m in zip(manifest.variables, mine, strict=True)}
+        typed = {
+            declared[k]: v.strip() for k, v in body.variables.items() if k in declared and v.strip()
+        }
         launch["env"] = {**launch["env"], **typed}
         return launch
 
@@ -235,6 +243,21 @@ class ConnectorRoutes(WebRoutes):
             if "available_to" in body.model_fields_set
             else (existing.available_to if existing else None),
         )
+
+    def _own_variables(self, connector: Connector) -> Connector:
+        """A new code connector whose code another connector runs already reads its
+        variables under names of its own, unless its config says which."""
+        code = connector.config.get(CODE_KEY)
+        manifest = self._manifest(connector)
+        if manifest is None or not manifest.variables or VARIABLES_KEY in connector.config:
+            return connector
+        if not any(c.config.get(CODE_KEY) == code for c in self._connectors.all()):
+            return connector
+        names = {
+            f.variable: ConnectorVariableNames.scoped(connector.id, f.variable)
+            for f in manifest.variables
+        }
+        return connector.model_copy(update={"config": {**connector.config, VARIABLES_KEY: names}})
 
     def _manifest(self, connector: Connector) -> CodeConnectorManifest | None:
         return self._code.manifest_of(connector) if self._code else None
@@ -270,7 +293,9 @@ class ConnectorRoutes(WebRoutes):
         if not typed:
             return
         manifest = self._manifest(connector)
-        fields = {f.variable: f for f in manifest.variables} if manifest else {}
+        fields = (
+            {f.variable: f for f in CodeConnectors.fields(connector, manifest)} if manifest else {}
+        )
         unknown = sorted(set(typed) - set(fields))
         if unknown:
             raise web.HTTPBadRequest(text=f"{connector.id} declares no {', '.join(unknown)}")
@@ -305,7 +330,7 @@ class ConnectorRoutes(WebRoutes):
             "locked": sorted(self._code.locked(connector)),
             "checkable": bool(manifest and manifest.check),
             "effective": self._code.settings(connector),
-            "variables": [self._fields.row(f) for f in manifest.variables]
+            "variables": [self._fields.row(f) for f in CodeConnectors.fields(connector, manifest)]
             if manifest and self._fields
             else [],
         }
@@ -350,10 +375,14 @@ class ConnectorRoutes(WebRoutes):
         if manifest is None:
             return self._resolver.missing(connector.config)
         # A declared variable is missing only when it is required and has no default.
-        declared = {f.variable for f in manifest.variables}
+        fields = CodeConnectors.fields(connector, manifest)
+        declared = {f.variable for f in fields}
+        env = ConnectorVariableNames.renamed(
+            manifest.env, ConnectorVariableNames.mapping(connector.config)
+        )
         oauth = connector.config.get(ConnectorCatalog.OAUTH_KEY) or {}
-        undeclared = [*self._resolver.missing(manifest.env), *self._resolver.missing(oauth)]
-        required = self._fields.missing(manifest.variables) if self._fields else []
+        undeclared = [*self._resolver.missing(env), *self._resolver.missing(oauth)]
+        required = self._fields.missing(fields) if self._fields else []
         return sorted({*required, *(n for n in undeclared if n not in declared)})
 
     def _sign_in(self, connector: Connector, caller: WebCaller) -> dict | None:

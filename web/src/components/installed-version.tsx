@@ -32,7 +32,7 @@ export function InstalledVersion({ kind, id }: { kind: StoreKind; id: string }) 
         {row.version ? v(row.version) : "from the Store"}
       </Badge>
       {row.latest ? (
-        <Badge variant="warning" title="Update it on the Store page">
+        <Badge variant="warning" title="A newer version is in the Store">
           {v(row.latest)} available
         </Badge>
       ) : null}

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Bot, CalendarClock, Code2, Download, ExternalLink, GitBranch, Plug, Plus, RefreshCw, Sparkles, Trash2, type LucideIcon } from "lucide-react";
+import { AlertTriangle, Bot, CalendarClock, Code2, Copy, Download, ExternalLink, GitBranch, Plug, Plus, RefreshCw, Sparkles, Trash2, type LucideIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ListView } from "@/components/list-view";
@@ -43,6 +43,10 @@ const v = (version: string) => (/^\d/.test(version) ? `v${version}` : version);
 const verbOf = (item: StoreItem) =>
   item.update_available ? "Update" : item.installed ? "Reinstall" : item.kind === "trigger" ? "Add" : "Install";
 
+/** A copy's name for one of the item's variables, as `ConnectorVariableNames.scoped` makes it. */
+const scoped = (name: string, variable: string) => `${name.replace(/[^A-Za-z0-9]/g, "_").toUpperCase()}_${variable}`;
+const NAME = /^[a-z][a-z0-9_-]{0,40}$/;
+
 const sourceName = (sources: StoreSource[], url: string) => {
   const s = sources.find((x) => x.url === url);
   return s?.name || url.replace(/^https?:\/\//, "");
@@ -55,6 +59,12 @@ export function StorePage() {
     queryFn: () => api<StoreState>("GET", "/api/store"),
   });
   const [installing, setInstalling] = useState<StoreItem | null>(null);
+  // Installing a connector again, under a name of its own.
+  const [copying, setCopying] = useState(false);
+  const open = (item: StoreItem, copy: boolean) => {
+    setCopying(copy);
+    setInstalling(item);
+  };
   const refresh = useMutation({
     mutationFn: () => api<StoreState>("POST", "/api/store/refresh"),
     onSuccess: (state) => {
@@ -100,13 +110,19 @@ export function StorePage() {
             empty="No items: add a source, or fetch the sources again."
             className="md:grid-cols-2"
           >
-            {(item) => <ItemCard item={item} sources={sources} onInstall={() => setInstalling(item)} />}
+            {(item) => <ItemCard item={item} sources={sources} onInstall={() => open(item, false)} onCopy={() => open(item, true)} />}
           </ListView>
         </>
       ) : null}
       <Dialog open={installing !== null} onOpenChange={(open) => !open && setInstalling(null)}>
         <DialogContent className="max-h-[90dvh] max-w-lg overflow-y-auto">
-          {installing ? <InstallForm key={`${installing.source} ${installing.kind} ${installing.id}`} item={installing} sources={sources} onDone={() => setInstalling(null)} /> : null}
+          {installing ? <InstallForm
+              key={`${installing.source} ${installing.kind} ${installing.id} ${copying}`}
+              item={installing}
+              copy={copying}
+              sources={sources}
+              onDone={() => setInstalling(null)}
+            /> : null}
         </DialogContent>
       </Dialog>
     </Page>
@@ -228,7 +244,7 @@ function RequirementBadge({ r }: { r: StoreRequirement }) {
   return <Badge variant="destructive">{ref(r)}, missing</Badge>;
 }
 
-function ItemCard({ item, sources, onInstall }: { item: StoreItem; sources: StoreSource[]; onInstall: () => void }) {
+function ItemCard({ item, sources, onInstall, onCopy }: { item: StoreItem; sources: StoreSource[]; onInstall: () => void; onCopy: () => void }) {
   const { icon: Icon, label } = KINDS[item.kind];
   return (
     <Card className="flex flex-col p-4">
@@ -242,7 +258,11 @@ function ItemCard({ item, sources, onInstall }: { item: StoreItem; sources: Stor
             <Badge variant="outline">{label}</Badge>
             {item.version ? <Badge variant="secondary">{v(item.version)}</Badge> : null}
             {item.installed ? <Badge variant="success">{item.installed_version ? `installed ${v(item.installed_version)}` : "installed"}</Badge> : null}
-            {item.update_available && item.version ? <Badge variant="warning">Update to {v(item.version)}</Badge> : null}
+            {item.update_available && item.version ? (
+              <Badge variant="warning" title={item.kind === "connector" ? "Update it on the Connectors page" : undefined}>
+                Update to {v(item.version)}
+              </Badge>
+            ) : null}
             {item.code ? (
               <Badge variant="warning" className="gap-1">
                 <Code2 /> runs code
@@ -250,6 +270,17 @@ function ItemCard({ item, sources, onInstall }: { item: StoreItem; sources: Stor
             ) : null}
           </div>
           {item.title !== item.id ? <code className="text-xs text-muted-foreground">{item.id}</code> : null}
+          {item.copies.length ? (
+            <p className="text-xs text-muted-foreground">
+              Also installed as{" "}
+              {item.copies.map((c, i) => (
+                <span key={c}>
+                  {i ? ", " : null}
+                  <code>{c}</code>
+                </span>
+              ))}
+            </p>
+          ) : null}
           {item.description ? <p className="mt-1 line-clamp-3 text-sm text-muted-foreground">{item.description}</p> : null}
           {item.tags.length ? (
             <div className="mt-2 flex flex-wrap gap-1">
@@ -276,9 +307,16 @@ function ItemCard({ item, sources, onInstall }: { item: StoreItem; sources: Stor
         </span>
         <Homepage item={item} />
         {item.installed && item.removable ? <UninstallButton item={item} /> : null}
-        <Button size="sm" variant={item.installed && !item.update_available ? "outline" : "default"} onClick={onInstall}>
-          <Download /> {verbOf(item)}
-        </Button>
+        {item.kind === "connector" && item.installed ? (
+          // Updated and reinstalled on the Connectors page, each installation on its own.
+          <Button size="sm" variant="outline" onClick={onCopy} title="Once more, under another name, with its own variables and sign-ins">
+            <Copy /> Install another
+          </Button>
+        ) : (
+          <Button size="sm" variant={item.installed && !item.update_available ? "outline" : "default"} onClick={onInstall}>
+            <Download /> {verbOf(item)}
+          </Button>
+        )}
       </div>
     </Card>
   );
@@ -346,10 +384,16 @@ function Metadata({ item }: { item: StoreItem }) {
   );
 }
 
-function InstallForm({ item, sources, onDone }: { item: StoreItem; sources: StoreSource[]; onDone: () => void }) {
+function InstallForm({ item, copy, sources, onDone }: { item: StoreItem; copy: boolean; sources: StoreSource[]; onDone: () => void }) {
   const queryClient = useQueryClient();
   const confirm = useConfirm();
+  const [name, setName] = useState("");
   const [variables, setVariables] = useState<Record<string, string>>({});
+  const copyName = name.trim();
+  // A copy's own variables are not the original's: shown under its names, and not set yet.
+  const fields = item.variables.map((f) =>
+    copy && item.own_variables.includes(f.variable) ? { ...f, variable: scoped(copyName || "name", f.variable), source: null, value: null } : f,
+  );
   const [trusted, setTrusted] = useState(false);
   const withIt = item.requires.filter((r) => r.in_source && !r.installed);
   const kept = item.requires.filter((r) => r.installed);
@@ -367,8 +411,25 @@ function InstallForm({ item, sources, onDone }: { item: StoreItem; sources: Stor
     },
     onError: (e) => toast.error(e.message),
   });
-  const verb = verbOf(item);
+  const replacing = copy ? item.copies.includes(copyName) : item.installed;
+  const verb = copy ? (replacing ? "Reinstall" : "Install") : verbOf(item);
   const submit = async () => {
+    if (copy) {
+      if (!NAME.test(copyName)) return toast.error("A name is lower-case letters, digits, - and _.");
+      if (copyName === item.id) return toast.error(`That is its own name: choose another one.`);
+      if (
+        replacing &&
+        !(await confirm({
+          title: `Reinstall ${copyName}?`,
+          body: `This replaces the connector ${copyName} with the template, and with it any change made to it here. Its variables stay as they are.`,
+          action: "Reinstall",
+          destructive: true,
+        }))
+      )
+        return;
+      install.mutate({ source: item.source, kind: item.kind, id: item.id, name: copyName, variables, replace: replacing, trust_code: trusted });
+      return;
+    }
     // An update replaces it too, but is what the administrator came for: no question.
     if (
       item.installed &&
@@ -394,9 +455,13 @@ function InstallForm({ item, sources, onDone }: { item: StoreItem; sources: Stor
       <div className="space-y-1">
         <DialogTitle>
           {verb} {item.title}
+          {copy ? " again" : null}
         </DialogTitle>
         <DialogDescription>
           The {KINDS[item.kind].label} <code>{item.id}</code> from {sourceName(sources, item.source)}.
+          {copy
+            ? " Once more, under a name of its own, beside the one there is: for another account or key. Its variables and sign-ins are its own; grant it to an agent like any other connector."
+            : null}
           {item.kind === "trigger" ? " It runs for you, and each time it is added it is a new trigger." : null}
           {item.update_available && item.version
             ? ` Updating to ${v(item.version)} replaces it, and any change made to it here. What it needs stays as it is.`
@@ -404,6 +469,13 @@ function InstallForm({ item, sources, onDone }: { item: StoreItem; sources: Stor
         </DialogDescription>
         <Metadata item={item} />
       </div>
+      {copy ? (
+        <Label>
+          Name
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={`${item.id}-work`} autoFocus spellCheck={false} />
+          <Hint>Lower-case letters, digits, - and _. Agents see its tools as mcp__name__…</Hint>
+        </Label>
+      ) : null}
       {item.description ? <p className="text-sm">{item.description}</p> : null}
       {item.notes.trim() ? <div className="rounded-md bg-muted p-3 text-sm whitespace-pre-wrap">{item.notes.trim()}</div> : null}
       {withIt.length || kept.length || missing.length ? (
@@ -427,13 +499,15 @@ function InstallForm({ item, sources, onDone }: { item: StoreItem; sources: Stor
           ) : null}
         </div>
       ) : null}
-      {item.variables.length ? (
+      {fields.length ? (
         <div className="space-y-3 rounded-md border p-3">
           <div className="text-sm font-medium">Variables</div>
           <Hint className="block">Stored as Variables, a secret one encrypted. Leave one empty to keep what is set, or to set it later on the Variables page.</Hint>
-          {item.variables.map((f) => (
-            <VariableFieldInput key={f.variable} field={f} value={variables[f.variable] ?? ""} onChange={(v) => setVariables({ ...variables, [f.variable]: v })} />
-          ))}
+          {fields.map((f, i) => {
+            // Typed under the source's name; a copy's install renames it.
+            const key = item.variables[i].variable;
+            return <VariableFieldInput key={key} field={f} value={variables[key] ?? ""} onChange={(v) => setVariables({ ...variables, [key]: v })} />;
+          })}
         </div>
       ) : null}
       {item.code ? (
@@ -452,7 +526,7 @@ function InstallForm({ item, sources, onDone }: { item: StoreItem; sources: Stor
         <Button type="button" variant="outline" onClick={onDone}>
           Cancel
         </Button>
-        <Button type="submit" variant={item.installed && !item.update_available ? "destructive" : "default"} disabled={install.isPending || (item.code && !trusted)}>
+        <Button type="submit" variant={replacing && (copy || !item.update_available) ? "destructive" : "default"} disabled={install.isPending || (item.code && !trusted)}>
           <Download /> {install.isPending ? "Installing…" : verb}
         </Button>
       </div>

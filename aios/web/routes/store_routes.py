@@ -7,6 +7,7 @@ from aios.config.app_config import AppConfig
 from aios.config.config_yaml_editor import ConfigYamlEditor
 from aios.config.store_source import StoreSource
 from aios.entities.users.permission import Permission
+from aios.store.store_connector_copy import StoreConnectorCopy
 from aios.store.store_error import StoreError
 from aios.store.store_installer import StoreInstaller
 from aios.store.store_item import StoreItem
@@ -22,6 +23,7 @@ from aios.web.request_body import RequestBody
 from aios.web.store_install_request import StoreInstallRequest
 from aios.web.store_source_request import StoreSourceRequest
 from aios.web.store_uninstall_request import StoreUninstallRequest
+from aios.web.store_update_request import StoreUpdateRequest
 from aios.web.web_auth import WebAuth
 from aios.web.web_routes import WebRoutes
 
@@ -51,6 +53,7 @@ class StoreRoutes(WebRoutes):
         app.router.add_post("/api/store/sources", self._add_source)
         app.router.add_delete("/api/store/sources", self._remove_source)
         app.router.add_post("/api/store/install", self._install)
+        app.router.add_post("/api/store/update", self._update)
         app.router.add_post("/api/store/uninstall", self._uninstall)
 
     async def _list(self, request: web.Request) -> web.Response:
@@ -71,14 +74,17 @@ class StoreRoutes(WebRoutes):
         rows = {}
         for ref, record in self._installer.records().items():
             listing = listings.get(record.source)
-            offered = listing.get(ref) if listing else None
+            offered_as = StoreRef(kind=ref.kind, id=record.copy_of or ref.id)
+            offered = listing.get(offered_as) if listing else None
             latest = offered.meta.version if offered else None
             rows[str(ref)] = {
                 "version": record.version,
                 "source": record.source,
                 "installed_at": record.installed_at.isoformat(),
                 "installed_by": record.installed_by,
+                "copy_of": record.copy_of,
                 "latest": latest if StoreVersion.newer(latest, record.version) else None,
+                "code": bool(offered and offered.code_folder is not None),
             }
         return web.json_response(rows)
 
@@ -117,14 +123,54 @@ class StoreRoutes(WebRoutes):
         if found is None:
             raise web.HTTPNotFound(text=f"the source offers no {body.kind.value} {body.id}")
         listing, item = found
-        plan = self._installer.plan(listing, item)
+        values = body.variables
         try:
+            if body.name and body.name != item.id:
+                original, item = item, StoreConnectorCopy.of(item, body.name)
+                names = dict(
+                    zip(
+                        (v.variable for v in original.meta.variables),
+                        (v.variable for v in item.meta.variables),
+                        strict=True,
+                    )
+                )
+                values = {names.get(k, k): v for k, v in values.items()}
+            plan = self._installer.plan(listing, item)
             result = await self._installer.install(
-                plan, caller.user, body.variables, body.replace, body.trust_code
+                plan, caller.user, values, body.replace, body.trust_code
             )
         except StoreError as exc:
             status = web.HTTPConflict if exc.conflict else web.HTTPBadRequest
             raise status(text=str(exc)) from exc
+        return web.json_response(result.model_dump())
+
+    async def _update(self, request: web.Request) -> web.Response:
+        """Replaces one installed item with what its source offers now, by the id it
+        has here: what a page of agents, skills or connectors offers as Update."""
+        caller = WebAuth.caller(request, Permission.ADMINISTER)
+        body = await RequestBody.parse(request, StoreUpdateRequest)
+        ref = StoreRef(kind=body.kind, id=body.id)
+        record = self._installer.records().get(ref)
+        if record is None:
+            raise web.HTTPNotFound(
+                text=f"{body.kind.value} {body.id} was not installed from the Store"
+            )
+        offered = StoreRef(kind=body.kind, id=record.copy_of or body.id)
+        found = await self._sources.find(record.source, offered)
+        if found is None:
+            raise web.HTTPNotFound(
+                text=f"its source offers no {offered.kind.value} {offered.id} any more"
+            )
+        listing, item = found
+        try:
+            if record.copy_of:
+                item = StoreConnectorCopy.of(item, body.id)
+            plan = self._installer.plan(listing, item)
+            result = await self._installer.install(
+                plan, caller.user, {}, replace=True, trust_code=body.trust_code
+            )
+        except StoreError as exc:
+            raise web.HTTPBadRequest(text=str(exc)) from exc
         return web.json_response(result.model_dump())
 
     async def _uninstall(self, request: web.Request) -> web.Response:
@@ -189,6 +235,9 @@ class StoreRoutes(WebRoutes):
             "update_available": self._installer.update_available(item),
             "used_by": self._installer.used_by(item.ref) if self._installer.installed(item) else [],
             "removable": self._installer.installed(item) and not self._fixed(item),
+            "copies": self._installer.copies(item),
+            # Its own, which a copy reads under names of its own (`StoreConnectorCopy`).
+            "own_variables": [v.variable for v in item.meta.variables],
             "code": plan.code,
             "requires": [
                 {

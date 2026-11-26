@@ -31,7 +31,7 @@ class CodeConnectorLibrary:
         found: dict[str, CodeConnectorManifest] = {}
         for root in self._roots:
             for file in sorted(root.glob(f"*/{MANIFEST}")) if root.is_dir() else []:
-                manifest = self._load(file)
+                manifest = self.load(file)
                 if manifest is not None:
                     found.setdefault(manifest.name, manifest)  # earlier roots win
         return sorted(found.values(), key=lambda m: m.name)
@@ -40,7 +40,8 @@ class CodeConnectorLibrary:
         return next((m for m in self.all() if m.name == name), None)
 
     @staticmethod
-    def _load(file: Path) -> CodeConnectorManifest | None:
+    def load(file: Path) -> CodeConnectorManifest | None:
+        """One `connector.yaml`; None, with a warning, when it is unreadable."""
         folder = file.parent
         try:
             data = yaml.safe_load(file.read_text("utf-8")) or {}

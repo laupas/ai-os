@@ -21,6 +21,8 @@ class StoreItem(BaseModel):
     meta: StoreMeta = StoreMeta()
     code_folder: Path | None = None
     """A code connector's folder in the source, copied into `code/` on install."""
+    copy_of: str | None = None
+    """For a connector installed under another name: the id the source offers it as."""
 
     @property
     def ref(self) -> StoreRef:

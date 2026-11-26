@@ -544,6 +544,10 @@ export interface StoreItem {
   used_by: string[];
   /** Installed and not a fixed core agent; never a trigger. */
   removable: boolean;
+  /** A connector: the names it is installed under besides its own. */
+  copies: string[];
+  /** The variables the item itself declares; a copy reads them under names of its own. */
+  own_variables: string[];
 }
 
 /** By `kind:id`: an item installed from the Store, and still there. */
@@ -554,6 +558,10 @@ export type InstalledVersions = Record<
     source: string;
     installed_at: string;
     installed_by: string;
+    /** A connector installed under another name: the id the source offers it as. */
+    copy_of?: string | null;
+    /** Its source's version is a code connector. */
+    code?: boolean;
     /** A newer version the source offered when last fetched. */
     latest: string | null;
   }
@@ -572,6 +580,8 @@ export interface StoreInstallRequest {
   variables: Record<string, string>;
   replace: boolean;
   trust_code: boolean;
+  /** A connector only: installed under this name, with variables of its own. */
+  name?: string;
 }
 
 /** `kind:id` of what was installed, kept as it was, or needed and found nowhere. */

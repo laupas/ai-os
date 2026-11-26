@@ -41,11 +41,15 @@ class StoreInstalls:
                 version=item.meta.version,
                 installed_at=self._clock.now(),
                 installed_by=user.name,
+                copy_of=item.copy_of,
             )
         await self._write(records)
 
     async def _write(self, records: dict[str, StoreInstallRecord]) -> None:
-        data = {k: v.model_dump(mode="json") for k, v in sorted(records.items())}
+        data = {
+            k: v.model_dump(mode="json", exclude={"copy_of"} if v.copy_of is None else set())
+            for k, v in sorted(records.items())
+        }
         text = yaml.safe_dump(data, allow_unicode=True, sort_keys=False) if data else ""
         await self._store.write_file(RECORDS, text, "")
 

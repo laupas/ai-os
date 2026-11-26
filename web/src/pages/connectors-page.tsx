@@ -3,6 +3,7 @@ import { CheckCircle2, KeyRound, Loader2, LogOut, Pencil, Play, Plug, PlugZap, P
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { InstalledVersion } from "@/components/installed-version";
+import { StoreUpdateButton } from "@/components/store-update-button";
 import { ListView } from "@/components/list-view";
 import { type Options, prune, SettingsFields, type Values } from "@/components/schema-form";
 import { VariableFieldInput } from "@/components/variable-field-input";
@@ -262,6 +263,8 @@ function ConnectorCard({ connector: c, onEdit }: { connector: Connector; onEdit:
           <Button size="sm" variant="outline" onClick={start} disabled={starting}>
             {starting ? <Loader2 className="animate-spin" /> : <Play />} {starting ? "Starting…" : "Start"}
           </Button>
+          <span className="flex-1" />
+          <StoreUpdateButton kind="connector" id={c.id} />
         </div>
       )}
       {c.sign_in ? (

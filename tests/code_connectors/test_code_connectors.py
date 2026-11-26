@@ -208,3 +208,14 @@ def test_the_lists_a_schema_offers() -> None:
         },
     )
     assert manifest.option_lists() == {"pairs", "coins"}
+
+
+def test_a_second_connector_of_the_same_code_reads_its_own_variables(tmp_path) -> None:
+    code = _code(tmp_path)
+    names = {"variables": {"HELLO_TOKEN": "WORK_HELLO_TOKEN"}}
+    connector = Connector(id="work", config={"code": "hello-world", **names})
+    env = code.launch_config(connector)["env"]  # type: ignore[index]
+    assert env["HELLO_TOKEN"] == "${WORK_HELLO_TOKEN}"
+    manifest = code.manifest_of(connector)
+    assert manifest is not None
+    assert [f.variable for f in CodeConnectors.fields(connector, manifest)] == ["WORK_HELLO_TOKEN"]

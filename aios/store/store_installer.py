@@ -30,6 +30,8 @@ from aios.variables.secret_extractor import SecretExtractor
 from aios.variables.variable_catalog import VariableCatalog
 
 MAX_CODE_FILE = 1024**2
+KEPT = {"enabled", "sign_in", "shared_fallback", "available_to"}
+"""What a connector keeps of its own when it is installed again: who has it, and how."""
 SKIPPED = {"__pycache__", ".git", ".venv", "node_modules"}
 
 
@@ -40,7 +42,8 @@ class StoreInstaller:
     Everything goes through the same checks as a save in the console: agents and
     skills through their catalogs, a connector's config through `SecretExtractor`.
     What is installed already is never overwritten as a requirement; the item
-    itself only with `replace`. A trigger is the installing user's, under a new id.
+    itself only with `replace`, a connector then keeping who has it and how
+    (`KEPT`). A trigger is the installing user's, under a new id.
     A code connector's folder is copied into `code/` only with `trust_code`: it is
     a program that will run on this server.
     """
@@ -80,6 +83,14 @@ class StoreInstaller:
     def records(self) -> dict[StoreRef, StoreInstallRecord]:
         """Every item installed from the Store that is still there."""
         return {r: rec for r, rec in self._installs.all().items() if self._has(r.kind, r.id)}
+
+    def copies(self, item: StoreItem) -> list[str]:
+        """The ids it is installed under besides its own (`StoreConnectorCopy`)."""
+        return sorted(
+            ref.id
+            for ref, record in self.records().items()
+            if ref.kind is item.kind and record.copy_of == item.id and record.source == item.source
+        )
 
     def update_available(self, item: StoreItem) -> bool:
         record = self.record_of(item)
@@ -224,6 +235,9 @@ class StoreInstaller:
         return []
 
     async def _put_connector(self, connector: Connector, user: User) -> list[str]:
+        existing = self._connectors.get(connector.id)
+        if existing is not None:
+            connector = connector.model_copy(update={k: getattr(existing, k) for k in KEPT})
         moved: list[str] = []
         if self._secrets is not None:
             config, moved = await self._secrets.extract(connector.id, connector.config, user.name)
