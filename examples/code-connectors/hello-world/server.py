@@ -16,7 +16,9 @@ What it gets from ai-os, all in the environment:
 - AIOS_CONNECTOR_STATE: a folder of its own that outlives restarts;
 - AIOS_TIMEZONE: the user's timezone;
 - the variables its manifest declares, here HELLO_TOKEN, and whatever it lists
-  under `env`.
+  under `env`;
+- AIOS_ACCESS_TOKEN, only with an `oauth:` client on the connector: the access
+  token of the turn's sign-in (the user's own, for "each user's own account").
 
 It runs with ai-os's Python, so pydantic, aiohttp and the `mcp` package are there.
 """

@@ -351,7 +351,8 @@ class ConnectorRoutes(WebRoutes):
             return self._resolver.missing(connector.config)
         # A declared variable is missing only when it is required and has no default.
         declared = {f.variable for f in manifest.variables}
-        undeclared = self._resolver.missing(manifest.env)
+        oauth = connector.config.get(ConnectorCatalog.OAUTH_KEY) or {}
+        undeclared = [*self._resolver.missing(manifest.env), *self._resolver.missing(oauth)]
         required = self._fields.missing(manifest.variables) if self._fields else []
         return sorted({*required, *(n for n in undeclared if n not in declared)})
 
@@ -360,7 +361,7 @@ class ConnectorRoutes(WebRoutes):
         per-user connector, the shared one where it is used (and always for whoever
         manages connectors), and how many users signed in (for them only). Never a
         token, and never another user's sign-in."""
-        if self._authorizer is None or self._authorizer.url_of(connector.id) is None:
+        if self._authorizer is None or not self._authorizer.can_sign_in(connector.id):
             return None
         admin = caller.can(Permission.MANAGE_CONNECTORS)
         per_user = connector.sign_in is SignInMode.PER_USER

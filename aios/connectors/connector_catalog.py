@@ -92,7 +92,7 @@ class ConnectorCatalog:
             for c in self.all()
             if c.enabled
             and c.sign_in is SignInMode.PER_USER
-            and "url" in c.config
+            and self.signs_in(c)
             and self._tokens.for_turn(c, user) is None
         ]
 
@@ -100,10 +100,20 @@ class ConnectorCatalog:
         self, connector: Connector, user: User | None, config: dict[str, Any]
     ) -> dict[str, Any]:
         token = self._tokens.for_turn(connector, user) if self._tokens is not None else None
-        if token is None or "url" not in config:
+        if token is None or not self.signs_in(connector):
             return config
+        if CodeConnectors.is_code(connector):
+            return CodeConnectors.with_token(config, token.access_token)
         headers = {**(config.get("headers") or {}), "Authorization": f"Bearer {token.access_token}"}
         return {**config, "headers": headers}
+
+    def signs_in(self, connector: Connector) -> bool:
+        """Whether a turn carries a sign-in to it: a server at an address, as the
+        `Authorization` header, or a code connector with an `oauth:` client of its
+        own, as `AIOS_ACCESS_TOKEN` in its environment."""
+        if CodeConnectors.is_code(connector):
+            return self.OAUTH_KEY in connector.config
+        return "url" in connector.config
 
     def server_config(self, name: str, user: User | None = None) -> dict[str, Any] | None:
         """One connector's config as a turn of `user` would start it, enabled or not."""

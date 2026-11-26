@@ -7,6 +7,7 @@ from typing import Any
 from urllib.parse import urlencode
 
 from aios.common.clock import Clock
+from aios.connectors.code_connectors import CodeConnectors
 from aios.connectors.connector_catalog import ConnectorCatalog
 from aios.connectors.connector_tokens import ConnectorTokens
 from aios.connectors.oauth_client import OAuthClient
@@ -58,6 +59,13 @@ class ConnectorAuthorizer:
         url = connector.config.get("url") if connector else None
         return url if isinstance(url, str) and url.startswith("https://") else None
 
+    def can_sign_in(self, name: str) -> bool:
+        """A server at an https address, or a code connector with an `oauth:` client."""
+        connector = self._connectors.get(name)
+        if connector is not None and CodeConnectors.is_code(connector):
+            return self._connectors.signs_in(connector)
+        return self.url_of(name) is not None
+
     async def start(
         self,
         name: str,
@@ -69,13 +77,17 @@ class ConnectorAuthorizer:
         """Where to send the browser. `own_account`: the sign-in is `user_id`'s own,
         otherwise the shared one."""
         url = self.url_of(name)
-        if url is None:
-            raise OAuthError("only a connector with an https address can be signed in to")
+        if not self.can_sign_in(name):
+            raise OAuthError(
+                "only a connector with an https address, or a code connector with an "
+                "oauth client, can be signed in to"
+            )
         configured = self._connectors.oauth_of(name)
-        if configured is None:
+        if configured is None and url is not None:
             meta = await self._client.discover(url)
             client_id, client_secret, method = await self._client.register(meta, redirect_uri)
         else:
+            assert configured is not None  # a code connector signs in only with its own client
             meta = OAuthMetadata(
                 authorization_endpoint=configured.authorization_endpoint,
                 token_endpoint=configured.token_endpoint,

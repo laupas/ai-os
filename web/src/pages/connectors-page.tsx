@@ -338,6 +338,86 @@ function ConnectorForm({
     if (!clientId) setClientId("${GOOGLE_CLIENT_ID}");
     if (!clientSecret) setClientSecret("${GOOGLE_CLIENT_SECRET}");
   };
+  const signIn = (
+    <div className="space-y-3 rounded-md border p-3">
+      <Label>
+        Whose account
+        <NativeSelect value={signInMode} onChange={(e) => setSignInMode(e.target.value as SignInMode)}>
+          <option value="shared">One shared account, signed in by an administrator</option>
+          <option value="per_user">Each user's own account</option>
+        </NativeSelect>
+        <Hint>
+          Shared: every user's turns work in the one account (Homey). Each user's own: everybody signs in on this page, and a turn uses
+          only the account of the user it is for; a trigger runs as its user.
+        </Hint>
+      </Label>
+      {signInMode === "per_user" ? (
+        <label className="flex items-center gap-3 text-sm">
+          <Switch checked={fallback} onCheckedChange={setFallback} /> Users who have not signed in use the shared account
+        </label>
+      ) : null}
+      <label className="flex items-center gap-3 text-sm font-medium">
+        <Switch checked={ownClient} onCheckedChange={setOwnClient} /> Sign in with an own OAuth client
+      </label>
+      <Hint>
+        {kind === "code" ? (
+          <>
+            On: each user (or an administrator, for the shared account) signs in on this page, and a turn hands the code the access token
+            as <code>AIOS_ACCESS_TOKEN</code>.
+          </>
+        ) : (
+          <>
+            Off: Sign in asks the server where to sign in and registers ai-os by itself (Homey). On: for a server that does neither, such
+            as Google's MCP servers, with a client you created there.
+          </>
+        )}{" "}
+        Its redirect URI is <code>{`${window.location.origin}/api/oauth/callback`}</code>.
+      </Hint>
+      {ownClient ? (
+        <>
+          <Button type="button" size="sm" variant="outline" onClick={useGoogle}>
+            Fill in Google
+          </Button>
+          <Label>
+            Sign-in address
+            <Input className="font-mono" value={authUrl} onChange={(e) => setAuthUrl(e.target.value)} placeholder="https://accounts.google.com/o/oauth2/v2/auth" />
+          </Label>
+          <Label>
+            Token address
+            <Input className="font-mono" value={tokenUrl} onChange={(e) => setTokenUrl(e.target.value)} placeholder="https://oauth2.googleapis.com/token" />
+          </Label>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Label>
+              Client id
+              <Input className="font-mono" value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder="${GOOGLE_CLIENT_ID}" />
+            </Label>
+            <Label>
+              Client secret
+              <Input className="font-mono" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} placeholder="${GOOGLE_CLIENT_SECRET}" />
+            </Label>
+          </div>
+          <Hint>Write the secret as a variable, not as the value itself: the configuration is a git repository.</Hint>
+          <Label>
+            Client authentication
+            <NativeSelect value={authMethod} onChange={(e) => setAuthMethod(e.target.value)}>
+              <option value="client_secret_post">In the request body (Google)</option>
+              <option value="client_secret_basic">HTTP Basic</option>
+              <option value="none">None (public client)</option>
+            </NativeSelect>
+          </Label>
+          <Label>
+            Scopes, one per line
+            <Textarea rows={3} spellCheck={false} className="font-mono text-xs md:text-xs" value={scopes} onChange={(e) => setScopes(e.target.value)} placeholder="https://www.googleapis.com/auth/contacts.readonly" />
+          </Label>
+          <Label>
+            Extra sign-in parameters, key=value per line
+            <Textarea rows={2} spellCheck={false} className="font-mono text-xs md:text-xs" value={params} onChange={(e) => setParams(e.target.value)} placeholder={"access_type=offline\nprompt=consent"} />
+            <Hint>Google needs access_type=offline, or the sign-in cannot renew itself.</Hint>
+          </Label>
+        </>
+      ) : null}
+    </div>
+  );
   const [raw, setRaw] = useState(false);
   const [json, setJson] = useState(JSON.stringify(original, null, 2));
   const [busy, setBusy] = useState(false);
@@ -358,6 +438,7 @@ function ConnectorForm({
       config.code = codeName;
       const kept = prune(settings);
       if (Object.keys(kept).length) config.settings = kept;
+      if (ownClient) config.oauth = ownOAuth();
     } else if (kind === "command") {
       if (!command.trim()) throw new Error("Give the command to start.");
       config.command = command.trim();
@@ -371,20 +452,21 @@ function ConnectorForm({
       config.url = url.trim();
       const h = fromLines(headers, ": ");
       if (Object.keys(h).length) config.headers = h;
-      if (ownClient) {
-        if (!authUrl.trim() || !tokenUrl.trim() || !clientId.trim())
-          throw new Error("An own OAuth client needs the sign-in address, the token address and a client id.");
-        const own: Config = { authorization_endpoint: authUrl.trim(), token_endpoint: tokenUrl.trim(), client_id: clientId.trim() };
-        if (clientSecret.trim()) own.client_secret = clientSecret.trim();
-        if (authMethod !== "client_secret_post") own.auth_method = authMethod;
-        const list = scopes.split(/\s+/).map((x) => x.trim()).filter(Boolean);
-        if (list.length) own.scopes = list;
-        const extra = fromLines(params, "=");
-        if (Object.keys(extra).length) own.params = extra;
-        config.oauth = own;
-      }
+      if (ownClient) config.oauth = ownOAuth();
     }
     return config;
+  };
+  const ownOAuth = (): Config => {
+    if (!authUrl.trim() || !tokenUrl.trim() || !clientId.trim())
+      throw new Error("An own OAuth client needs the sign-in address, the token address and a client id.");
+    const own: Config = { authorization_endpoint: authUrl.trim(), token_endpoint: tokenUrl.trim(), client_id: clientId.trim() };
+    if (clientSecret.trim()) own.client_secret = clientSecret.trim();
+    if (authMethod !== "client_secret_post") own.auth_method = authMethod;
+    const list = scopes.split(/\s+/).map((x) => x.trim()).filter(Boolean);
+    if (list.length) own.scopes = list;
+    const extra = fromLines(params, "=");
+    if (Object.keys(extra).length) own.params = extra;
+    return own;
   };
   const switchRaw = (on: boolean) => {
     try {
@@ -507,20 +589,23 @@ function ConnectorForm({
             <Hint>Claude Code's .mcp.json shape for one server.</Hint>
           </Label>
         ) : kind === "code" ? (
-          <CodeFields
-            connector={c}
-            library={library}
-            codeName={codeName}
-            onCodeName={(n) => {
-              setCodeName(n);
-              setSettings({});
-            }}
-            offer={offer}
-            settings={settings}
-            onSettings={setSettings}
-            variables={variables}
-            onVariables={setVariables}
-          />
+          <>
+            <CodeFields
+              connector={c}
+              library={library}
+              codeName={codeName}
+              onCodeName={(n) => {
+                setCodeName(n);
+                setSettings({});
+              }}
+              offer={offer}
+              settings={settings}
+              onSettings={setSettings}
+              variables={variables}
+              onVariables={setVariables}
+            />
+            {signIn}
+          </>
         ) : kind === "command" ? (
           <>
             <Label>
@@ -555,74 +640,7 @@ function ConnectorForm({
               Headers, Name: value per line
               <Textarea rows={3} spellCheck={false} className="font-mono text-xs md:text-xs" value={headers} onChange={(e) => setHeaders(e.target.value)} placeholder="Authorization: Bearer ${API_TOKEN}" />
             </Label>
-            <div className="space-y-3 rounded-md border p-3">
-              <Label>
-                Whose account
-                <NativeSelect value={signInMode} onChange={(e) => setSignInMode(e.target.value as SignInMode)}>
-                  <option value="shared">One shared account, signed in by an administrator</option>
-                  <option value="per_user">Each user's own account</option>
-                </NativeSelect>
-                <Hint>
-                  Shared: every user's turns work in the one account (Homey). Each user's own: everybody signs in on this page, and a turn uses
-                  only the account of the user it is for; a trigger runs as its user.
-                </Hint>
-              </Label>
-              {signInMode === "per_user" ? (
-                <label className="flex items-center gap-3 text-sm">
-                  <Switch checked={fallback} onCheckedChange={setFallback} /> Users who have not signed in use the shared account
-                </label>
-              ) : null}
-              <label className="flex items-center gap-3 text-sm font-medium">
-                <Switch checked={ownClient} onCheckedChange={setOwnClient} /> Sign in with an own OAuth client
-              </label>
-              <Hint>
-                Off: Sign in asks the server where to sign in and registers ai-os by itself (Homey). On: for a server that does neither, such as
-                Google's MCP servers, with a client you created there. Its redirect URI is <code>{`${window.location.origin}/api/oauth/callback`}</code>.
-              </Hint>
-              {ownClient ? (
-                <>
-                  <Button type="button" size="sm" variant="outline" onClick={useGoogle}>
-                    Fill in Google
-                  </Button>
-                  <Label>
-                    Sign-in address
-                    <Input className="font-mono" value={authUrl} onChange={(e) => setAuthUrl(e.target.value)} placeholder="https://accounts.google.com/o/oauth2/v2/auth" />
-                  </Label>
-                  <Label>
-                    Token address
-                    <Input className="font-mono" value={tokenUrl} onChange={(e) => setTokenUrl(e.target.value)} placeholder="https://oauth2.googleapis.com/token" />
-                  </Label>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Label>
-                      Client id
-                      <Input className="font-mono" value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder="${GOOGLE_CLIENT_ID}" />
-                    </Label>
-                    <Label>
-                      Client secret
-                      <Input className="font-mono" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} placeholder="${GOOGLE_CLIENT_SECRET}" />
-                    </Label>
-                  </div>
-                  <Hint>Write the secret as a variable, not as the value itself: the configuration is a git repository.</Hint>
-                  <Label>
-                    Client authentication
-                    <NativeSelect value={authMethod} onChange={(e) => setAuthMethod(e.target.value)}>
-                      <option value="client_secret_post">In the request body (Google)</option>
-                      <option value="client_secret_basic">HTTP Basic</option>
-                      <option value="none">None (public client)</option>
-                    </NativeSelect>
-                  </Label>
-                  <Label>
-                    Scopes, one per line
-                    <Textarea rows={3} spellCheck={false} className="font-mono text-xs md:text-xs" value={scopes} onChange={(e) => setScopes(e.target.value)} placeholder="https://www.googleapis.com/auth/contacts.readonly" />
-                  </Label>
-                  <Label>
-                    Extra sign-in parameters, key=value per line
-                    <Textarea rows={2} spellCheck={false} className="font-mono text-xs md:text-xs" value={params} onChange={(e) => setParams(e.target.value)} placeholder={"access_type=offline\nprompt=consent"} />
-                    <Hint>Google needs access_type=offline, or the sign-in cannot renew itself.</Hint>
-                  </Label>
-                </>
-              ) : null}
-            </div>
+            {signIn}
           </>
         )}
       </div>

@@ -21,6 +21,8 @@ CODE_KEY = "code"
 """In a connector's config: the name of the code connector it runs."""
 SETTINGS_KEY = "settings"
 """In a connector's config: its settings, over the manifest's defaults."""
+TOKEN_ENV = "AIOS_ACCESS_TOKEN"
+"""A code connector with an `oauth:` client: the access token of the turn's sign-in."""
 LAUNCHER = "aios.connectors.code_connector_launcher"
 PREFLIGHT_TIMEOUT_SECONDS = 20
 CHECK_TIMEOUT_SECONDS = 30
@@ -99,6 +101,15 @@ class CodeConnectors:
             "args": ["-m", LAUNCHER, str(manifest.server_path)],
             "env": {**env, "AIOS_CONNECTOR_KEEP": ",".join(env)},
         }
+
+    @staticmethod
+    def with_token(config: dict[str, Any], access_token: str) -> dict[str, Any]:
+        """The launch config with a turn's sign-in, passed like a declared variable.
+        Added after `${VAR}` is filled in, so the token is never read as one."""
+        env = dict(config["env"])
+        env[TOKEN_ENV] = access_token
+        env["AIOS_CONNECTOR_KEEP"] = ",".join([*env["AIOS_CONNECTOR_KEEP"].split(","), TOKEN_ENV])
+        return {**config, "env": env}
 
     def _with_defaults(self, manifest: CodeConnectorManifest) -> dict[str, str]:
         env = manifest.launch_env()

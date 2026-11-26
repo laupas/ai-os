@@ -692,6 +692,15 @@ offers choices the server gives: the console asks, ai-os runs `server.py options
 `{"options": [...]}`, each a value or `{"value": ..., "label": ...}`. Any other value
 can still be typed, so a list that cannot be fetched costs nothing.
 
+A code connector that works in an account of its user's (a mailbox, a calendar)
+signs in like a connector at an address: give it an own OAuth client (`oauth:` in
+its config, with "Whose account" on the connector) and sign in on the Connectors
+page. A turn then hands the server the access token of that turn's sign-in as
+`AIOS_ACCESS_TOKEN`: with "each user's own account", only the user's own, and a
+user who has not signed in does not get the connector at all. ai-os renews the
+sign-in; the server only uses the token. The `check`, `options` and `preflight`
+runs get no token.
+
 > A code connector is code that ai-os runs. Whoever can commit to the configuration
 > repository, or push to its remote, can run code on the machine; agents cannot
 > write there.
