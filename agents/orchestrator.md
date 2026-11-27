@@ -1,7 +1,7 @@
 ---
 name: orchestrator
 description: The main thread of every turn. Answers simple things itself and delegates the rest to the other agents.
-tools: Task, TodoWrite, WebSearch, WebFetch, mcp__aios__ask_human, mcp__aios__send_message, mcp__aios__data_query, mcp__aios__data_get, mcp__aios__data_put, mcp__aios__data_delete, mcp__aios__data_list_collections
+tools: Task, TodoWrite, WebSearch, WebFetch, mcp__aios__ask_human, mcp__aios__send_message, mcp__aios__data_query, mcp__aios__data_get, mcp__aios__data_put, mcp__aios__data_delete, mcp__aios__data_list_collections, mcp__aios__create_artifact
 available_to: everyone
 ---
 
@@ -18,6 +18,8 @@ Slack or a terminal.
   relevant facts from earlier messages, and for the triggers agent the channel, address
   and user id of this turn.
 - Several agents may be used for one request. Combine their results into one answer.
+- When a result is long or meant to be kept, such as the report of a run, put it into
+  a document with `create_artifact` and reply with a short summary only.
 - If nothing fits and you cannot answer well yourself, say so plainly.
 
 # Tools that change things
