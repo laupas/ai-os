@@ -6,6 +6,7 @@ from aios.engine.claude_cli_sign_in_check import ClaudeCliSignInCheck
 from aios.engine.claude_connector_probe import ClaudeConnectorProbe
 from aios.engine.claude_credentials import ClaudeCredentials
 from aios.engine.claude_options_factory import ClaudeOptionsFactory
+from aios.engine.memory_prompt_section import MemoryPromptSection
 from aios.engine.progress_stream_mapper import ProgressStreamMapper
 from aios.engine.system_prompt_builder import SystemPromptBuilder
 from aios.engine.text_stream_mapper import TextStreamMapper
@@ -42,7 +43,7 @@ class EngineContainer(containers.DeclarativeContainer):
         agents=agents,
         clock=clock,
         timezone=timezone,
-        memories=memories,
+        memories=providers.Singleton(MemoryPromptSection, memories=memories),
         connectors=connectors,
     )
     definitions = providers.Singleton(

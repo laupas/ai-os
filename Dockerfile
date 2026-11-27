@@ -58,6 +58,15 @@ RUN uv sync --frozen --no-dev \
  && ln -s /data/config/skills /app/.claude/skills
 
 RUN useradd --create-home --uid 1000 aios && mkdir /data && chown aios:aios /data
+
+# The commit the console shows beside the version (BuildVersion), `-dirty` when
+# the code built differs from it. Last, so a new commit rebuilds only this layer;
+# the context has .git for this alone, nothing copies it into the image.
+RUN --mount=type=bind,target=/src \
+    c=$(git -C /src rev-parse --short=7 HEAD 2>/dev/null) \
+ && { git -C /src diff --quiet HEAD -- aios agents skills node web pyproject.toml uv.lock Dockerfile \
+      || c="$c-dirty"; } \
+ && echo "$c" > aios/COMMIT || true
 USER aios
 
 CMD ["python", "-m", "aios"]

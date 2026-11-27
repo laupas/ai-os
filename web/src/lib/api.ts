@@ -52,6 +52,8 @@ export interface Me {
   email: string;
   permissions: Permission[];
   chat: boolean;
+  /** `2.0.0 (ee2ee59)`: the package version and the commit the image was built from. */
+  version: string;
 }
 
 export interface ConversationSummary {
@@ -154,8 +156,17 @@ export interface Memory {
   text: string;
   user_id: string | null;
   created_at: string;
+  updated_at: string | null;
+  source: MemorySource | null;
   /** Whether the caller may change it: their own, or shared with manage_shared_memories. */
   editable?: boolean;
+}
+
+/** Where a memory was last written: a chat turn, or the console. */
+export interface MemorySource {
+  channel: string;
+  conversation_id: string | null;
+  user_id: string | null;
 }
 
 export interface MemoryOwner {

@@ -20,6 +20,7 @@ from aios.tools.data_delete_tool import DataDeleteTool
 from aios.tools.data_get_tool import DataGetTool
 from aios.tools.data_put_tool import DataPutTool
 from aios.tools.data_query_tool import DataQueryTool
+from aios.tools.memory_stamp import MemoryStamp
 from aios.tools.tool_context import ToolContext
 from aios.tools.tool_error import ToolError
 from tests.fakes.world import World
@@ -187,3 +188,21 @@ async def test_agents_see_only_conversations_the_turn_user_takes_part_in() -> No
         await DataQueryTool(guard).run({"collection": "conversations"}, _context(world))
     )
     assert sorted(r["id"] for r in rows) == ["both", "mine"]
+
+
+async def test_an_agent_write_to_memories_is_stamped_by_ai_os() -> None:
+    world = await World().setup()
+    memories = await _with_memories(world)
+    tool = DataPutTool(
+        CollectionAccessGuard(world.registry), IdGenerator(), [MemoryStamp(world.clock)]
+    )
+    forged = {"channel": "console", "conversation_id": None, "user_id": "bob"}
+    await tool.run(
+        {"collection": "memories", "document": {"id": "own", "text": "new", "source": forged}},
+        _context(world),
+    )
+    memory = memories.get("own")
+    assert memory is not None and memory.text == "new"
+    assert memory.source is not None
+    assert (memory.source.channel, memory.source.conversation_id) == ("fake", "c")
+    assert memory.source.user_id == "alice" and memory.updated_at is not None

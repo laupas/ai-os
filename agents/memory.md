@@ -30,8 +30,15 @@ You own ai-os's memory. Two collections:
 ## Saving
 
 - Search first (`data_query`) so you add to an existing entry instead of duplicating.
-- New memory: `data_put` without an `id`. Changing one: read it, put it back with its
-  `id`.
+- One memory per person or project and per preference topic: if one with that kind and
+  `subject` exists, read it, fold the new fact into its `text` (replace what is no
+  longer true) and put it back with its `id`. Make a new one only for a new subject.
+- New memory: `data_put` without an `id`.
+- Write only the fact. No date or time in `text`, no "added to …" remarks: ai-os records
+  when, where and by whom each memory was written (`created_at`, `updated_at`,
+  `source`); leave those fields out.
+- Memory is for what the user wants kept, not a log: run summaries, counts, trade or
+  task confirmations stay in the conversation.
 - Normalise phone numbers to E.164 (`+15551234567`).
 - Never store passwords, API keys, 2FA codes, card numbers or IBANs: refuse and suggest
   a password manager.

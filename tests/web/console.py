@@ -39,6 +39,7 @@ from aios.conversations.gateway import Gateway
 from aios.conversations.message_recorder import MessageRecorder
 from aios.conversations.turn_canceller import TurnCanceller
 from aios.engine.agent_engine import AgentEngine
+from aios.engine.memory_prompt_section import MemoryPromptSection
 from aios.entities.connectors.connector_token import ConnectorToken
 from aios.entities.memories.memory import Memory
 from aios.entities.skills.skill import Skill
@@ -486,7 +487,9 @@ class Console:
                     WebhookPoster(WebhookTemplate(self.variable_resolver), enabled=True),
                     SecretExtractor(self.variables, self.variable_resolver),
                 ),
-                MemoryRoutes(self.memories, w.users, w.ids, w.clock),
+                MemoryRoutes(
+                    self.memories, w.users, w.ids, w.clock, MemoryPromptSection(self.memories)
+                ),
                 self.voice,
                 ApprovalRoutes(w.approvals, w.approval_service),
                 StoreRoutes(

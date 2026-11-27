@@ -1,9 +1,9 @@
 from datetime import timedelta
-from importlib.metadata import version
 
 from aiohttp import web
 
 from aios.channels.channel_directory import ChannelDirectory
+from aios.common.build_version import BuildVersion
 from aios.common.clock import Clock
 from aios.config.app_config import AppConfig
 from aios.connectors.connector_catalog import ConnectorCatalog
@@ -38,9 +38,11 @@ class HealthRoutes(WebRoutes):
         log_reader: LogReader,
         clock: Clock,
         connectors: ConnectorCatalog,
+        build: BuildVersion,
         credentials: ClaudeCredentials | None = None,
     ) -> None:
         self._config = config
+        self._build = build
         self._credentials = credentials
         self._connectors = connectors
         self._channels = channels
@@ -66,6 +68,7 @@ class HealthRoutes(WebRoutes):
                 "email": caller.account.address,
                 "permissions": sorted(caller.permissions),
                 "chat": "web" in self._channels.names(),
+                "version": self._build.describe(),
             }
         )
 
@@ -76,7 +79,7 @@ class HealthRoutes(WebRoutes):
         errors = [line for line in problems if " ERROR " in line or " CRITICAL " in line]
         return web.json_response(
             {
-                "version": version("aios"),
+                "version": self._build.describe(),
                 "started_at": self._started_at.isoformat(),
                 "uptime_seconds": int((now - self._started_at).total_seconds()),
                 "channels": self._channels.names(),

@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from aios.connectors.connector_authorizer import ConnectorAuthorizer
 from aios.connectors.connector_tokens import ConnectorTokens
 from aios.connectors.oauth_client import OAuthClient
+from aios.engine.memory_prompt_section import MemoryPromptSection
 from aios.engine.system_prompt_builder import SystemPromptBuilder
 from aios.engine.turn_request import TurnRequest
 from aios.entities.connectors.connector import Connector
@@ -97,7 +98,7 @@ async def test_the_prompt_tells_the_agent_which_connectors_need_a_sign_in(tmp_pa
         CollectionDefinition(name="memories", entity=Memory), InMemoryDocumentStore()
     )
     prompts = SystemPromptBuilder(
-        w.agents, FakeClock(), lambda: "Europe/Zurich", memories, w.connectors
+        w.agents, FakeClock(), lambda: "Europe/Zurich", MemoryPromptSection(memories), w.connectors
     )
     now = datetime.now(UTC)
     request = TurnRequest(

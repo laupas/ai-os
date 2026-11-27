@@ -5,18 +5,26 @@ from pydantic import ValidationError
 from aios.common.id_generator import IdGenerator
 from aios.tools.aios_tool import AiosTool
 from aios.tools.collection_access_guard import CollectionAccessGuard
+from aios.tools.document_stamp import DocumentStamp
 from aios.tools.tool_context import ToolContext
 from aios.tools.tool_error import ToolError
 
 
 class DataPutTool(AiosTool):
-    """Creates or replaces a document. Approval is asked by `DataAccessApprovalRule`."""
+    """Creates or replaces a document. Approval is asked by `DataAccessApprovalRule`.
+    A collection's `DocumentStamp`, if it has one, sets the fields ai-os owns."""
 
     NAME = "data_put"
 
-    def __init__(self, guard: CollectionAccessGuard, ids: IdGenerator) -> None:
+    def __init__(
+        self,
+        guard: CollectionAccessGuard,
+        ids: IdGenerator,
+        stamps: list[DocumentStamp] | None = None,
+    ) -> None:
         self._guard = guard
         self._ids = ids
+        self._stamps = {s.collection: s for s in stamps or []}
 
     @property
     def name(self) -> str:
@@ -46,15 +54,18 @@ class DataPutTool(AiosTool):
         document = dict(args["document"])
         document.setdefault("id", self._ids.new_id())
         definition = collection.definition
+        existing = collection.get(str(document["id"]))
         if definition.owner_field is not None:
             document.setdefault(definition.owner_field, context.user.id)
-            existing = collection.get(str(document["id"]))
             if existing is not None and not definition.visible_to(existing, context.user.id):
                 raise ToolError(f"No document {document['id']!r} in {collection.name}.")
         try:
             item = collection.parse(document)
         except ValidationError as exc:
             raise ToolError(f"The document does not fit {collection.name}: {exc}") from exc
+        stamp = self._stamps.get(collection.name)
+        if stamp is not None:
+            item = stamp.stamp(item, existing, context)
         if not definition.visible_to(item, context.user.id):
             raise ToolError(
                 f"A document in {collection.name} belongs to the current user or is shared."

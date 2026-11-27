@@ -19,6 +19,7 @@ from aios.tools.data_get_tool import DataGetTool
 from aios.tools.data_list_collections_tool import DataListCollectionsTool
 from aios.tools.data_put_tool import DataPutTool
 from aios.tools.data_query_tool import DataQueryTool
+from aios.tools.memory_stamp import MemoryStamp
 from aios.tools.read_logs_tool import ReadLogsTool
 from aios.tools.send_message_approval_rule import SendMessageApprovalRule
 from aios.tools.send_message_tool import SendMessageTool
@@ -61,7 +62,12 @@ class ToolsContainer(containers.DeclarativeContainer):
     data_list_collections = providers.Singleton(DataListCollectionsTool, guard=guard)
     data_query = providers.Singleton(DataQueryTool, guard=guard)
     data_get = providers.Singleton(DataGetTool, guard=guard)
-    data_put = providers.Singleton(DataPutTool, guard=guard, ids=ids)
+    data_put = providers.Singleton(
+        DataPutTool,
+        guard=guard,
+        ids=ids,
+        stamps=providers.List(providers.Singleton(MemoryStamp, clock=clock)),
+    )
     data_delete = providers.Singleton(DataDeleteTool, guard=guard)
     # Its own catalogs over the collections: the agents container needs the tool
     # names first, so it cannot hand its catalogs in here.

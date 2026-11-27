@@ -53,6 +53,9 @@ export function AccountBox({ me }: { me: Me }) {
           </Button>
         </div>
       ) : null}
+      <div className="text-[11px]" title="The ai-os version and the commit it was built from">
+        ai-os {me.version}
+      </div>
       <Dialog open={browsers} onOpenChange={setBrowsers}>
         <DialogContent>
           <DialogTitle>Where you are signed in</DialogTitle>

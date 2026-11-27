@@ -4,6 +4,7 @@ from aios.agents.agent_catalog import AgentCatalog
 from aios.agents.repo_agent_reader import RepoAgentReader
 from aios.common.clock import Clock
 from aios.config.app_config_loader import AppConfigLoader
+from aios.engine.memory_prompt_section import MemoryPromptSection
 from aios.engine.system_prompt_builder import SystemPromptBuilder
 from aios.engine.turn_request import TurnRequest
 from aios.entities.agents.agent import Agent
@@ -36,7 +37,9 @@ async def test_prompt_has_local_time_and_shared_and_own_preferences(tmp_path) ->
     await memories.put(Memory(id="2", kind=MemoryKind.NOTE, text="secret journal"))
     await memories.put(Memory(id="3", kind=MemoryKind.PREFERENCE, user_id="u1", text="Mine."))
     await memories.put(Memory(id="4", kind=MemoryKind.PREFERENCE, user_id="u2", text="Bob's."))
-    builder = SystemPromptBuilder(agents, _Clock(), lambda: "Europe/Zurich", memories)
+    builder = SystemPromptBuilder(
+        agents, _Clock(), lambda: "Europe/Zurich", MemoryPromptSection(memories)
+    )
     now = datetime(2026, 10, 9, tzinfo=UTC)
     prompt = builder.build(
         TurnRequest(
@@ -63,7 +66,9 @@ async def test_a_spoken_turn_asks_for_a_reply_written_for_listening(tmp_path) ->
     memories: Collection[Memory] = Collection(
         CollectionDefinition(name="memories", entity=Memory), store
     )
-    builder = SystemPromptBuilder(AgentCatalog(stored), _Clock(), lambda: "Europe/Zurich", memories)
+    builder = SystemPromptBuilder(
+        AgentCatalog(stored), _Clock(), lambda: "Europe/Zurich", MemoryPromptSection(memories)
+    )
     now = datetime(2026, 10, 9, tzinfo=UTC)
     prompt = builder.build(
         TurnRequest(
@@ -86,3 +91,24 @@ def test_config_keeps_env_references_in_mcp_servers(tmp_path, monkeypatch) -> No
     )
     config = AppConfigLoader(tmp_path / "config.yaml").load()
     assert config.mcp_servers["gmail"]["env"]["P"] == "${GMAIL_DIR}/keys.json"
+
+
+async def test_people_and_projects_are_listed_and_given_in_full_when_named() -> None:
+    memories: Collection[Memory] = Collection(
+        CollectionDefinition(name="memories", entity=Memory), InMemoryDocumentStore()
+    )
+    await memories.put(Memory(id="1", kind=MemoryKind.PERSON, subject="Anna", text="Sister."))
+    await memories.put(Memory(id="2", kind=MemoryKind.PROJECT, subject="Roof", text="Due May."))
+    await memories.put(
+        Memory(id="3", kind=MemoryKind.PERSON, user_id="u2", subject="Eve", text=".")
+    )
+    await memories.put(Memory(id="4", kind=MemoryKind.NOTE, subject="Diary", text="private"))
+    section = MemoryPromptSection(memories)
+    alice = User(id="u1", name="Alice")
+
+    lines = "\n".join(section.lines(alice, "When is anna's birthday?"))
+    assert "- People: Anna" in lines and "- Projects: Roof" in lines
+    assert "Eve" not in lines and "Diary" not in lines
+    assert "- Anna: Sister." in lines and "Due May." not in lines
+    # A name inside another word is not a mention.
+    assert "Sister." not in "\n".join(section.lines(alice, "Annabelle called"))

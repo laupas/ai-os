@@ -6,6 +6,7 @@ from aios.connectors.connector_status_board import ConnectorStatusBoard
 from aios.engine.agent_definitions_builder import AgentDefinitionsBuilder
 from aios.engine.claude_credentials import ClaudeCredentials
 from aios.engine.claude_options_factory import ClaudeOptionsFactory
+from aios.engine.memory_prompt_section import MemoryPromptSection
 from aios.engine.system_prompt_builder import SystemPromptBuilder
 from aios.engine.tool_permission_gate import ToolPermissionGate
 from aios.engine.turn_request import TurnRequest
@@ -42,7 +43,9 @@ async def _options(tmp_path, agent: str | None, auth: str = "subscription"):  # 
     factory = ClaudeOptionsFactory(
         lambda: AgentConfig(model="opus"),
         tmp_path,
-        SystemPromptBuilder(w.agents, FakeClock(), lambda: "Europe/Zurich", memories),
+        SystemPromptBuilder(
+            w.agents, FakeClock(), lambda: "Europe/Zurich", MemoryPromptSection(memories)
+        ),
         AiosToolServer([]),
         ToolPermissionGate(RuleBasedApprovalPolicy([]), world.approval_service),
         w.agents,

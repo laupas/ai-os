@@ -4,24 +4,22 @@ from zoneinfo import ZoneInfo
 from aios.agents.agent_catalog import AgentCatalog
 from aios.common.clock import Clock
 from aios.connectors.connector_catalog import ConnectorCatalog
+from aios.engine.memory_prompt_section import MemoryPromptSection
 from aios.engine.turn_request import TurnRequest
-from aios.entities.memories.memory import Memory
-from aios.entities.memories.memory_kind import MemoryKind
-from aios.storage.collection import Collection
 
 
 class SystemPromptBuilder:
     """The main agent's prompt from the agent catalog (the orchestrator's, or that of
     the agent the conversation was started with), plus who is talking, where and when,
-    the remembered preferences shared by every user and the user's own, and the
-    connectors this turn goes without because the user has not signed in to them."""
+    the connectors this turn goes without because the user has not signed in to them,
+    and what `MemoryPromptSection` takes from the memories."""
 
     def __init__(
         self,
         agents: AgentCatalog,
         clock: Clock,
         timezone: Callable[[], str],
-        memories: Collection[Memory],
+        memories: MemoryPromptSection,
         connectors: ConnectorCatalog | None = None,
     ) -> None:
         self._connectors = connectors
@@ -56,22 +54,5 @@ class SystemPromptBuilder:
                 "say so and ask them to sign in under Connectors in the ai-os web console; "
                 "do not try another way."
             )
-        preferences = self._memories.filter(lambda m: m.kind is MemoryKind.PREFERENCE)
-        shared = [m for m in preferences if m.user_id is None]
-        own = [m for m in preferences if m.user_id == request.user.id]
-        if shared or own:
-            lines += [
-                "",
-                "# Remembered preferences",
-                "Apply each one only where it fits: a mail signoff belongs in mails, never "
-                "in your chat replies.",
-            ]
-        if shared:
-            lines += ["", "## Shared by every user"] + [self._line(m) for m in shared]
-        if own:
-            lines += ["", f"## {request.user.name}'s own"] + [self._line(m) for m in own]
+        lines += self._memories.lines(request.user, request.text)
         return "\n".join(lines) + "\n"
-
-    @staticmethod
-    def _line(memory: Memory) -> str:
-        return f"- {memory.subject + ': ' if memory.subject else ''}{memory.text}"

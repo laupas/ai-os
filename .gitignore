@@ -22,3 +22,4 @@ node_modules/
 
 # Written by ai-os from skills/ and the console (a link into /data in the image)
 /.claude/skills
+/aios/COMMIT

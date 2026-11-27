@@ -2,6 +2,8 @@ from dependency_injector import containers, providers
 
 from aios.audit.audit_feed import AuditFeed
 from aios.audit.config_history import ConfigHistory
+from aios.common.build_version import BuildVersion
+from aios.engine.memory_prompt_section import MemoryPromptSection
 from aios.users.group_limits import GroupLimits
 from aios.web.agent_edit_scope import AgentEditScope
 from aios.web.aios_yaml_file import AiosYamlFile
@@ -236,6 +238,7 @@ class WebContainer(containers.DeclarativeContainer):
             log_reader=log_reader,
             clock=clock,
             connectors=connector_catalog,
+            build=providers.Singleton(BuildVersion),
             credentials=claude_credentials,
         ),
         providers.Singleton(
@@ -322,7 +325,14 @@ class WebContainer(containers.DeclarativeContainer):
             clock=clock,
             config=triggers_config,
         ),
-        providers.Singleton(MemoryRoutes, memories=memories, users=users, ids=ids, clock=clock),
+        providers.Singleton(
+            MemoryRoutes,
+            memories=memories,
+            users=users,
+            ids=ids,
+            clock=clock,
+            section=providers.Singleton(MemoryPromptSection, memories=memories),
+        ),
         providers.Singleton(
             AgentRoutes,
             agents=agents,

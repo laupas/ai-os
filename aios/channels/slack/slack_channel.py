@@ -108,7 +108,12 @@ class SlackChannel(
             await inbound.cancel(binding, sender)
 
         log.info("slack connected as %s", bot_user_id)
-        await AsyncSocketModeHandler(app, self._app_token).start_async()
+        handler = AsyncSocketModeHandler(app, self._app_token)
+        try:
+            await handler.start_async()
+        finally:
+            # start_async only ends by cancellation; close the client's aiohttp session.
+            await handler.close_async()
 
     async def send(self, binding: ChannelBinding, text: str) -> None:
         for chunk in self._chunker.split(self._converter.convert(text)):
