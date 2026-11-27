@@ -550,16 +550,23 @@ export interface StoreItem {
   own_variables: string[];
 }
 
-/** By `kind:id`: an item installed from the Store, and still there. */
+/** By `kind:id`: an item installed from the Store, and still there; or, `linked`
+ * false, one made here whose kind and id a source offers too. */
 export type InstalledVersions = Record<
   string,
   {
     version: string | null;
     source: string;
-    installed_at: string;
-    installed_by: string;
+    installed_at: string | null;
+    installed_by: string | null;
+    /** False: made here, or installed before installs were recorded. */
+    linked?: boolean;
+    /** Not linked: the version its source offers. */
+    offered?: string | null;
     /** A connector installed under another name: the id the source offers it as. */
     copy_of?: string | null;
+    /** The source's own name, when it was fetched. */
+    source_name?: string | null;
     /** Its source's version is a code connector. */
     code?: boolean;
     /** A newer version the source offered when last fetched. */

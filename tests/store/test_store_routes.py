@@ -1,4 +1,5 @@
 from aios.config.store_config import TEMPLATES
+from aios.entities.agents.agent import Agent
 from aios.entities.connectors.connector import Connector
 from tests.store.store_source_world import commit_change, make_source
 from tests.web.console import ALICE, BOB, Console
@@ -344,3 +345,75 @@ async def test_an_update_by_the_id_here_reaches_a_copy_and_keeps_who_has_it(tmp_
             "/api/store/update", json=body, headers=c.headers(BOB, write=True)
         )
         assert refused.status == 403
+
+
+async def test_an_agent_updated_from_its_page_keeps_who_has_it(tmp_path) -> None:
+    async with Console(tmp_path) as c:
+        url = await _with_source(c, tmp_path)
+        h = c.headers(ALICE, write=True)
+        assert (await _install(c, url, "agent", "cal")).status == 200
+        agents = c.agent_world.agents
+        mine = agents.get("cal").model_copy(update={"enabled": False, "available_to": ["everyone"]})
+        await agents.save(mine)
+
+        commit_change(tmp_path / "source", "agents/cal.md", "'1.0.0'", "'1.2.0'")
+        commit_change(tmp_path / "source", "agents/cal.md", "manage the", "keep the")
+        await c.client.post("/api/store/refresh", headers=h)
+        body = {"kind": "agent", "id": "cal"}
+        response = await c.client.post("/api/store/update", json=body, headers=h)
+        assert response.status == 200, await response.text()
+        assert (await response.json())["version"] == "1.2.0"
+        cal = agents.get("cal")
+        assert "keep the calendar" in cal.prompt
+        assert (cal.enabled, cal.available_to) == (False, ["everyone"])
+
+
+async def test_each_installed_item_tells_its_source_and_version(tmp_path) -> None:
+    async with Console(tmp_path) as c:
+        url = await _with_source(c, tmp_path)
+        assert (await _install(c, url, "trigger", "brief")).status == 200
+        rows = await (await c.client.get("/api/store/installed", headers=c.headers(ALICE))).json()
+        assert rows["agent:cal"]["source_name"] == "Test templates"
+        assert rows["agent:cal"]["version"] == "1.0.0"
+        [trigger] = c.triggers.all()
+        row = rows[f"trigger:{trigger.id}"]
+        assert (row["copy_of"], row["source"], row["latest"]) == ("brief", url, None)
+
+
+async def test_an_item_made_here_that_a_source_offers_too_can_be_linked(tmp_path) -> None:
+    async with Console(tmp_path) as c:
+        url = await _with_source(c, tmp_path)
+        await c.agent_world.agents.save(Agent(id="cal", description="Mine", prompt="My own."))
+        rows = await (await c.client.get("/api/store/installed", headers=c.headers(ALICE))).json()
+        row = rows["agent:cal"]
+        assert (row["linked"], row["version"], row["offered"], row["source"]) == (
+            False,
+            None,
+            "1.0.0",
+            url,
+        )
+
+        body = {"source": url, "kind": "agent", "id": "cal"}
+        link = await c.client.post(
+            "/api/store/link", json=body, headers=c.headers(ALICE, write=True)
+        )
+        assert link.status == 200, await link.text()
+        assert c.agent_world.agents.get("cal").prompt == "My own."
+        rows = await (await c.client.get("/api/store/installed", headers=c.headers(ALICE))).json()
+        assert (rows["agent:cal"]["linked"], rows["agent:cal"]["version"]) == (
+            True,
+            "1.0.0",
+        )
+
+        again = await c.client.post(
+            "/api/store/link", json=body, headers=c.headers(ALICE, write=True)
+        )
+        assert again.status == 409
+        missing = {**body, "id": "nope"}
+        none = await c.client.post(
+            "/api/store/link", json=missing, headers=c.headers(ALICE, write=True)
+        )
+        assert none.status == 404
+        assert (
+            await c.client.post("/api/store/link", json=body, headers=c.headers(BOB, write=True))
+        ).status == 403

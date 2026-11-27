@@ -5,7 +5,9 @@ import { toast } from "sonner";
 import { ListView } from "@/components/list-view";
 import { ErrorBox, Loading, Page, PageHeader } from "@/components/page";
 import { HistoryButton } from "@/components/history-button";
+import { DuplicateButton } from "@/components/duplicate-button";
 import { InstalledVersion } from "@/components/installed-version";
+import { StoreUpdateButton } from "@/components/store-update-button";
 import { SaveBar } from "@/components/save-bar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,9 +41,11 @@ function AgentBadges({ a }: { a: Agent }) {
 
 export function AgentsPage({ name }: { name?: string }) {
   const { data, isLoading, error } = useAgents();
+  // Raised after a Store update, so the form starts again from what is saved.
+  const [loaded, setLoaded] = useState(0);
   if (isLoading) return <Loading />;
   if (error || !data) return <ErrorBox error={error} />;
-  if (name) return <AgentForm data={data} name={name} />;
+  if (name) return <AgentForm key={`${name} ${loaded}`} data={data} name={name} onReload={() => setLoaded((n) => n + 1)} />;
   const configured = new Set(data.connectors.map((c) => c.name));
   return (
     <Page>
@@ -108,7 +112,7 @@ export function AgentsPage({ name }: { name?: string }) {
 
 type Grant = { on: boolean; all: boolean; tools: string[]; text: string };
 
-function AgentForm({ data, name }: { data: AgentsData; name: string }) {
+function AgentForm({ data, name, onReload }: { data: AgentsData; name: string; onReload: () => void }) {
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const isNew = name === "new";
@@ -220,6 +224,34 @@ function AgentForm({ data, name }: { data: AgentsData; name: string }) {
         </Button>
         <h1 className="text-xl font-semibold">{isNew ? "New agent" : a.name}</h1>
         <AgentBadges a={a} />
+        {isNew ? null : (
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <StoreUpdateButton kind="agent" id={a.name} onDone={onReload} />
+            {a.fixed ? null : (
+              <DuplicateButton
+                what="agent"
+                original={a.name}
+                create={(copy) =>
+                  api("POST", "/api/agents", {
+                    name: copy,
+                    description: a.description,
+                    prompt: a.prompt,
+                    model: a.model,
+                    enabled: a.enabled,
+                    builtin_tools: a.builtin_tools,
+                    skills: a.skills,
+                    connectors: a.connectors,
+                    available_to: a.available_to ?? null,
+                  })
+                }
+                onDone={(copy) => {
+                  void queryClient.invalidateQueries({ queryKey: ["agents"] });
+                  goSaved("agents", copy);
+                }}
+              />
+            )}
+          </div>
+        )}
       </div>
       <form
         className="space-y-4"

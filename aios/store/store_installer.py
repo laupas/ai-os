@@ -30,8 +30,11 @@ from aios.variables.secret_extractor import SecretExtractor
 from aios.variables.variable_catalog import VariableCatalog
 
 MAX_CODE_FILE = 1024**2
-KEPT = {"enabled", "sign_in", "shared_fallback", "available_to"}
+KEPT_CONNECTOR = {"enabled", "sign_in", "shared_fallback", "available_to"}
 """What a connector keeps of its own when it is installed again: who has it, and how."""
+KEPT_AGENT = {"enabled", "available_to"}
+"""What an agent keeps of its own when it is installed again: who has it, and whether
+it is on. Its grants come from the template."""
 SKIPPED = {"__pycache__", ".git", ".venv", "node_modules"}
 
 
@@ -42,8 +45,8 @@ class StoreInstaller:
     Everything goes through the same checks as a save in the console: agents and
     skills through their catalogs, a connector's config through `SecretExtractor`.
     What is installed already is never overwritten as a requirement; the item
-    itself only with `replace`, a connector then keeping who has it and how
-    (`KEPT`). A trigger is the installing user's, under a new id.
+    itself only with `replace`, an agent or a connector then keeping who has it
+    (`KEPT_AGENT`, `KEPT_CONNECTOR`). A trigger is the installing user's, under a new id.
     A code connector's folder is copied into `code/` only with `trust_code`: it is
     a program that will run on this server.
     """
@@ -73,7 +76,8 @@ class StoreInstaller:
         self._secrets = secrets
 
     def installed(self, item: StoreItem) -> bool:
-        return self._has(item.kind, item.id)
+        """A trigger never is: each install adds one, under an id of its own."""
+        return item.kind is not StoreKind.TRIGGER and self._has(item.kind, item.id)
 
     def record_of(self, item: StoreItem) -> StoreInstallRecord | None:
         """Where the installed item came from; None if it is not installed, or was
@@ -85,7 +89,9 @@ class StoreInstaller:
         return {r: rec for r, rec in self._installs.all().items() if self._has(r.kind, r.id)}
 
     def copies(self, item: StoreItem) -> list[str]:
-        """The ids it is installed under besides its own (`StoreConnectorCopy`)."""
+        """The ids a connector is installed under besides its own (`StoreConnectorCopy`)."""
+        if item.kind is not StoreKind.CONNECTOR:
+            return []
         return sorted(
             ref.id
             for ref, record in self.records().items()
@@ -152,17 +158,36 @@ class StoreInstaller:
             for name, folder in files.items():
                 for path, text in folder.items():
                     await self._store.write_file(f"code/{name}/{path}", text, "")
+            recorded = []
             for each in plan.install:
-                result.moved_secrets += await self._put(each, user)
                 result.installed.append(str(each.ref))
+                if each.kind is StoreKind.TRIGGER:
+                    # A trigger is added anew each time, under an id of its own.
+                    each = each.model_copy(update={"id": self._ids.new_id(), "copy_of": each.id})
+                result.moved_secrets += await self._put(each, user)
+                recorded.append(each)
             for each in plan.install:
                 if each.code_folder is not None:
                     result.installed += await self._code_agents(each.code_folder)
-            # A trigger is added anew each time: there is nothing to update.
-            await self._installs.record(
-                [i for i in plan.install if i.kind is not StoreKind.TRIGGER], user
-            )
+            await self._installs.record(recorded, user)
         return result
+
+    def unlinked(self, item: StoreItem) -> bool:
+        """Whether an item of the same kind and id is here, made by hand or installed
+        before installs were recorded: `link` would record it."""
+        return self.installed(item) and self._installs.get(item.ref) is None
+
+    async def link(self, item: StoreItem, user: User) -> None:
+        """Records the item here of `item`'s kind and id as installed from `item`,
+        at its version, without changing it: from then on it shows where it came
+        from, and it is offered that source's updates."""
+        if not self.unlinked(item):
+            what = f"{item.kind.value} {item.id}"
+            if not self.installed(item):
+                raise StoreError(f"{what} is not installed")
+            raise StoreError(f"{what} is linked to the Store already", conflict=True)
+        async with self._store.batch(f"Store: link {item.kind.value} {item.id}"):
+            await self._installs.record([item], user)
 
     def used_by(self, ref: StoreRef) -> list[str]:
         """What refers to an installed item: agents granted a connector or a skill,
@@ -217,7 +242,12 @@ class StoreInstaller:
         try:
             match item.kind:
                 case StoreKind.AGENT:
-                    await self._agents.save(Agent.model_validate(item.document))
+                    agent = Agent.model_validate(item.document)
+                    existing = self._agents.get(agent.id)
+                    if existing is not None:
+                        kept = {k: getattr(existing, k) for k in KEPT_AGENT}
+                        agent = agent.model_copy(update=kept)
+                    await self._agents.save(agent)
                 case StoreKind.SKILL:
                     await self._skills.save(Skill.model_validate(item.document))
                 case StoreKind.CONNECTOR:
@@ -225,19 +255,21 @@ class StoreInstaller:
                 case StoreKind.TRIGGER:
                     trigger = {
                         **item.document,
-                        "id": self._ids.new_id(),
+                        "id": item.id,
                         "user_id": user.id,
                         "created_at": self._clock.now(),
                     }
                     await self._triggers.put(Trigger.model_validate(trigger))
         except (CatalogError, ValueError) as exc:
-            raise StoreError(f"{item.kind.value} {item.id}: {exc}") from exc
+            raise StoreError(f"{item.kind.value} {item.copy_of or item.id}: {exc}") from exc
         return []
 
     async def _put_connector(self, connector: Connector, user: User) -> list[str]:
         existing = self._connectors.get(connector.id)
         if existing is not None:
-            connector = connector.model_copy(update={k: getattr(existing, k) for k in KEPT})
+            connector = connector.model_copy(
+                update={k: getattr(existing, k) for k in KEPT_CONNECTOR}
+            )
         moved: list[str] = []
         if self._secrets is not None:
             config, moved = await self._secrets.extract(connector.id, connector.config, user.name)
@@ -278,7 +310,7 @@ class StoreInstaller:
             case StoreKind.CONNECTOR:
                 return self._connectors.get(item_id) is not None
             case StoreKind.TRIGGER:
-                return False  # each install adds one
+                return self._triggers.get(item_id) is not None  # by the id it got here
 
     @staticmethod
     def _code_files(item: StoreItem) -> dict[str, str]:

@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, CalendarClock, Copy, KeyRound, Pencil, Play, Plus, Trash2, X, Zap } from "lucide-react";
+import { Bot, CalendarClock, Copy, CopyPlus, KeyRound, Pencil, Play, Plus, Trash2, X, Zap } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { InstalledVersion } from "@/components/installed-version";
 import { ListView } from "@/components/list-view";
 import { ErrorBox, Loading, Page, PageHeader } from "@/components/page";
 import { HistoryButton } from "@/components/history-button";
@@ -51,15 +52,30 @@ export function TriggersPage() {
   const [revealed, setRevealed] = useState<Revealed | null>(null);
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["triggers"] });
   const act = useMutation({
-    mutationFn: async ({ s, action }: { s: Trigger; action: "toggle" | "run" | "token" | "delete" }) => {
+    mutationFn: async ({ s, action }: { s: Trigger; action: "toggle" | "run" | "token" | "delete" | "duplicate" }) => {
       const path = `/api/triggers/${encodeURIComponent(s.id)}`;
       if (action === "toggle") return api("PATCH", path, { enabled: !s.enabled });
       if (action === "run") return api("POST", `${path}/run`);
+      // Off, and without its webhook: a copy should not fire twice before it is changed.
+      if (action === "duplicate")
+        return api("POST", "/api/triggers", {
+          name: `${s.name} (copy)`,
+          prompt: s.prompt,
+          cron: s.cron,
+          once_at: s.once_at,
+          timezone: s.timezone,
+          user_id: s.user_id,
+          agent: s.agent,
+          enabled: false,
+          max_lateness_minutes: s.max_lateness_minutes,
+          webhook: false,
+        });
       if (action === "token") return api<{ token: string }>("POST", `${path}/webhook`);
       return api("DELETE", path);
     },
     onSuccess: (result, { s, action }) => {
       if (action === "run") toast.success("Started. It opens a new conversation for its user.");
+      if (action === "duplicate") toast.success(`Copied as "${s.name} (copy)", turned off: change it, then turn it on.`);
       if (action === "token") setRevealed({ id: s.id, name: s.name, token: (result as { token: string }).token });
       void refresh();
     },
@@ -101,6 +117,7 @@ export function TriggersPage() {
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{s.name}</span>
+                  <InstalledVersion kind="trigger" id={s.id} />
                   {!s.enabled ? (
                     <Badge variant="secondary">off</Badge>
                   ) : s.next_run ? (
@@ -141,6 +158,9 @@ export function TriggersPage() {
               </Button>
               <Button size="sm" variant="outline" onClick={() => act.mutate({ s, action: "run" })}>
                 <Play /> Run now
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => act.mutate({ s, action: "duplicate" })}>
+                <CopyPlus /> Duplicate
               </Button>
               {s.webhook ? (
                 <Button

@@ -21,6 +21,7 @@ from aios.variables.variable_resolver import VariableResolver
 from aios.web.aios_yaml_file import AiosYamlFile
 from aios.web.request_body import RequestBody
 from aios.web.store_install_request import StoreInstallRequest
+from aios.web.store_link_request import StoreLinkRequest
 from aios.web.store_source_request import StoreSourceRequest
 from aios.web.store_uninstall_request import StoreUninstallRequest
 from aios.web.store_update_request import StoreUpdateRequest
@@ -55,6 +56,7 @@ class StoreRoutes(WebRoutes):
         app.router.add_post("/api/store/install", self._install)
         app.router.add_post("/api/store/update", self._update)
         app.router.add_post("/api/store/uninstall", self._uninstall)
+        app.router.add_post("/api/store/link", self._link)
 
     async def _list(self, request: web.Request) -> web.Response:
         WebAuth.caller(request, Permission.ADMINISTER)
@@ -63,12 +65,14 @@ class StoreRoutes(WebRoutes):
     async def _installed(self, request: web.Request) -> web.Response:
         """The version of each item installed from the Store, for the pages of
         agents, skills and connectors; `latest` only when a source last fetched
-        offers a newer one."""
+        offers a newer one. An item with no record whose kind and id a source offers
+        too is listed with `linked` false and the version `offered` there."""
         WebAuth.caller_any(
             request,
             Permission.MANAGE_AGENTS,
             Permission.MANAGE_SKILLS,
             Permission.MANAGE_CONNECTORS,
+            Permission.MANAGE_TRIGGERS,
         )
         listings = {s.url: s for s in await self._sources.fetched()}
         rows = {}
@@ -76,16 +80,36 @@ class StoreRoutes(WebRoutes):
             listing = listings.get(record.source)
             offered_as = StoreRef(kind=ref.kind, id=record.copy_of or ref.id)
             offered = listing.get(offered_as) if listing else None
-            latest = offered.meta.version if offered else None
+            # A trigger is added anew, never updated: it has no newer version to offer.
+            latest = offered.meta.version if offered and ref.kind is not StoreKind.TRIGGER else None
             rows[str(ref)] = {
                 "version": record.version,
                 "source": record.source,
+                "source_name": listing.name if listing else None,
                 "installed_at": record.installed_at.isoformat(),
                 "installed_by": record.installed_by,
                 "copy_of": record.copy_of,
                 "latest": latest if StoreVersion.newer(latest, record.version) else None,
                 "code": bool(offered and offered.code_folder is not None),
+                "linked": True,
             }
+        for listing in listings.values():
+            for item in listing.items:
+                key = str(item.ref)
+                if key in rows or not self._installer.unlinked(item):
+                    continue
+                rows[key] = {
+                    "version": None,
+                    "source": listing.url,
+                    "source_name": listing.name,
+                    "installed_at": None,
+                    "installed_by": None,
+                    "copy_of": None,
+                    "latest": None,
+                    "offered": item.meta.version,
+                    "code": item.code_folder is not None,
+                    "linked": False,
+                }
         return web.json_response(rows)
 
     async def _refresh(self, request: web.Request) -> web.Response:
@@ -172,6 +196,20 @@ class StoreRoutes(WebRoutes):
         except StoreError as exc:
             raise web.HTTPBadRequest(text=str(exc)) from exc
         return web.json_response(result.model_dump())
+
+    async def _link(self, request: web.Request) -> web.Response:
+        """Records an item made here as installed from a source, unchanged."""
+        caller = WebAuth.caller(request, Permission.ADMINISTER)
+        body = await RequestBody.parse(request, StoreLinkRequest)
+        found = await self._sources.find(body.source, StoreRef(kind=body.kind, id=body.id))
+        if found is None:
+            raise web.HTTPNotFound(text=f"the source offers no {body.kind.value} {body.id}")
+        try:
+            await self._installer.link(found[1], caller.user)
+        except StoreError as exc:
+            status = web.HTTPConflict if exc.conflict else web.HTTPBadRequest
+            raise status(text=str(exc)) from exc
+        return web.json_response({"linked": f"{body.kind.value}:{body.id}"})
 
     async def _uninstall(self, request: web.Request) -> web.Response:
         WebAuth.caller(request, Permission.ADMINISTER)

@@ -5,7 +5,9 @@ import { toast } from "sonner";
 import { ListView } from "@/components/list-view";
 import { ErrorBox, Loading, Page, PageHeader } from "@/components/page";
 import { HistoryButton } from "@/components/history-button";
+import { DuplicateButton } from "@/components/duplicate-button";
 import { InstalledVersion } from "@/components/installed-version";
+import { StoreUpdateButton } from "@/components/store-update-button";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Hint, Input, Label, Textarea } from "@/components/ui/input";
@@ -50,6 +52,7 @@ export function SkillsPage() {
 }
 
 function SkillCard({ skill, onEdit }: { skill: Skill; onEdit: () => void }) {
+  const queryClient = useQueryClient();
   return (
     <Card className="p-4">
       <div className="flex items-start gap-3">
@@ -79,6 +82,16 @@ function SkillCard({ skill, onEdit }: { skill: Skill; onEdit: () => void }) {
         <Button size="sm" variant="outline" onClick={onEdit}>
           <Pencil /> Edit
         </Button>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
+        <DuplicateButton
+          what="skill"
+          original={skill.name}
+          create={(copy) => api("POST", "/api/skills", { name: copy, description: skill.description, content: skill.content })}
+          onDone={() => void queryClient.invalidateQueries({ queryKey: ["agents"] })}
+        />
+        <span className="flex-1" />
+        <StoreUpdateButton kind="skill" id={skill.name} />
       </div>
     </Card>
   );
