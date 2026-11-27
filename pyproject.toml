@@ -20,6 +20,7 @@ dependencies = [
     "ruamel-yaml>=0.18",
     "jsonschema>=4.23",
     "pypdf>=6.1,<7.1",
+    "pypdfium2>=5.15,<6",
 ]
 
 [dependency-groups]
