@@ -5,12 +5,17 @@ from aios.approvals.approval_presenter_resolver import ApprovalPresenterResolver
 from aios.approvals.text_approval_presenter import TextApprovalPresenter
 from aios.channels.message_channel import MessageChannel
 from aios.channels.thread_starter import ThreadStarter
+from aios.conversations.artifact_presenter import ArtifactPresenter
+from aios.conversations.artifact_presenter_resolver import ArtifactPresenterResolver
+from aios.conversations.link_artifact_presenter import LinkArtifactPresenter
 from aios.progress.null_progress_reporter import NullProgressReporter
 from aios.progress.progress_reporter import ProgressReporter
 from aios.progress.progress_reporter_resolver import ProgressReporterResolver
 
 
-class ChannelDirectory(ApprovalPresenterResolver, ProgressReporterResolver):
+class ChannelDirectory(
+    ApprovalPresenterResolver, ProgressReporterResolver, ArtifactPresenterResolver
+):
     """The enabled channels, created on first use, plus their optional extras."""
 
     def __init__(
@@ -47,6 +52,12 @@ class ChannelDirectory(ApprovalPresenterResolver, ProgressReporterResolver):
         if isinstance(instance, ProgressReporter):
             return instance
         return NullProgressReporter()
+
+    def artifact_presenter_for(self, channel: str) -> ArtifactPresenter:
+        instance = self.get(channel)
+        if isinstance(instance, ArtifactPresenter):
+            return instance
+        return LinkArtifactPresenter(instance)
 
     def thread_starter_for(self, channel: str) -> ThreadStarter | None:
         instance = self.get(channel)

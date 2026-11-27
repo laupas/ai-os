@@ -32,6 +32,7 @@ from aios.web.routes.agent_routes import AgentRoutes
 from aios.web.routes.api_docs_routes import ApiDocsRoutes
 from aios.web.routes.appearance_routes import AppearanceRoutes
 from aios.web.routes.approval_routes import ApprovalRoutes
+from aios.web.routes.artifact_routes import ArtifactRoutes
 from aios.web.routes.audit_routes import AuditRoutes
 from aios.web.routes.backup_routes import BackupRoutes
 from aios.web.routes.channel_settings_routes import ChannelSettingsRoutes
@@ -87,6 +88,7 @@ class WebContainer(containers.DeclarativeContainer):
     web_channel = providers.Dependency()
     web_hub = providers.Dependency()
     deleter = providers.Dependency()
+    artifacts = providers.Dependency()
     senders = providers.Dependency()
     webhooks = providers.Dependency()
     webhook_poster = providers.Dependency()
@@ -292,6 +294,7 @@ class WebContainer(containers.DeclarativeContainer):
             approvals=approvals,
             audience=audience,
         ),
+        providers.Singleton(ArtifactRoutes, artifacts=artifacts, conversations=conversations),
         providers.Singleton(ApprovalRoutes, approvals=approvals, service=approval_service),
         providers.Singleton(VoiceRoutes, transcriber=transcriber),
         providers.Singleton(

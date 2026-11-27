@@ -69,7 +69,14 @@ export interface ConversationSummary {
   last_at: string | null;
 }
 
-export type Role = "user" | "assistant" | "tool" | "activity";
+export type Role = "user" | "assistant" | "tool" | "activity" | "artifact";
+
+/** A document an agent made in the conversation; its message's text is the title. */
+export interface ArtifactRef {
+  id: string;
+  title: string;
+  format: "html" | "markdown";
+}
 
 export interface Message {
   id: string;
@@ -79,6 +86,7 @@ export interface Message {
   channel: string;
   text: string;
   created_at: string;
+  artifact?: ArtifactRef | null;
 }
 
 export interface Conversation extends Omit<ConversationSummary, "preview" | "messages" | "last_at"> {

@@ -2,6 +2,7 @@ from aios.common.clock import Clock
 from aios.common.id_generator import IdGenerator
 from aios.conversations.conversation_event import ConversationEvent
 from aios.conversations.conversation_observer import ConversationObserver
+from aios.entities.artifacts.artifact_ref import ArtifactRef
 from aios.entities.conversations.message import Message
 from aios.entities.conversations.message_role import MessageRole
 from aios.storage.append_log import AppendLog
@@ -29,6 +30,7 @@ class MessageRecorder:
         text: str,
         channel: str,
         author_user_id: str | None = None,
+        artifact: ArtifactRef | None = None,
     ) -> Message:
         message = Message(
             id=self._ids.new_id(),
@@ -38,6 +40,7 @@ class MessageRecorder:
             channel=channel,
             text=text,
             created_at=self._clock.now(),
+            artifact=artifact,
         )
         await self._log.append(self._log_name(conversation_id), message.model_dump(mode="json"))
         event = ConversationEvent(conversation_id=conversation_id, kind="message", message=message)

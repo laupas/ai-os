@@ -101,6 +101,8 @@ class SlackChannelType(ChannelType):
                     "Optional: chat:write.customize and users:read, so words a person typed "
                     "on another channel show with their name and picture rather than a "
                     "label.",
+                    "Optional: files:write, so documents agents make (artifacts) arrive "
+                    "as files in the thread rather than as a link.",
                     "After adding a scope, install the app again (Reinstall to Workspace), "
                     "or the token keeps the old scopes.",
                 ],

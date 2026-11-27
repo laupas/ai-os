@@ -12,6 +12,7 @@ from aios.tools.config_get_tool import ConfigGetTool
 from aios.tools.config_list_tool import ConfigListTool
 from aios.tools.config_put_tool import ConfigPutTool
 from aios.tools.conversation_search_tool import ConversationSearchTool
+from aios.tools.create_artifact_tool import CreateArtifactTool
 from aios.tools.data_access_approval_rule import DataAccessApprovalRule
 from aios.tools.data_delete_tool import DataDeleteTool
 from aios.tools.data_get_tool import DataGetTool
@@ -46,6 +47,7 @@ class ToolsContainer(containers.DeclarativeContainer):
     connectors = providers.Dependency()
     secret_extractor = providers.Dependency(default=None)
     code_library = providers.Dependency(default=None)
+    artifact_publisher = providers.Dependency()
 
     guard = providers.Singleton(CollectionAccessGuard, registry=registry)
 
@@ -79,6 +81,7 @@ class ToolsContainer(containers.DeclarativeContainer):
     conversation_search = providers.Singleton(
         ConversationSearchTool, conversations=conversations, recorder=recorder, clock=clock
     )
+    create_artifact = providers.Singleton(CreateArtifactTool, publisher=artifact_publisher)
 
     server = providers.Singleton(
         AiosToolServer,
@@ -97,6 +100,7 @@ class ToolsContainer(containers.DeclarativeContainer):
             config_delete,
             read_logs,
             conversation_search,
+            create_artifact,
         ),
     )
 

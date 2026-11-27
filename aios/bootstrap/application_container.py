@@ -121,6 +121,9 @@ class ApplicationContainer(containers.DeclarativeContainer):
         clock=common.clock,
         ids=common.ids,
         observers=providers.List(channels.web_hub),
+        document_store=storage.document_store,
+        presenters=channels.directory,
+        public_url=app_config.provided.web.public_url,
     )
     log_reader = providers.Singleton(LogReader, log_file=config.settings.provided.log_file.call())
     # Code connectors belong to the installation: they are in its configuration
@@ -147,6 +150,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         connectors=storage.connectors,
         secret_extractor=variables.extractor,
         code_library=providers.Singleton(CodeConnectorLibrary, roots=code_roots),
+        artifact_publisher=conversations.publisher,
     )
     connectors = providers.Container(
         ConnectorsContainer,
@@ -283,6 +287,7 @@ class ApplicationContainer(containers.DeclarativeContainer):
         web_channel=channels.web,
         web_hub=channels.web_hub,
         deleter=conversations.deleter,
+        artifacts=conversations.artifacts,
         senders=channels.senders,
         webhooks=storage.webhooks,
         webhook_poster=channels.webhook_poster,

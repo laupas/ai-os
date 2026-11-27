@@ -456,6 +456,13 @@ the host and restart.
   each post that mentions the bot is a thread. Quoting an earlier message goes back
   to its conversation.
 - Agents can search the user's earlier conversations (`conversation_search`).
+- Agents can make documents (`create_artifact`), such as the report of a run: an
+  HTML page or Markdown, kept with the conversation and deleted with it. The web
+  console shows it as a card with a preview; Slack gets it as a file in the thread
+  (needs `files:write`, else a link); Teams and other channels get a link to the
+  conversation in the console (`web.public_url`). A page runs sandboxed in an origin
+  of its own: it can load scripts from cdn.jsdelivr.net and cdnjs.cloudflare.com,
+  but reaches neither the console nor its session, and can send nothing anywhere.
 
 ### ai-os tools
 
@@ -472,6 +479,7 @@ What ai-os offers its agents, besides connectors. Each must be granted to an age
 | `config_list`, `config_get`, `config_put`, `config_delete` | read and change agents, skills and connectors | only the `ai-os-configurator`, and every change is asked of an administrator |
 | `conversation_search` | the user's own earlier conversations | none |
 | `read_logs` | ai-os's own log lines | none |
+| `create_artifact` | an HTML or Markdown document in the conversation, e.g. a report | none |
 
 ## Agents and skills
 
@@ -984,7 +992,8 @@ dir), sign in as the owner, and restore there.
 ## Slack app
 
 Socket Mode, bot scopes `chat:write`, `im:history`, `channels:history`,
-`groups:history`, `mpim:history` (and optionally `chat:write.customize`, `users:read`);
+`groups:history`, `mpim:history` (and optionally `chat:write.customize`, `users:read`,
+and `files:write` for artifacts as files);
 events `message.im`, `message.channels`, `message.groups`, `message.mpim`;
 interactivity on. A Slack user can talk to ai-os once their Slack id is a `slack`
 account of a user with the `chat` permission.

@@ -5,13 +5,15 @@ from aios.approvals.approval_answer_handler import ApprovalAnswerHandler
 from aios.channels.message_channel import MessageChannel
 from aios.channels.thread_starter import ThreadStarter
 from aios.common.id_generator import IdGenerator
+from aios.conversations.artifact_presenter import ArtifactPresenter
 from aios.conversations.inbound_handler import InboundHandler
 from aios.conversations.inbound_message import InboundMessage
+from aios.entities.artifacts.artifact import Artifact
 from aios.entities.conversations.channel_binding import ChannelBinding
 from aios.entities.users.channel_account import ChannelAccount
 
 
-class WebChannel(MessageChannel, ThreadStarter):
+class WebChannel(MessageChannel, ThreadStarter, ArtifactPresenter):
     """Chat in the web console. The HTTP side lives in `aios/web`; this is the
     channel half, which hands typed messages to the gateway.
 
@@ -61,6 +63,11 @@ class WebChannel(MessageChannel, ThreadStarter):
 
     async def send(self, binding: ChannelBinding, text: str) -> None:
         return None  # recorded messages reach the browser through the hub
+
+    async def show_artifact(
+        self, binding: ChannelBinding, artifact: Artifact, link: str | None
+    ) -> None:
+        return None  # its recorded message is the card the browser shows
 
     async def start_thread(self, address: str, text: str) -> ChannelBinding:
         return ChannelBinding(channel=self.name, address=address, thread=self._ids.new_id())

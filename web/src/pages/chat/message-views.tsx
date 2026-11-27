@@ -1,13 +1,15 @@
-import { CheckCircle2, Loader2, ShieldQuestion, Square, Wrench } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { CheckCircle2, ChevronDown, Download, ExternalLink, FileText, Loader2, ShieldQuestion, Square, Wrench } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { api, type Message } from "@/lib/api";
+import { api, type ArtifactRef, type Message } from "@/lib/api";
 import { cn, when } from "@/lib/utils";
 import { Markdown } from "./markdown";
 
 export function MessageView({ message }: { message: Message }) {
   if (message.role === "activity") return <ActivityCard steps={message.text.split("\n")} running={false} />;
+  if (message.role === "artifact" && message.artifact) return <ArtifactCard artifact={message.artifact} />;
   if (message.role === "user") {
     return (
       <div className="flex flex-col items-end gap-1">
@@ -36,6 +38,64 @@ export function MessageView({ message }: { message: Message }) {
         <Markdown text={message.text} />
       </div>
       {message.created_at ? <span className="text-[11px] text-muted-foreground">{when(message.created_at)}</span> : null}
+    </div>
+  );
+}
+
+/** A page or text an agent made. A page runs in a sandbox of its own origin (the
+ * server's policy says so too), so it cannot reach the console or its session. */
+export function ArtifactCard({ artifact }: { artifact: ArtifactRef }) {
+  const [open, setOpen] = useState(true);
+  const src = `/api/artifacts/${encodeURIComponent(artifact.id)}`;
+  return (
+    <div className="w-full max-w-full overflow-hidden rounded-xl border md:max-w-[85%]">
+      <div className="flex items-center gap-1 bg-muted/40 py-1 pl-3 pr-1">
+        <FileText className="size-4 shrink-0 text-muted-foreground" />
+        <button className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left" onClick={() => setOpen(!open)}>
+          <span className="truncate text-sm font-medium">{artifact.title}</span>
+          <span className="shrink-0 text-[11px] uppercase text-muted-foreground">{artifact.format === "html" ? "HTML" : "Markdown"}</span>
+          <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform", open ? "" : "-rotate-90")} />
+        </button>
+        <Button asChild size="icon-sm" variant="ghost" title="Open in a new tab">
+          <a href={src} target="_blank" rel="noopener noreferrer">
+            <ExternalLink />
+          </a>
+        </Button>
+        <Button asChild size="icon-sm" variant="ghost" title="Download">
+          <a href={`${src}?download=1`} download>
+            <Download />
+          </a>
+        </Button>
+      </div>
+      {open ? (
+        artifact.format === "html" ? (
+          <iframe
+            src={src}
+            title={artifact.title}
+            sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-modals"
+            className="block h-[32rem] max-h-[70vh] w-full border-t bg-white"
+          />
+        ) : (
+          <MarkdownArtifact src={src} />
+        )
+      ) : null}
+    </div>
+  );
+}
+
+function MarkdownArtifact({ src }: { src: string }) {
+  const { data, error } = useQuery({
+    queryKey: ["artifact", src],
+    queryFn: async () => {
+      const response = await fetch(src, { credentials: "same-origin" });
+      if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
+      return response.text();
+    },
+    staleTime: Infinity,
+  });
+  return (
+    <div className="max-h-[70vh] overflow-auto border-t px-4 py-3">
+      {error ? <span className="text-sm text-destructive">{(error as Error).message}</span> : data === undefined ? <Loader2 className="size-4 animate-spin" /> : <Markdown text={data} />}
     </div>
   );
 }

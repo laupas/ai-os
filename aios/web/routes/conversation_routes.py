@@ -114,6 +114,7 @@ class ConversationRoutes(WebRoutes):
                         "channel": m.channel,
                         "text": m.text,
                         "created_at": m.created_at.isoformat(),
+                        "artifact": m.artifact.model_dump(mode="json") if m.artifact else None,
                     }
                     for m in history
                 ],

@@ -18,9 +18,12 @@ from aios.channels.slack.slack_event_reader import SlackEventReader
 from aios.channels.slack.slack_status_tracker import SlackStatusTracker
 from aios.channels.slack.slack_voice_notes import SlackVoiceNotes
 from aios.channels.thread_starter import ThreadStarter
+from aios.conversations.artifact_presenter import ArtifactPresenter
 from aios.conversations.inbound_handler import InboundHandler
 from aios.conversations.inbound_message import InboundMessage
+from aios.conversations.link_artifact_presenter import LinkArtifactPresenter
 from aios.entities.approvals.approval import Approval
+from aios.entities.artifacts.artifact import Artifact
 from aios.entities.conversations.channel_binding import ChannelBinding
 from aios.entities.users.channel_account import ChannelAccount
 from aios.entities.users.user import User
@@ -35,7 +38,12 @@ CANNOT_ANSWER = "You can't answer this one: it is no longer pending, or you may 
 
 
 class SlackChannel(
-    MessageChannel, ProgressReporter, ApprovalPresenter, ThreadStarter, AuthoredSender
+    MessageChannel,
+    ProgressReporter,
+    ApprovalPresenter,
+    ThreadStarter,
+    AuthoredSender,
+    ArtifactPresenter,
 ):
     """Slack over Socket Mode: outbound connection only, no public URL needed.
 
@@ -45,6 +53,9 @@ class SlackChannel(
     A bot token can only post as the bot. With the `chat:write.customize` scope it
     may set a name and picture per message, which is how a user's words typed on
     another channel are shown as theirs; without it they are labelled instead.
+
+    Artifacts are uploaded into the thread as files, which needs `files:write`;
+    without it they are linked instead.
     """
 
     def __init__(
@@ -160,6 +171,21 @@ class SlackChannel(
             text=approval.question,
             blocks=self._blocks.approval(approval),
         )
+
+    async def show_artifact(
+        self, binding: ChannelBinding, artifact: Artifact, link: str | None
+    ) -> None:
+        try:
+            await self._client.files_upload_v2(
+                channel=binding.address,
+                thread_ts=binding.thread,
+                content=artifact.content,
+                filename=artifact.file_name,
+                title=artifact.title,
+            )
+        except Exception:
+            log.warning("could not upload artifact %s; linking it", artifact.id, exc_info=True)
+            await LinkArtifactPresenter(self).show_artifact(binding, artifact, link)
 
     async def _receive(self, inbound: InboundHandler, message: InboundMessage) -> None:
         if self._voice_notes.audio_in(message) is not None:

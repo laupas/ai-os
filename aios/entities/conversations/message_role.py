@@ -11,3 +11,6 @@ class MessageRole(StrEnum):
     """The steps of one turn (tools used, agents asked), one per line. Recorded when
     the turn ends, so a client can show them after the fact, as Slack's status
     message does."""
+
+    ARTIFACT = "artifact"
+    """A document an agent made (`Message.artifact`), shown as a card."""
