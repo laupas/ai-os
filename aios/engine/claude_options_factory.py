@@ -40,9 +40,14 @@ class ClaudeOptionsFactory:
     session closes, `can_use_tool` goes with it, and every call the subagent makes
     after that fails with "Stream closed". The user is told a result will follow
     and nothing ever does.
+
+    Each message from the CLI must fit `MAX_MESSAGE_BYTES`. The SDK's default is
+    1 MB, and a tool result with pictures (a connector showing scanned pages) is
+    larger: the turn would fail with "JSON message exceeded maximum buffer size".
     """
 
     ENV = {"CLAUDE_CODE_DISABLE_BACKGROUND_TASKS": "1"}
+    MAX_MESSAGE_BYTES = 32 * 1024 * 1024
 
     def __init__(
         self,
@@ -110,4 +115,5 @@ class ClaudeOptionsFactory:
             model=main.model or config.model,
             # Partial messages let a channel show the reply while it is written.
             include_partial_messages=True,
+            max_buffer_size=self.MAX_MESSAGE_BYTES,
         )

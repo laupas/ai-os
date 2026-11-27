@@ -84,6 +84,11 @@ async def test_subagents_run_in_the_turn_not_in_the_background(tmp_path) -> None
     assert options.env["CLAUDE_CODE_DISABLE_BACKGROUND_TASKS"] == "1"
 
 
+async def test_a_tool_result_with_pictures_fits_through_the_sdk(tmp_path) -> None:
+    options = await _options(tmp_path, None)
+    assert options.max_buffer_size == 32 * 1024 * 1024
+
+
 async def test_a_chosen_agent_runs_the_turn_itself_without_subagents(tmp_path) -> None:
     options = await _options(tmp_path, "messenger")
     assert options.agents == {}
